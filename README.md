@@ -10,7 +10,7 @@ Your documents never leave the machine unless you choose the online draw.io fall
 ## Quick start (Windows)
 
 1. Get `MEA_Process_Hub_win64.zip` (see *Building the EXE*) and unzip it anywhere.
-2. *(Optional, first start only)* copy your source `.docx` files into the `source_documents` folder – they are imported automatically. You can also import later from **Import & Sources**.
+2. The repository's `source_documents/` folder (10 supplied `.docx` / `.drawio` files) is shipped inside the package and **imported automatically on the first start**, so the tool opens already populated. To add more later, drop files into **Import & Sources** (or into `source_documents` before a first start).
 3. Double-click `MEA_Process_Hub.exe`. A console window opens and your browser goes to `http://127.0.0.1:8765/`.
 4. First start prints a **one-time admin password** (also saved to `data\FIRST_RUN_ADMIN_PASSWORD.txt`). Sign in as `admin`; you must change it immediately.
 5. Create users under **Administration → Users & roles**. Keep the console window open while using the app; close it to stop.

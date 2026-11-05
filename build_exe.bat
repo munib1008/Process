@@ -17,7 +17,7 @@ copy dist\bin\MEA_Process_Hub.exe dist\MEA_Process_Hub\ >nul
 copy README.md dist\MEA_Process_Hub\ >nul
 xcopy docs dist\MEA_Process_Hub\docs\ /e /i /q >nul
 mkdir dist\MEA_Process_Hub\source_documents
-echo Put the source .docx files here before the FIRST start; they are imported automatically.> dist\MEA_Process_Hub\source_documents\README.txt
+if exist source_documents xcopy source_documents dist\MEA_Process_Hub\source_documents\ /e /i /q >nul
 where git >nul 2>nul && (
   echo Fetching draw.io web app for fully offline flowchart editing...
   python fetch_drawio.py && xcopy drawio_webapp dist\MEA_Process_Hub\drawio_webapp\ /e /i /q >nul

@@ -29,11 +29,11 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist/MEA_Process_Hub/source_documents | Out-Null
+          if (Test-Path source_documents) { Copy-Item source_documents/* dist/MEA_Process_Hub/source_documents/ -Force }
           Copy-Item dist/bin/MEA_Process_Hub.exe dist/MEA_Process_Hub/
           Copy-Item drawio_webapp dist/MEA_Process_Hub/drawio_webapp -Recurse
           Copy-Item README.md dist/MEA_Process_Hub/
           Copy-Item docs dist/MEA_Process_Hub/docs -Recurse
-          "Put the source .docx files here before the FIRST start; they are imported automatically." | Out-File dist/MEA_Process_Hub/source_documents/README.txt
       - name: Smoke-test the EXE
         shell: pwsh
         run: |
