@@ -1,0 +1,49 @@
+name: Build Windows EXE
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["mea_hub/**", "build/**", "run.py", "requirements*.txt", "tests/**"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests -q
+  windows-exe:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-dev.txt
+      - run: pyinstaller build/mea_hub.spec --noconfirm --distpath dist/bin --workpath build/work
+      - name: Fetch draw.io (Apache-2.0) for offline editing
+        run: python fetch_drawio.py
+      - name: Assemble package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/MEA_Process_Hub/source_documents | Out-Null
+          Copy-Item dist/bin/MEA_Process_Hub.exe dist/MEA_Process_Hub/
+          Copy-Item drawio_webapp dist/MEA_Process_Hub/drawio_webapp -Recurse
+          Copy-Item README.md dist/MEA_Process_Hub/
+          Copy-Item docs dist/MEA_Process_Hub/docs -Recurse
+          "Put the source .docx files here before the FIRST start; they are imported automatically." | Out-File dist/MEA_Process_Hub/source_documents/README.txt
+      - name: Smoke-test the EXE
+        shell: pwsh
+        run: |
+          $env:MEA_HUB_DATA = "$PWD/smoke_data"
+          $p = Start-Process dist/MEA_Process_Hub/MEA_Process_Hub.exe -ArgumentList "--no-browser","--port","8799" -PassThru
+          Start-Sleep 15
+          $r = Invoke-WebRequest http://127.0.0.1:8799/api/config -UseBasicParsing
+          if ($r.StatusCode -ne 200) { throw "EXE did not serve /api/config" }
+          Stop-Process $p
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MEA_Process_Hub_win64
+          path: dist/MEA_Process_Hub

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+data/
+drawio_webapp/
+dist/
+build/work/
+*.egg-info/
+.pytest_cache/

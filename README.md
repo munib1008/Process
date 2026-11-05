@@ -1,0 +1,69 @@
+# MEA Process Hub
+
+Local enterprise **process & document management** for dormakaba MEA. The application, not Word, is the source of
+truth: processes, flowcharts (native draw.io XML), RACI, KPIs, escalation rules, approvals and revision history live in
+one database, and the handbook is generated from it as **DOCX / PDF / HTML**.
+
+Runs on one PC as a single **`MEA_Process_Hub.exe`** (no installation, no cloud, no database server).
+Your documents never leave the machine unless you choose the online draw.io fallback (see below).
+
+## Quick start (Windows)
+
+1. Get `MEA_Process_Hub_win64.zip` (see *Building the EXE*) and unzip it anywhere.
+2. *(Optional, first start only)* copy your source `.docx` files into the `source_documents` folder – they are imported automatically. You can also import later from **Import & Sources**.
+3. Double-click `MEA_Process_Hub.exe`. A console window opens and your browser goes to `http://127.0.0.1:8765/`.
+4. First start prints a **one-time admin password** (also saved to `data\FIRST_RUN_ADMIN_PASSWORD.txt`). Sign in as `admin`; you must change it immediately.
+5. Create users under **Administration → Users & roles**. Keep the console window open while using the app; close it to stop.
+
+Everything the app stores is in the `data` folder next to the EXE (database, imported originals, images, exports, backups).
+
+Options: `MEA_Process_Hub.exe --port 9000 --no-browser --demo-users` (one evaluation user per role, password `ChangeMe!123`), `--import a.docx b.docx`, `--backup`, `--reconcile-report report.md`. Binding to the network (`--host 0.0.0.0`) is possible for a trusted LAN but there is **no TLS**; the default is this PC only.
+
+## What it does
+
+| Area | Implemented |
+|---|---|
+| Import | DOCX → headings, paragraphs, tables (merged cells), images, chart IDs, "Responsible" lists, escalation tables, KPIs. Originals kept byte-for-byte. Process IDs, regions (UAE & EXP / KSA), duplicates, ID collisions, title-vs-content mismatches and missing flowcharts are detected and logged as **findings** (Source Audit Register). Imported content is *Imported / Unverified* – never auto-published. |
+| Process library | Departments, process types, countries, owners, parent/next/supports/approval/triggers/exception links, orphan detection, process map, upstream/downstream trace. |
+| Editing | Structured form + rich-text sections (headings, lists, tables, links, callouts), autosave to a draft. |
+| Flow Studio | Real **draw.io** in an iframe (embed JSON protocol), exclusive edit lease, optimistic revision check, revision history, PNG preview captured from draw.io on every save, templates, `.drawio` import/download, SVG export, per-shape business metadata (process link, SAP transaction, role, approval…). |
+| Governance | Draft → Under review → Pending approval → Approved → Published → Superseded. Published versions are immutable; rollback = a new controlled draft; separation of duties; before/after comparison; audit log; review schedule dates; findings register with recorded decisions. |
+| Export Center | DOCX (real Word text/tables, cover, document control, TOC, headers/footers, page numbers, flowchart preview, source references, revision appendix), PDF (A4, TOC with page numbers, repeating table headers), HTML, ZIP of editable `.drawio` + previews, Excel **process register**. Every export is built from one consistent snapshot, hashed and logged. |
+| Admin | Users, 7 roles with server-side checks on every endpoint, CSRF protection, backup / restore, audit log. |
+
+Read `docs/COMPLETION_REPORT.md` for the honest status of every requirement (including what is **not** built yet) and
+`docs/SOURCE_RECONCILIATION_REPORT.md` for what the importer found in the supplied documents.
+
+## draw.io (flowchart editor)
+
+* **Fully local (recommended):** run `python fetch_drawio.py` once (needs `git` and internet) – it downloads the Apache-2.0
+  `jgraph/drawio` web app into `drawio_webapp/`, and the app serves it at `/drawio/`. The release ZIP built by GitHub Actions already includes it.
+* **Fallback:** without that folder the app embeds `https://embed.diagrams.net`; diagram content is then exchanged with that host.
+* The jgraph README describes the repository as an evaluation/test edition and points to separate production arrangements, and it has no real-time co-editing.
+  **Review licence/production terms before relying on it**; the app compensates for the missing co-editing with its own lease and revision conflict checks.
+
+## Building the EXE
+
+A Windows `.exe` can only be produced on Windows. Two ways:
+
+* **GitHub Actions (no Windows PC needed):** *Actions → Build Windows EXE → Run workflow*. Download the `MEA_Process_Hub_win64` artifact.
+* **Locally on Windows:** install Python 3.11+ (and git), then run `build_exe.bat`. Result: `dist\MEA_Process_Hub\MEA_Process_Hub.exe` and a ZIP.
+
+PyInstaller executables are sometimes flagged by antivirus; code-sign the EXE or ask IT to allow-list it. The same spec was built and
+smoke-tested here as a Linux binary (import of the real documents + all exports).
+
+## Run from source / tests
+
+```bash
+pip install -r requirements-dev.txt
+python run.py                 # http://127.0.0.1:8765
+python -m pytest tests -q     # 15 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+```
+
+## Architecture (deliberate deviations from the brief)
+
+The brief proposed Next.js + PostgreSQL + Redis + Docker. The request here is a tool that runs locally from an EXE, so the
+stack is a single-process Python app: stdlib HTTP server, **SQLite** (WAL), vanilla-JS UI (no build step), python-docx / reportlab / openpyxl for exports.
+SQLite serialises writers – ideal for one PC or a small team on a LAN, not for hundreds of concurrent editors. The data model
+(processes, versions, diagrams, mappings, findings, audit, exports) is relational and would port to PostgreSQL.
+The editor is `contenteditable` (not Tiptap) to avoid a JS build chain.
