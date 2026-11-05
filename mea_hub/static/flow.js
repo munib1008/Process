@@ -56,6 +56,9 @@ async function openFlowStudio(diagramId, root, exitTo) {
     else if (msg.event === "autosave" && msg.xml) { dirty = true; status.textContent = "Unsaved changes…"; clearTimeout(onMessage.t); onMessage.t = setTimeout(() => persist(msg.xml), 2500); }
     else if (msg.event === "save" && msg.xml) { clearTimeout(onMessage.t); persist(msg.xml); }
     else if (msg.event === "export") { const w = exportWaiters.shift(); if (w) w(msg.data || null); }
+    else if (msg.event === "load" && info.latest.preview_approx && !readOnly) {      // swap the server's approximate preview for draw.io's own render
+      setTimeout(async () => { const png = await requestPng(); if (png) { try { await POST("/api/diagram-versions/" + info.latest.id + "/preview", {png}); } catch (e) { /* non-fatal */ } } }, 1500);
+    }
     else if (msg.event === "exit") { leave(); }
   }
   window.addEventListener("message", onMessage);

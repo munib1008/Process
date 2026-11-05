@@ -25,7 +25,7 @@ Process page → **Related** tab → choose a type (next, supports, parent, appr
 **Governance → Process map** shows the graph and the orphan processes.
 
 ## Import and review
-**Import & Sources** (Controller/Admin): drop `.docx` files. The **Import Review Workspace** shows the original extraction (left) next to the generated record (right):
+**Import & Sources** (Controller/Admin): drop `.docx` and `.drawio` files (native diagrams keep their editable XML; activities, lane owners and SAP codes are pre-filled and marked as auto-extracted – verify them). The **Import Review Workspace** shows the original extraction (left) next to the generated record (right):
 *Accept extraction*, *Edit*, *Reassign department*, *Mark conflict* (goes to the findings register), *Request owner review* (comment).
 **Reports → Findings register** lists every conflict / gap / duplicate / uncertainty; record a decision on each.
 

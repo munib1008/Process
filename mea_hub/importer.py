@@ -18,19 +18,20 @@ from . import config, db, drawio
 from . import service as svc
 from .security import strip_tags
 
-CHART_RE = re.compile(r"\b([A-Z]{2})-([A-Z])-([A-Z]{2,3})-(\d{2})\b")
+CHART_RE = re.compile(r"\b([A-Z]{2,3})-([A-Z])-([A-Z]{2,3})-(\d{2})\b")
+LOOSE_ID_RE = re.compile(r"\b[A-Z]{2,3}-[A-Z]{1,2}-[A-Z]{2,3}-\d{2}\b")
 HEAD1 = re.compile(r"^Heading 1")
 HEAD2 = re.compile(r"^Heading [2-6]")
 REGION_RE = re.compile(r"[–\-]\s*(UAE\s*&\s*EXP|KSA|UAE|EXP)\s*$", re.I)
-PREFIX_DEPT = {"WL": "LOG", "PM": "PRJ", "FI": "FIN", "SA": "GOV", "PP": None}
+PREFIX_DEPT = {"WL": "LOG", "PM": "PRJ", "FI": "FIN", "SA": "GOV", "PP": None, "PMM": "PMM", "SC": "E2E"}
 PREFIX_NAME = {"WL": "Warehouse & Logistics", "PM": "Project Management", "FI": "Finance", "SA": "Sales Approval",
-               "PP": "Planning / Procurement"}
+               "PP": "Planning / Procurement", "PMM": "Product Marketing & Management", "SC": "Supply Chain E2E"}
 TITLE_RULES = [
     (r"project|subcontract", "PRJ"), (r"costing|invoice|credit|collection|accrual", "FIN"),
     (r"inbound|fragile|qa/qc|quality assurance|pick|pack|shipping|dispatch|inventory audit|stock correction|scrap|logistics|warehouse", "LOG"),
     (r"material master|mm cleaning|phase-out|material creation", "MDM"), (r"approval", "GOV"),
 ]
-FILE_RULES = [(r"supply_chain", "E2E"), (r"finance", "FIN"), (r"logistics", "LOG"), (r"approval", "GOV"),
+FILE_RULES = [(r"virtual_stock|wl-m", "LOG"), (r"pmm-m|material_master", "PMM"), (r"architecture", "E2E"), (r"supply_chain", "E2E"), (r"finance", "FIN"), (r"logistics", "LOG"), (r"approval", "GOV"),
               (r"charter|mm_cleaning", "MDM"), (r"production", "PRD"), (r"project", "PRJ"), (r"sales", "SAL"),
               (r"service", "SVC"), (r"purchase|planning", "MPL"), (r"marketing", "PMM")]
 EXPECTED_SOURCES = [
@@ -309,10 +310,203 @@ def analyse_section(sec: dict) -> dict:
 REFERENCE_PAT = re.compile(r"introduction|benefits|this handbook|scope|overview$|escalation matrix", re.I)
 
 
+def build_checklist_plan(parsed: dict) -> dict:
+    """Checklist documents: every section holding a 'Checkpoint' table becomes a controlled FORM record."""
+    secs = [(s, analyse_section(s)) for s in parsed["sections"]]
+    purpose = [dict(title=s["heading"], html=(f"<p>{escape(a['objective'])}</p>" if a["objective"] else "") + a["html"])
+               for s, a in secs if re.search(r"purpose", s["heading"], re.I)]
+    record = [dict(title=s["heading"], html=a["html"]) for s, a in secs if re.search(r"completion record", s["heading"], re.I)]
+    cands = []
+    for s, a in secs:
+        if not any(it["type"] == "tbl" and it["rows"] and any("checkpoint" in c.lower() for c in it["rows"][0]) for it in s["items"]):
+            continue
+        key = (s["heading"] + " " + a["objective"]).lower()
+        if re.search(r"sales support|customer service", key):
+            name, dept = "Sales Order Release Checklist (Sales Support / Customer Service)", "SAL"
+        elif re.search(r"material planning|mrp", key):
+            name, dept = "PR Validation Checklist (Material Planning / MRP)", "MPL"
+        else:
+            name, dept = s["heading"], "E2E"
+        sections = [dict(title=x["title"], html=x["html"]) for x in purpose] + [dict(title="Checklist – " + s["heading"], html=(f"<p>{escape(a['objective'])}</p>" if a["objective"] else "") + a["html"])] + record
+        cands.append(dict(kind="form", name=name, chart_id=None, dept=dept, dept_basis="title", objective=a["objective"], responsible=[], kpis=[], escalation=[],
+                          sections=sections, images=[], inline_images=[], heading=s["heading"], countries="", category="Controlled checklist (supporting form)"))
+    return dict(candidates=cands, doc_default=cands[0]["dept"] if cands else "E2E")
+
+
+# ---------------------------------------------------------------- native draw.io files
+SAP_RE = re.compile(r"\b([A-Z]{2,4}\d{1,2}[A-Z]?|MIGO|MIRO)\b")
+SAP_BLOCK = {"ZP00", "ZM00", "PG01"}   # price conditions / not transactions
+
+
+def parse_drawio(path: str) -> dict:
+    with open(path, "rb") as f:
+        data = f.read()
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ImportError_("draw.io file is not UTF-8 text.")
+    pages = list(drawio.split_pages(text))              # validates; rejects DOCTYPE/ENTITY
+    return dict(kind="drawio", filename=os.path.basename(path), pages=pages, data=data, sections=[], images={}, cover_images=[], ext_links=0,
+                blocks=sum(len(drawio.scene(x)["boxes"]) for _, x in pages), version="", cover_text=[n for n, _ in pages])
+
+
+def _lane_of(sc, box, lanes):
+    cx, cy = box["x"] + box["w"] / 2, box["y"] + box["h"] / 2
+    best = None
+    for ln in lanes:
+        if ln["x"] <= cx <= ln["x"] + ln["w"] and ln["y"] <= cy <= ln["y"] + ln["h"]:
+            if best is None or ln["w"] * ln["h"] < best["w"] * best["h"]:
+                best = ln
+    return best
+
+
+def build_drawio_plan(parsed: dict) -> dict:
+    cands = []
+    for pname, pxml in parsed["pages"]:
+        sc = drawio.scene(pxml)
+        B = sc["boxes"]
+        for b_ in B.values():
+            b_["label"] = re.sub(r"\s+", " ", b_["label"].replace("\xa0", " ")).strip()
+        is_sw = lambda b: b["style"]["_first"] == "swimlane" or b["style"].get("swimlane")
+        lanes = [b for b in B.values() if is_sw(b) and b["style"].get("horizontal") == "0"]
+        stacks = {b["id"]: b for b in B.values() if is_sw(b) and b["style"].get("childLayout") == "stackLayout"}
+        containers = [b for b in B.values() if is_sw(b) and b["style"].get("horizontal") != "0" and b["id"] not in stacks]
+        title = ""
+        if containers:
+            title = max(containers, key=lambda b: b["w"] * b["h"])["label"]
+        if not title:
+            texts = [b for b in B.values() if b["style"]["_first"] == "text" and b["label"]]
+            title = min(texts, key=lambda b: b["y"])["label"] if texts else pname
+        m = CHART_RE.search(title) or CHART_RE.search(pname) or CHART_RE.search(parsed["filename"])
+        chart = m.group(0) if m else None
+        notes_ = []
+        ids_seen = {x for x in LOOSE_ID_RE.findall(title) + LOOSE_ID_RE.findall(pname) + LOOSE_ID_RE.findall(parsed["filename"])}
+        if len(ids_seen) > 1:
+            notes_.append(("conflict", "medium", f"Inconsistent process ID inside {parsed['filename']}",
+                           f"Page/file name and diagram title carry different IDs: {', '.join(sorted(ids_seen))}. Chart ID {chart or '(none)'} was used (from the page/file name). Owner must confirm the correct ID."))
+        name = re.sub(r"^\s*Process Map\s*[–-]\s*", "", title)
+        name = re.sub(r"\s*[–-]\s*[A-Z]{2,3}-[A-Z]{1,2}-[A-Z]{2,3}-\d{2}\s*$", "", name)
+        name = re.sub(r"\s*\([A-Z]{2,3}-[A-Z]{1,2}-[A-Z]{2,3}-\d{2}\)\s*$", "", name).strip()
+        objective = ""
+        if "(" in name and name.lower().startswith("level"):
+            name, objective = name.split("(", 1)[0].strip(), name.split("(", 1)[1].rstrip(") ")
+        e2e = bool(re.match(r"level\s*\d", name, re.I)) or bool(chart and chart.startswith("SC-"))
+        dept = PREFIX_DEPT.get((chart or "").split("-")[0]) if chart else None
+        dept = dept or ("E2E" if e2e else "E2E")
+        proposed = lambda lb: bool(re.search(r"recommended|not in original|proposed", lb or "", re.I))
+        lane_labels = [l["label"] for l in sorted(lanes, key=lambda l: (l["y"], l["x"])) if l["label"]]
+        responsible = [l for l in lane_labels if not proposed(l)]
+        # parent-child maps
+        child_of_stack = {b["id"]: b["parent"] for b in B.values() if b["parent"] in stacks}
+        norm_id = lambda i: child_of_stack.get(i, i)
+        notes, evidence = [], ""
+        act_boxes = []
+        for b in B.values():
+            st, first = b["style"], b["style"]["_first"]
+            if b["id"] in child_of_stack or (is_sw(b) and b["id"] not in stacks) or st.get("group") or first == "group":
+                continue
+            fill = (st.get("fillColor") or "").lower()
+            if fill == "#ffffe0" or (first == "text" and not b["label"]):
+                (notes if True else []).append(b)
+                continue
+            if first == "text" and not lanes:
+                continue                                  # page headline
+            if first.startswith("ellipse") and re.fullmatch(r"(start|end)?\s*(\(.*\))?", b["label"].strip(), re.I):
+                continue
+            if not b["label"] and b["id"] not in stacks:
+                continue
+            act_boxes.append(b)
+        note_texts = []
+        for nb in notes:
+            t = re.sub(r"<[^>]+>", "\n", nb["raw_label"].replace("&#xa;", "\n")).strip() if nb["raw_label"] else nb["label"]
+            t = strip_tags(nb["raw_label"].replace("&#xa;", "<br>")).strip()
+            if t.lower().startswith("required documents"):
+                evidence = t
+            else:
+                note_texts.append(t)
+        # order = BFS over connectors from the start node(s)
+        out_edges, indeg = {}, {}
+        for e in sc["edges"]:
+            a, c = norm_id(e["source"]), norm_id(e["target"])
+            if a in B and c in B:
+                out_edges.setdefault(a, []).append((c, e["label"]))
+                indeg[c] = indeg.get(c, 0) + 1
+        starts = [b["id"] for b in B.values() if b["style"]["_first"].startswith("ellipse") and b["label"].strip().lower() == "start"]
+        starts = starts or [b["id"] for b in sorted(act_boxes, key=lambda b: (b["y"], b["x"])) if indeg.get(b["id"], 0) == 0]
+        order, seen, q = [], set(), list(starts)
+        while q:
+            cur = q.pop(0)
+            if cur in seen:
+                continue
+            seen.add(cur)
+            order.append(cur)
+            q += [c for c, _ in out_edges.get(cur, [])]
+        rest = [b["id"] for b in sorted(act_boxes, key=lambda b: (b["y"], b["x"])) if b["id"] not in seen]
+        rank = {i: n for n, i in enumerate(order + rest)}
+        def _is_prop(b):
+            ln = _lane_of(sc, b, lanes) or (B.get(b["parent"]) if b["parent"] in B else None)
+            return bool(ln and proposed(ln["label"]))
+        act_boxes.sort(key=lambda b: (_is_prop(b), rank.get(b["id"], 9999)))      # proposed steps go last
+        label_of = lambda i: (B[i]["label"] or B[i]["id"]) if i in B else ""
+        activities, saps, node_meta, mismatch = [], [], {}, []
+        for n, b in enumerate(act_boxes, 1):
+            parent_lane = B.get(b["parent"]) if b["parent"] in B and B[b["parent"]]["style"].get("horizontal") == "0" else None
+            vis = _lane_of(sc, b, lanes)
+            lane = vis or parent_lane
+            if vis and parent_lane and vis["id"] != parent_lane["id"]:
+                mismatch.append(f"“{b['label'][:40]}” is structurally inside lane “{parent_lane['label']}” but drawn in “{vis['label']}” (drawn position used)")
+            role = lane["label"] if lane else ""
+            label = b["label"]
+            if b["id"] in stacks:
+                kids = [B[k]["label"] for k, p in child_of_stack.items() if p == b["id"] and B[k]["label"]]
+                label = (b["label"] + ": " + "; ".join(kids)).strip(": ")
+            if b["style"]["_first"].startswith("rhombus"):
+                label = "Decision: " + label
+            prop = bool(lane and proposed(lane["label"]))
+            if prop:
+                label = "[PROPOSED – not in original process] " + label
+                role = re.sub(r"\s*[–-]\s*RECOMMENDED.*$", "", role, flags=re.I) + " (proposed)"
+            nxt = []
+            for c, lb in out_edges.get(b["id"], []):
+                tgt = label_of(c)
+                nxt.append((f"{lb}: " if lb else "") + ("End" if re.fullmatch(r"end.*", tgt, re.I) else tgt[:60]))
+            codes = [c for c in dict.fromkeys(SAP_RE.findall(label)) if c not in SAP_BLOCK and (c in ("MIGO", "MIRO") or re.search(r"[A-Z]{2,4}\d", c))]
+            activities.append(dict(no=str(n), activity=label, role=role, sap=" / ".join(codes), output="→ " + "; ".join(nxt) if nxt else ""))
+            for code in codes:
+                saps.append(dict(transaction=code, purpose=label[:160]))
+            meta = {}
+            if role:
+                meta["role"] = role
+            if lane and not prop:
+                meta["department"] = lane["label"]
+            if codes:
+                meta["sap"] = " / ".join(codes)
+            for cid_ in ([b["id"]] + [k for k, p in child_of_stack.items() if p == b["id"]]):
+                node_meta[cid_] = meta
+        if any(proposed(l) for l in lane_labels):
+            notes_.append(("uncertain", "medium", f"Proposed (not approved) content inside {parsed['filename']}",
+                           "The diagram contains a lane marked as a recommended addition that is not part of the original process (" +
+                           "; ".join(l for l in lane_labels if proposed(l)) + "). It was imported but labelled [PROPOSED] and must not be treated as approved procedure."))
+        if mismatch:
+            notes_.append(("uncertain", "low", f"Shape/lane placement inconsistency in {parsed['filename']}", " | ".join(mismatch)))
+        merged_sap = list({x["transaction"]: x for x in saps}.values())
+        cands.append(dict(kind="e2e" if e2e else "sop", name=name, chart_id=chart, dept=dept, dept_basis="id-prefix" if chart else "title", objective=objective or ("Process map imported from the native draw.io diagram “" + title + "”."),
+                          responsible=responsible, kpis=[], escalation=[], sap=merged_sap, activities=activities, evidence=evidence, notes="\n\n".join(note_texts),
+                          sections=[], images=[], inline_images=[], heading=pname, countries="", category="Imported from native draw.io diagram", native=True, ref_slot="L0",
+                          diagram_xml=pxml, node_meta=node_meta, extra_findings=notes_))
+    return dict(candidates=cands, doc_default="E2E")
+
+
+def build_plan_placeholder():
+    pass
+
+
 def build_plan(parsed: dict, src_declared: str | None) -> dict:
     """Turn one parsed document into a list of candidate records (before DB)."""
     fname = parsed["filename"]
     is_charter = bool(re.search(r"charter", fname, re.I))
+    if not is_charter and any(it["type"] == "tbl" and it["rows"] and any("checkpoint" in c.lower() for c in it["rows"][0]) for sec in parsed["sections"] for it in sec["items"]):
+        return build_checklist_plan(parsed)
     cands = []
     refs_intro, refs_esc = [], []
     if is_charter:
@@ -404,10 +598,20 @@ def import_paths(paths: list[str], user: str = "system") -> dict:
         if db.one("SELECT id FROM sources WHERE sha256=?", (sha,)):
             parsed_docs.append(dict(skip=True, filename=os.path.basename(p)))
             continue
-        parsed = parse_docx(p)
-        parsed.update(data=data, sha=sha, path=p)
-        parsed["declared"] = declared_dept(parsed["filename"])
-        parsed["plan"] = build_plan(parsed, parsed["declared"])
+        ext = os.path.splitext(p)[1].lower()
+        if ext == ".drawio":
+            parsed = parse_drawio(p)
+            parsed.update(sha=sha, path=p, title=parsed["cover_text"][0] if parsed["cover_text"] else "")
+            parsed["declared"] = declared_dept(parsed["filename"])
+            parsed["plan"] = build_drawio_plan(parsed)
+            parsed["title"] = parsed["plan"]["candidates"][0]["name"] if parsed["plan"]["candidates"] else parsed["filename"]
+        elif ext == ".docx":
+            parsed = parse_docx(p)
+            parsed.update(data=data, sha=sha, path=p)
+            parsed["declared"] = declared_dept(parsed["filename"])
+            parsed["plan"] = build_plan(parsed, parsed["declared"])
+        else:
+            raise ImportError_(f"{os.path.basename(p)}: only .docx and .drawio files can be imported.")
         parsed_docs.append(parsed)
     todo = [d for d in parsed_docs if not d.get("skip")]
     # actual department per source = majority of its non-reference processes
@@ -417,7 +621,7 @@ def import_paths(paths: list[str], user: str = "system") -> dict:
             if c["kind"] != "reference":
                 votes[c["dept"]] = votes.get(c["dept"], 0) + 1
         d["actual"] = max(votes, key=votes.get) if votes else d["plan"]["doc_default"]
-        d["authority"] = (1 if d["declared"] == d["actual"] else 0, d["version"] or "0")
+        d["authority"] = (1 if d["declared"] == d["actual"] else 0, d["version"] or "0", sum(len(cand_text(c)) for c in d["plan"]["candidates"]))
     # most authoritative source first, so that it becomes the primary definition for duplicates
     todo.sort(key=lambda d: d["authority"], reverse=True)
     summary = dict(sources=[], skipped=[d["filename"] for d in parsed_docs if d.get("skip")])
@@ -445,9 +649,13 @@ def load_source(d: dict, user: str) -> dict:
     for sha, im in d["images"].items():
         role = "diagram" if im["significant"] else "decorative"
         asset_ids[sha] = svc.store_asset(im["bytes"], im["mime"], im["name"], sid, role, im["w"], im["h"])
+    if d.get("kind") == "drawio":
+        d["images"], d["sections"] = {}, []
     stats = dict(blocks=d["blocks"], sections=len(d["sections"]), images=len(d["images"]), diagrams=sum(1 for i in d["images"].values() if i["significant"]),
                  tables=sum(1 for s in d["sections"] for it in s["items"] if it["type"] == "tbl"), external_links=d["ext_links"],
                  candidates=len(d["plan"]["candidates"]))
+    if d.get("kind") == "drawio":
+        stats.update(pages=len(d["pages"]), native_diagrams=len(d["pages"]))
     created, merged = [], []
     for cand in d["plan"]["candidates"]:
         res = place_candidate(d, sid, cand, asset_ids, user)
@@ -458,8 +666,8 @@ def load_source(d: dict, user: str) -> dict:
     return dict(id=sid, filename=d["filename"], new=created, merged=merged, stats=stats)
 
 
-def next_ref_id(dept_code: str, slot: str) -> str:
-    base = f"{dept_code}-REF-{slot}"
+def next_ref_id(dept_code: str, slot: str, word: str = "REF") -> str:
+    base = f"{dept_code}-{word}" + (f"-{slot}" if slot else "")
     n = 1
     while db.one("SELECT 1 FROM processes WHERE process_id=?", (f"{base}-{n:02d}",)):
         n += 1
@@ -485,6 +693,11 @@ def place_candidate(d, sid, cand, asset_ids, user):
             ratio = difflib.SequenceMatcher(None, norm(r["name"]), norm(cand["name"])).ratio()
             if ratio >= 0.6 and (near is None or ratio > near[1]):
                 near = (r, ratio)
+    elif cand["kind"] == "form":
+        for r in db.q("SELECT p.* FROM processes p WHERE p.kind='form' AND p.department_id=?", (dept["id"],)):
+            if norm(r["name"]) == norm(cand["name"]):
+                existing = r
+                break
     elif cand["kind"] == "reference":
         for r in db.q("SELECT p.* FROM processes p WHERE p.kind='reference' AND p.department_id=? AND p.category=?", (dept["id"], cand["category"])):
             v = svc.latest_version(r["id"])
@@ -493,8 +706,8 @@ def place_candidate(d, sid, cand, asset_ids, user):
                 existing = r
                 break
     content = dict(objective=cand["objective"], scope="", trigger="", inputs="", outputs="", responsible=cand["responsible"],
-                   activities=[], raci=[], sap=[], kpis=[dict(name=k, definition="", target="") for k in cand["kpis"]],
-                   escalation=cand["escalation"], risks="", evidence="", forms="", sections=[], notes="")
+                   activities=cand.get("activities", []), raci=[], sap=cand.get("sap", []), kpis=[dict(name=k, definition="", target="") for k in cand["kpis"]],
+                   escalation=cand["escalation"], risks="", evidence=cand.get("evidence", ""), forms="", sections=[], notes=cand.get("notes", ""))
     for s in cand["sections"]:
         html = s["html"]
         html = re.sub(r'<img data-sha="([0-9a-f]+)">', lambda m: f'<img src="/api/assets/{asset_ids[m.group(1)]}" alt="source image">' if m.group(1) in asset_ids else "", html)
@@ -504,7 +717,7 @@ def place_candidate(d, sid, cand, asset_ids, user):
             content["sections"].append(dict(title="Additional source image", html=f'<p><img src="/api/assets/{asset_ids[sha]}" alt="source image"></p>'))
     sim = None
     asset_list = [asset_ids[h] for h in cand["images"] + cand.get("inline_images", []) if h in asset_ids]
-    loc = f"Section “{heading}” (document order {d['sections'].index(next((s for s in d['sections'] if s['heading'] == heading.split('; ')[0]), d['sections'][0])) + 1 if d['sections'] else 0})"
+    loc = f"Diagram page “{heading}”" if d.get("kind") == "drawio" else f"Section “{heading}” (document order {d['sections'].index(next((s for s in d['sections'] if s['heading'] == heading.split('; ')[0]), d['sections'][0])) + 1 if d['sections'] else 0})"
     excerpt = "".join(f"<h4>{escape(s['title'])}</h4>{s['html']}" for s in cand["sections"])[:60000]
     if existing:
         v = svc.latest_version(existing["id"])
@@ -530,7 +743,7 @@ def place_candidate(d, sid, cand, asset_ids, user):
     elif cand["kind"] == "future_state":
         pid_text, provisional = "MDM-F-MM-01", True
     else:
-        pid_text, provisional = next_ref_id(cand["dept"], cand.get("ref_slot", "GEN")), True
+        pid_text, provisional = next_ref_id(cand["dept"], cand.get("ref_slot", "GEN") if cand["kind"] != "form" else "", "FRM" if cand["kind"] == "form" else "REF"), True
     pr = svc.create_process_record(pid_text, chart, cand["name"], cand["dept"], cand["kind"], content, "imported", "imported", user,
                                    countries=cand["countries"], category=cand["category"])
     row_id = pr["id"]
@@ -549,8 +762,17 @@ def place_candidate(d, sid, cand, asset_ids, user):
                         f"The system kept both processes and minted {pid_text}; Document Controller must issue a permanent ID." + extra)
     if provisional and not chart:
         svc.add_finding("gap", "low", sid, row_id, f"Provisional ID {pid_text}", "No chart ID in source; system-issued reference ID. Confirm numbering with Document Controller.")
-    # diagram from first significant image
-    if cand["images"]:
+    for kind_, sev_, title_, detail_ in cand.get("extra_findings", []):
+        svc.add_finding(kind_, sev_, sid, row_id, title_, detail_)
+    # diagram: native draw.io page, or wrapped reference image
+    if cand.get("native"):
+        prev = drawio.to_png(cand["diagram_xml"])
+        aid = svc.store_asset(prev, "image/png", f"{pid_text}_preview.png", sid, "preview-approx") if prev else None
+        did, dv = svc.create_diagram(row_id, pid_text, cand["name"], cand["diagram_xml"], "imported-drawio", aid, "Imported native draw.io diagram", user)
+        for node_id, meta in cand.get("node_meta", {}).items():
+            if meta:
+                c.execute("UPDATE diagram_nodes SET meta=? WHERE diagram_version_id=? AND node_id=?", (__import__("json").dumps(meta), dv, node_id))
+    elif cand["images"]:
         sha = cand["images"][0]
         im = d["images"][sha]
         import base64
@@ -589,18 +811,24 @@ def source_findings(d, sid, dept_names, created, merged):
     for cand in d["plan"]["candidates"]:
         cid = cand["chart_id"]
         if cid:
-            pdept = PREFIX_DEPT.get(cid[:2])
-            if cid[:2] == "PP" or (pdept and pdept != cand["dept"]):
+            pref = cid.split("-")[0]
+            pdept = PREFIX_DEPT.get(pref)
+            if pref == "PP" or (pdept and pdept != cand["dept"]):
                 svc.add_finding("conflict", "medium", sid, None, f"ID prefix does not match department: {cid} “{cand['name']}”",
-                                f"Prefix {cid[:2]} denotes {PREFIX_NAME.get(cid[:2], 'unknown')}; the process was placed in "
+                                f"Prefix {pref} denotes {PREFIX_NAME.get(pref, 'unknown')}; the process was placed in "
                                 f"{dept_names.get(cand['dept'])} based on its {cand['dept_basis']}. Owner decision required on ID scheme and department.")
-    c.execute("UPDATE sources SET confidence=? WHERE id=?", ("Medium" if decl == act else "Low", sid))
+    c.execute("UPDATE sources SET confidence=? WHERE id=?", ("Low" if (decl and act and decl != act) else "Medium", sid))
     n_flow = sum(1 for cd in d["plan"]["candidates"] if cd["images"])
     if n_flow:
         svc.add_finding("uncertain", "medium", sid, None, f"{n_flow} flowcharts imported as reference images ({d['filename']})",
                         "The source flowcharts are embedded pictures, not draw.io/Visio objects. Each is wrapped in an editable draw.io page with the picture as a locked reference "
                         "layer. Shapes/connectors were not auto-reconstructed (risk of silent errors); each is flagged Requires Functional Validation.")
-    flow_only = [cd for cd in d["plan"]["candidates"] if cd["kind"] in ("sop", "approval")]
+    native = [cd for cd in d["plan"]["candidates"] if cd.get("native")]
+    if native:
+        svc.add_finding("uncertain", "medium", sid, None, f"Activities extracted automatically from native diagram ({d['filename']})",
+                        f"{len(native)} diagram page(s) were parsed: step order follows the connectors, roles follow the drawn swimlane, SAP transaction codes were read from shape text. "
+                        "Verify against the process owner before approval. RACI, KPIs, SLA owners and decision criteria are not in the diagram and remain Documentation Required.")
+    flow_only = [cd for cd in d["plan"]["candidates"] if cd["kind"] in ("sop", "approval") and not cd.get("native")]
     if flow_only:
         svc.add_finding("gap", "medium", sid, None, f"Step-by-step activities, RACI, SAP transactions absent in {d['filename']}",
                         f"{len(flow_only)} processes are documented only as a flowchart plus a short description. Activity tables, RACI, SAP transaction references, SLAs and risks "

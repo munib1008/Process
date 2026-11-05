@@ -287,3 +287,77 @@ def test_backup_and_restore(server, admin, users):
     assert {p["process_id"] for p in after} == {p["process_id"] for p in before}                  # post-backup change gone, everything else intact
     assert c.call("GET", "/api/process/TST-W-001")[1]["versions"]
     assert users["viewer"].call("GET", "/api/library")[0] == 401                                  # sessions invalidated by restore
+
+
+# ------------------------------------------------------------------ native draw.io + checklist import
+LANE_XML = '''<mxfile><diagram name="TST-X-LN-01" id="p"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="box" value="Process Map – Goods Test Flow – TST-X-LN-01" style="swimlane;startSize=30;" vertex="1" parent="1"><mxGeometry x="40" y="40" width="800" height="400" as="geometry"/></mxCell>
+<mxCell id="l1" value="Customer Service" style="swimlane;horizontal=0;startSize=34;" vertex="1" parent="box"><mxGeometry y="30" width="800" height="170" as="geometry"/></mxCell>
+<mxCell id="l2" value="Warehouse" style="swimlane;horizontal=0;startSize=34;" vertex="1" parent="box"><mxGeometry y="200" width="800" height="170" as="geometry"/></mxCell>
+<mxCell id="l3" value="Exception – RECOMMENDED ADDITION (not in original process)" style="swimlane;horizontal=0;startSize=34;" vertex="1" parent="box"><mxGeometry y="370" width="800" height="170" as="geometry"/></mxCell>
+<mxCell id="s" value="Start" style="ellipse;" vertex="1" parent="l1"><mxGeometry x="40" y="40" width="60" height="60" as="geometry"/></mxCell>
+<mxCell id="a" value="Raise request" style="rounded=1;" vertex="1" parent="l1"><mxGeometry x="150" y="40" width="160" height="60" as="geometry"/></mxCell>
+<mxCell id="d" value="Approved?" style="rhombus;" vertex="1" parent="l2"><mxGeometry x="200" y="20" width="120" height="100" as="geometry"/></mxCell>
+<mxCell id="b" value="Post goods receipt (MIGO)" style="rounded=1;" vertex="1" parent="l2"><mxGeometry x="400" y="40" width="160" height="60" as="geometry"/></mxCell>
+<mxCell id="x" value="Notify rejection" style="rounded=1;dashed=1;" vertex="1" parent="l3"><mxGeometry x="200" y="40" width="160" height="60" as="geometry"/></mxCell>
+<mxCell id="n" value="SLA: 2 days" style="rounded=0;fillColor=#FFFFE0;" vertex="1" parent="1"><mxGeometry x="600" y="10" width="100" height="40" as="geometry"/></mxCell>
+<mxCell id="e1" edge="1" source="s" target="a" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e2" edge="1" source="a" target="d" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e3" value="Yes" edge="1" source="d" target="b" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e4" value="No" edge="1" source="d" target="x" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root></mxGraphModel></diagram></mxfile>'''
+
+
+def test_native_drawio_import_extracts_structure(admin, tmp_path):
+    f = tmp_path / "TST-X-LN-01_Goods_Test.drawio"
+    f.write_text(LANE_XML, encoding="utf-8")
+    importer.import_paths([str(f)], "tester")
+    p = svc.get_process("TST-X-LN-01")
+    v = svc.latest_version(p["id"])
+    c = v["content"]
+    assert c["responsible"] == ["Customer Service", "Warehouse"]                         # proposed lane is not listed as responsible
+    acts = c["activities"]
+    assert [a["activity"] for a in acts][:3] == ["Raise request", "Decision: Approved?", "Post goods receipt (MIGO)"]
+    assert acts[0]["role"] == "Customer Service" and acts[2]["sap"] == "MIGO"
+    assert acts[-1]["activity"].startswith("[PROPOSED") and "(proposed)" in acts[-1]["role"]
+    assert "Yes: Post goods receipt" in acts[1]["output"] and "No: Notify rejection" in acts[1]["output"]
+    assert "SLA: 2 days" in c["notes"] and c["sap"][0]["transaction"] == "MIGO"
+    dv = db.one("SELECT * FROM diagram_versions WHERE id=?", (v["diagram_version_id"],))
+    assert dv["origin"] == "imported-drawio" and dv["xml"].count("<mxCell") >= 10      # native XML kept, not flattened
+    assert dv["preview_asset_id"], "approximate preview must exist so exports contain a picture"
+    meta = [n["meta"] for n in svc.diagram_nodes(dv["id"]) if n["node_id"] == "b"][0]
+    assert meta["role"] == "Warehouse" and meta["sap"] == "MIGO"
+    assert db.one("SELECT 1 FROM findings WHERE process_id=? AND title LIKE 'Proposed (not approved)%'", (p["id"],))
+    assert drawio.to_png(dv["xml"])[:4] == b"\x89PNG"
+
+
+def test_checklist_import_creates_forms_and_flags_differing_duplicates(tmp_path):
+    from docx import Document
+
+    def mk(path, rows_a, rows_b):
+        d = Document()
+        d.add_heading("Customer Service Checklist", 1)
+        d.add_paragraph("Manual Sales Order Creation before credit review and PR creation.")
+        t = d.add_table(rows=1 + len(rows_a), cols=3)
+        for i, h in enumerate(["#", "Validation Area", "Checkpoint"]):
+            t.rows[0].cells[i].text = h
+        for r, row in enumerate(rows_a, 1):
+            for i, v in enumerate(row):
+                t.rows[r].cells[i].text = v
+        d.add_heading("MRP Checklist", 1)
+        d.add_paragraph("PR validation before processing and release of the purchase requisition.")
+        t = d.add_table(rows=1 + len(rows_b), cols=3)
+        for i, h in enumerate(["#", "Validation Area", "Checkpoint"]):
+            t.rows[0].cells[i].text = h
+        for r, row in enumerate(rows_b, 1):
+            for i, v in enumerate(row):
+                t.rows[r].cells[i].text = v
+        d.save(path)
+    a, b = tmp_path / "check_a.docx", tmp_path / "check_b.docx"
+    mk(str(a), [("1", "PG approval", "Check PG numbers are approved")], [("1", "SO status", "Credit released and SO released")])
+    mk(str(b), [("1", "PG approval", "Confirm every PG is approved before release of the order")], [("1", "SO status", "Credit released and SO released")])
+    res = importer.import_paths([str(a), str(b)], "tester")
+    forms = db.q("SELECT process_id,name FROM processes WHERE kind='form' AND name LIKE '%Checklist (Sales%'")
+    assert len(forms) == 1 and forms[0]["process_id"].startswith("SAL-FRM-")                      # same form in two files = ONE record
+    assert db.one("SELECT 1 FROM mappings WHERE process_id=(SELECT id FROM processes WHERE process_id=?) AND role='duplicate' AND similarity IS NOT NULL", (forms[0]["process_id"],))
+    assert db.one("SELECT 1 FROM findings WHERE kind='duplicate' AND severity='medium' AND title LIKE ?", (f"%{forms[0]['process_id']}%",))

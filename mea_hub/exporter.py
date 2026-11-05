@@ -103,45 +103,13 @@ def asset_png(url):
 
 
 def diagram_image(diagram):
-    """PNG bytes for a diagram: editor/imported preview, else rasterised server-side fallback."""
+    """PNG bytes for a diagram: editor/imported preview, else the shared server-side renderer."""
     if not diagram:
         return None
     if diagram["png"]:
         return diagram["png"]
     try:
-        from PIL import Image, ImageDraw
-        root = drawio._parse(diagram["xml"].encode())
-        cells = root.find("diagram/mxGraphModel/root")
-        boxes = {}
-        for c in cells.iter("mxCell", "object"):
-            n = c if c.tag == "mxCell" else c.find("mxCell")
-            if n is not None and n.get("vertex") == "1" and n.find("mxGeometry") is not None and "shape=image" not in (n.get("style") or ""):
-                g = n.find("mxGeometry")
-                boxes[c.get("id")] = (float(g.get("x", 0)), float(g.get("y", 0)), float(g.get("width", 60)), float(g.get("height", 40)),
-                                      strip_tags(c.get("value") if c.tag == "mxCell" else c.get("label") or ""), n.get("style") or "")
-        if not boxes:
-            return None
-        minx, miny = min(b[0] for b in boxes.values()) - 20, min(b[1] for b in boxes.values()) - 20
-        maxx, maxy = max(b[0] + b[2] for b in boxes.values()) + 20, max(b[1] + b[3] for b in boxes.values()) + 20
-        s = 2
-        img = Image.new("RGB", (int((maxx - minx) * s), int((maxy - miny) * s)), "white")
-        dr = ImageDraw.Draw(img)
-        for c in cells.iter("mxCell"):
-            if c.get("edge") == "1" and c.get("source") in boxes and c.get("target") in boxes:
-                a, b = boxes[c.get("source")], boxes[c.get("target")]
-                dr.line([((a[0] + a[2] / 2 - minx) * s, (a[1] + a[3] / 2 - miny) * s), ((b[0] + b[2] / 2 - minx) * s, (b[1] + b[3] / 2 - miny) * s)], fill="black", width=3)
-        for x, y, w, h, label, st in boxes.values():
-            box = [(x - minx) * s, (y - miny) * s, (x + w - minx) * s, (y + h - miny) * s]
-            if st.startswith("rhombus"):
-                dr.polygon([(box[0] + (box[2] - box[0]) / 2, box[1]), (box[2], box[1] + (box[3] - box[1]) / 2), (box[0] + (box[2] - box[0]) / 2, box[3]), (box[0], box[1] + (box[3] - box[1]) / 2)], outline="#555", fill="#fff2cc")
-            elif st.startswith("ellipse"):
-                dr.ellipse(box, outline="#555", fill="#d5e8d4")
-            else:
-                dr.rectangle(box, outline="#555", fill="#dae8fc")
-            dr.text((box[0] + 8, box[1] + (box[3] - box[1]) / 2 - 6), label[:28], fill="black")
-        bio = io.BytesIO()
-        img.save(bio, "PNG")
-        return bio.getvalue()
+        return drawio.to_png(diagram["xml"])
     except Exception:
         return None
 

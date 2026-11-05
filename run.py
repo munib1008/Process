@@ -26,7 +26,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="bind address (default 127.0.0.1 = this PC only)")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
-    ap.add_argument("--import", dest="imports", nargs="*", help=".docx files to import")
+    ap.add_argument("--import", dest="imports", nargs="*", help=".docx / .drawio files to import")
     ap.add_argument("--demo-users", action="store_true", help="create demo_<role> users (password ChangeMe!123) for evaluation")
     ap.add_argument("--backup", action="store_true")
     ap.add_argument("--reconcile-report", metavar="FILE", help="write the source reconciliation report (markdown) and exit")
@@ -44,7 +44,7 @@ def main():
         return
     files = list(args.imports or [])
     if not db.one("SELECT 1 FROM sources LIMIT 1"):                     # first start: auto-import ./source_documents
-        files += sorted(glob.glob(os.path.join(config.app_root(), "source_documents", "*.docx")))
+        files += sorted(glob.glob(os.path.join(config.app_root(), "source_documents", "*.docx")) + glob.glob(os.path.join(config.app_root(), "source_documents", "*.drawio")))
     if files:
         print(f"Importing {len(files)} document(s)…")
         res = importer.import_paths(files, "system")

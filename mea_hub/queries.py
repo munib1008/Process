@@ -374,7 +374,7 @@ def reconcile_markdown() -> str:
     for s in srcs:
         prim = sum(1 for p in s["processes"] if p["role"] == "primary")
         dup = sum(1 for p in s["processes"] if p["role"] == "duplicate")
-        out.append(f"| {clean(s['filename'])} | {s['title'][:60]} | {s['version_text'] or '?'} | {s['declared_name']} | {s['actual_name']} | {'✔' if s['declared_dept'] == s['actual_dept'] else '✘ MISMATCH'} | {s['confidence']} | "
+        out.append(f"| {clean(s['filename'])} | {s['title'][:60]} | {s['version_text'] or '?'} | {s['declared_name']} | {s['actual_name']} | {'n/a' if not s['declared_dept'] else ('✔' if s['declared_dept'] == s['actual_dept'] else '✘ MISMATCH')} | {s['confidence']} | "
                    f"{s['stats'].get('sections')} | {s['stats'].get('diagrams')} | {s['stats'].get('tables')} | {prim} | {dup} |")
     out += ["", "## 2. Findings requiring a decision", ""]
     for sev in ("high", "medium", "low"):

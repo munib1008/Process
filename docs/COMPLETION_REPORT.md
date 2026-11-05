@@ -4,13 +4,14 @@ Status vocabulary: **Tested** = automated test and/or driven in a real browser; 
 **Partial**; **Not implemented**; **Blocked**. The platform is **not** declared complete against the full brief – see §3 and §4.
 
 ## 1. Input actually received
-Only **5 of the 12** source documents were supplied (Supply Chain v1.0, Finance & Accounts v0.1, Logistics & Warehouse v2.1, Approval Processes, MM Cleaning charter).
+Only **5 of the 12** briefed source documents were supplied (Supply Chain v1.0, Finance & Accounts v0.1, Logistics & Warehouse v2.1, Approval Processes, MM Cleaning charter).
 Missing: Purchase & Planning, Production, Project Management, Sales Support MENA, Sales Support Movable Wall, Service & Installation, Product Marketing & Management.
+Five supplementary files were added later and imported: `WL-M-VS-01` Virtual Stock Request (native draw.io), `PMM-M-PR-01` SAP Pricing & Master Data Maintenance (native draw.io), the Level 0 / Level 1 Enterprise Architecture (native draw.io, 2 pages), and two versions of the Sales Support / MRP validation checklist (DOCX). The briefed documents are still missing for the departments below.
 These departments show *"No documented processes – Documentation Required"* and are logged as high-severity gaps. **Nothing was invented.**
 
 Key audit results on the 5 files (details: `SOURCE_RECONCILIATION_REPORT.md`): the *Finance & Accounts* file is Project Management content; the *Supply Chain* handbook contains only Finance-costing + Project processes (no E2E chapters);
 the *Approval Processes* file is mostly Logistics; chart ID `PM-M-IN-01` is used for five different project phases; `WL-S-SC-01`, `WL-M-SP-01` and others are reused; `PP-` prefixes are attached to Logistics/Project processes;
-`FI-M-PC-01` (Production Costing) has no flowchart. 39 process records were created (37 imported / unverified), 69 findings logged.
+`FI-M-PC-01` (Production Costing) has no flowchart. With all 10 files loaded: 45 process records. New-file findings: `PMM-M-PR-01` page name vs diagram title (`PMM-MM-PR-01`) disagree; `Validate Request` is parented to the Procurement lane but drawn in the PMM lane; the Virtual Stock diagram contains a "RECOMMENDED ADDITION (not in original process)" exception lane (imported but labelled [PROPOSED]); the two checklist files describe the same two checklists with different wording (64% / 82% text similarity – owner must pick one). Source-text typos (e.g. "ACCPETED?", "fo the request") are preserved as written.
 
 ## 2. Acceptance tests (brief §19)
 | # | Scenario | Result |
@@ -32,6 +33,7 @@ the *Approval Processes* file is mostly Logistics; chart ID `PM-M-IN-01` is used
 **Built, untested** – Windows `.exe` build itself and the GitHub Actions workflow (written, not run: no Windows host here) · online draw.io fallback · rich-text toolbar across browsers (`execCommand`) · LAN mode.
 
 **Partial**
+* Native draw.io import: structure is extracted by rule (connector order, drawn lane, SAP-code pattern); decision criteria, RACI, KPIs and SLA owners are not in the diagrams. Multi-lane overlaps/nesting are read by drawn position. The server-rendered preview is approximate until the diagram is opened once in the editor (then replaced by draw.io's own PNG).
 * Import review workspace: accept / edit / reassign department / mark conflict / request owner review. **No merge, no split** of processes.
 * Imported flowcharts are *pictures*: wrapped as a locked reference layer in an editable draw.io page, flagged *Requires Functional Validation*. Automatic reconstruction of shapes was deliberately not attempted. The diagram XML for new/edited diagrams is native and editable.
 * Diagram clicking: linked shapes navigate via the *Open related process* list / fallback SVG; the PNG preview itself is not clickable.

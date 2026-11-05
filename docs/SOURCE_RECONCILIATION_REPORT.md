@@ -1,6 +1,6 @@
 # Source Reconciliation Report
 
-Generated 2026-11-05T06:31:51Z by MEA Process Hub. Regenerate with `run.py --reconcile-report <file>`.
+Generated 2026-11-05T06:48:38Z by MEA Process Hub. Regenerate with `run.py --reconcile-report <file>`.
 
 ## 1. Source audit register
 
@@ -8,13 +8,18 @@ Generated 2026-11-05T06:31:51Z by MEA Process Hub. Regenerate with `run.py --rec
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | S2S_Process_Documentation_-_Logistics_and_Ware_house_v2.1.docx | Logistics, Warehouse | 2.1 | Logistics & Warehouse | Logistics & Warehouse | ✔ | Medium | 17 | 17 | 1 | 17 | 0 |
 | MM_Cleaning_Optimization_Control_Project_Charter_Reformatted.docx | MM Cleaning & Optimization Control Project Charter | ? | Master Data Management | Master Data Management | ✔ | Medium | 8 | 3 | 5 | 1 | 0 |
+| S2S_Checlist_Sales_Support_and_Material_Planning.docx | Sales Support & Material Planning Checklist Order release an | ? | Sales & Sales Support | Sales & Sales Support | ✔ | Medium | 4 | 0 | 3 | 2 | 0 |
+| dormakaba_SC_Enterprise_Architecture_Level0_Level1.drawio | Level 0 – Enterprise Process Architecture | ? | Supply Chain E2E (Enterprise) | Supply Chain E2E (Enterprise) | ✔ | Medium | 0 | 0 | 0 | 2 | 0 |
+| WL-M-VS-01_Virtual_Stock_Request_Flow.drawio | Virtual Stock Request (Goods Receipt, Outbound & Invoicing) | ? | Logistics & Warehouse | Logistics & Warehouse | ✔ | Medium | 0 | 0 | 0 | 1 | 0 |
+| PMM-M-PR-01_Flow_Material_Master.drawio | SAP Pricing & Master Data Maintenance | ? | Product Marketing & Management | Product Marketing & Management | ✔ | Medium | 0 | 0 | 0 | 1 | 0 |
 | S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx | Supply Chain Handbook | 1.0 | Supply Chain E2E (Enterprise) | Project Management | ✘ MISMATCH | Low | 11 | 7 | 1 | 9 | 0 |
 | S2S_Process_Documentation_-_Finance_and_Accounts_v0.1.docx | Project Management | 1.0 | Finance & Accounts | Project Management | ✘ MISMATCH | Low | 9 | 8 | 1 | 3 | 6 |
 | S2S_Process_Documentation_-_Approval_processes.docx | Sales Approval | ? | Approval & Governance | Logistics & Warehouse | ✘ MISMATCH | Low | 10 | 9 | 1 | 9 | 1 |
+| CS_and_MRP_Checklist.docx |  | ? | None | Sales & Sales Support | n/a | Low | 2 | 0 | 2 | 0 | 2 |
 
 ## 2. Findings requiring a decision
 
-### High severity (24)
+### High severity (22)
 
 | Kind | Title | Detail | Status |
 |---|---|---|---|
@@ -38,12 +43,10 @@ Generated 2026-11-05T06:31:51Z by MEA Process Hub. Regenerate with `run.py --rec
 | conflict | Source title does not match content: bfb31fb3-S2S_Process_Documentation_-_Approval_processes.docx | File name suggests “Approval & Governance”, but the extracted processes are mostly “Logistics & Warehouse”. Cover title reads: “Sales Approval PROCESSES”. The process content was classified by what it actually describes, not by file name. Confirm whether the correct file was supplied. | open |
 | gap | Source document not supplied: Purchase and Planning | The brief lists 12 source documents; “Purchase and Planning” has not been imported. Processes and chapters for this area are Documentation Required until it is uploaded. | open |
 | gap | Source document not supplied: Production | The brief lists 12 source documents; “Production” has not been imported. Processes and chapters for this area are Documentation Required until it is uploaded. | open |
-| gap | Source document not supplied: Sales Support MENA | The brief lists 12 source documents; “Sales Support MENA” has not been imported. Processes and chapters for this area are Documentation Required until it is uploaded. | open |
-| gap | Source document not supplied: Sales Support Movable Wall | The brief lists 12 source documents; “Sales Support Movable Wall” has not been imported. Processes and chapters for this area are Documentation Required until it is uploaded. | open |
 | gap | Source document not supplied: Service and Installation | The brief lists 12 source documents; “Service and Installation” has not been imported. Processes and chapters for this area are Documentation Required until it is uploaded. | open |
 | gap | Source document not supplied: Product Marketing & Management | The brief lists 12 source documents; “Product Marketing & Management” has not been imported. Processes and chapters for this area are Documentation Required until it is uploaded. | open |
 
-### Medium severity (15)
+### Medium severity (22)
 
 | Kind | Title | Detail | Status |
 |---|---|---|---|
@@ -51,6 +54,11 @@ Generated 2026-11-05T06:31:51Z by MEA Process Hub. Regenerate with `run.py --rec
 | conflict | ID prefix does not match department: PP-M-PQ-02 “Material Pick & Pack Process – KSA” | Prefix PP denotes Planning / Procurement; the process was placed in Logistics & Warehouse based on its title. Owner decision required on ID scheme and department. | open |
 | uncertain | 15 flowcharts imported as reference images (d3e4bc74-S2S_Process_Documentation_-_Logistics_and_Ware_house_v2.1.docx) | The source flowcharts are embedded pictures, not draw.io/Visio objects. Each is wrapped in an editable draw.io page with the picture as a locked reference layer. Shapes/connectors were not auto-reconstructed (risk of silent errors); each is flagged Requires Functional Validation. | open |
 | gap | Step-by-step activities, RACI, SAP transactions absent in d3e4bc74-S2S_Process_Documentation_-_Logistics_and_Ware_house_v2.1.docx | 14 processes are documented only as a flowchart plus a short description. Activity tables, RACI, SAP transaction references, SLAs and risks must be authored by process owners (Documentation Required). Nothing was invented. | open |
+| uncertain | Activities extracted automatically from native diagram (5c4ef6a8-dormakaba_SC_Enterprise_Architecture_Level0_Level1.drawio) | 2 diagram page(s) were parsed: step order follows the connectors, roles follow the drawn swimlane, SAP transaction codes were read from shape text. Verify against the process owner before approval. RACI, KPIs, SLA owners and decision criteria are not in the diagram and remain Documentation Required. | open |
+| uncertain | Proposed (not approved) content inside dfcb6467-WL-M-VS-01_Virtual_Stock_Request_Flow.drawio | The diagram contains a lane marked as a recommended addition that is not part of the original process (Exception Path – RECOMMENDED ADDITION (not in original process)). It was imported but labelled [PROPOSED] and must not be treated as approved procedure. | open |
+| uncertain | Activities extracted automatically from native diagram (dfcb6467-WL-M-VS-01_Virtual_Stock_Request_Flow.drawio) | 1 diagram page(s) were parsed: step order follows the connectors, roles follow the drawn swimlane, SAP transaction codes were read from shape text. Verify against the process owner before approval. RACI, KPIs, SLA owners and decision criteria are not in the diagram and remain Documentation Required. | open |
+| conflict | Inconsistent process ID inside f59d3f1e-PMM-M-PR-01_Flow_Material_Master.drawio | Page/file name and diagram title carry different IDs: PMM-M-PR-01, PMM-MM-PR-01. Chart ID PMM-M-PR-01 was used (from the page/file name). Owner must confirm the correct ID. | open |
+| uncertain | Activities extracted automatically from native diagram (f59d3f1e-PMM-M-PR-01_Flow_Material_Master.drawio) | 1 diagram page(s) were parsed: step order follows the connectors, roles follow the drawn swimlane, SAP transaction codes were read from shape text. Verify against the process owner before approval. RACI, KPIs, SLA owners and decision criteria are not in the diagram and remain Documentation Required. | open |
 | gap | No flowchart image found for FI-M-PC-01 – Production Costing Process | Source section “Production Costing Process” in 09cbf1fc-S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx states chart ID FI-M-PC-01 but contains no flowchart image. Flowchart must be drawn (Flow Studio) – Documentation Required. | open |
 | conflict | ID prefix does not match department: PP-M-SC-01 “Subcontracting Process” | Prefix PP denotes Planning / Procurement; the process was placed in Project Management based on its title. Owner decision required on ID scheme and department. | open |
 | uncertain | 6 flowcharts imported as reference images (09cbf1fc-S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx) | The source flowcharts are embedded pictures, not draw.io/Visio objects. Each is wrapped in an editable draw.io page with the picture as a locked reference layer. Shapes/connectors were not auto-reconstructed (risk of silent errors); each is flagged Requires Functional Validation. | open |
@@ -62,14 +70,20 @@ Generated 2026-11-05T06:31:51Z by MEA Process Hub. Regenerate with `run.py --rec
 | conflict | ID prefix does not match department: SA-M-PM-01 “Project Management Process” | Prefix SA denotes Sales Approval; the process was placed in Project Management based on its title. Owner decision required on ID scheme and department. | open |
 | uncertain | 8 flowcharts imported as reference images (bfb31fb3-S2S_Process_Documentation_-_Approval_processes.docx) | The source flowcharts are embedded pictures, not draw.io/Visio objects. Each is wrapped in an editable draw.io page with the picture as a locked reference layer. Shapes/connectors were not auto-reconstructed (risk of silent errors); each is flagged Requires Functional Validation. | open |
 | gap | Step-by-step activities, RACI, SAP transactions absent in bfb31fb3-S2S_Process_Documentation_-_Approval_processes.docx | 8 processes are documented only as a flowchart plus a short description. Activity tables, RACI, SAP transaction references, SLAs and risks must be authored by process owners (Documentation Required). Nothing was invented. | open |
+| duplicate | Same process appears in more than one source: SAL-FRM-01 – Sales Order Release Checklist (Sales Support / Customer Service) | Chart ID (none) / “Customer Service Checklist” also found in 31e10ee2-CS_and_MRP_Checklist.docx. Text similarity 64% versus the primary definition. Content differs – owner must decide which text is correct (not auto-merged). | open |
+| duplicate | Same process appears in more than one source: MPL-FRM-01 – PR Validation Checklist (Material Planning / MRP) | Chart ID (none) / “MRP Checklist” also found in 31e10ee2-CS_and_MRP_Checklist.docx. Text similarity 82% versus the primary definition. Content differs – owner must decide which text is correct (not auto-merged). | open |
 
-### Low severity (30)
+### Low severity (34)
 
 | Kind | Title | Detail | Status |
 |---|---|---|---|
 | gap | Provisional ID LOG-REF-ESC-01 | No chart ID in source; system-issued reference ID. Confirm numbering with Document Controller. | open |
 | gap | Provisional ID LOG-REF-INTRO-01 | No chart ID in source; system-issued reference ID. Confirm numbering with Document Controller. | open |
 | gap | Provisional ID MDM-F-MM-01 | No chart ID in source; system-issued reference ID. Confirm numbering with Document Controller. | open |
+| gap | Provisional ID SAL-FRM-01 | No chart ID in source; system-issued reference ID. Confirm numbering with Document Controller. | open |
+| gap | Provisional ID MPL-FRM-01 | No chart ID in source; system-issued reference ID. Confirm numbering with Document Controller. | open |
+| gap | Provisional ID E2E-REF-L0-01 | No chart ID in source; system-issued reference ID. Confirm numbering with Document Controller. | open |
+| uncertain | Shape/lane placement inconsistency in f59d3f1e-PMM-M-PR-01_Flow_Material_Master.drawio | “Validate Request” is structurally inside lane “Procurement (Buyer)” but drawn in “PMM (Pricing Analyst)” (drawn position used) | open |
 | gap | No 'Responsible' list for FI-M-PC-01 | Source section does not name responsible departments/roles. | open |
 | gap | No 'Responsible' list for PM-M-IN-01 | Source section does not name responsible departments/roles. | open |
 | gap | No 'Responsible' list for PM-M-IN-01.2 | Source section does not name responsible departments/roles. | open |
@@ -120,6 +134,12 @@ Generated 2026-11-05T06:31:51Z by MEA Process Hub. Regenerate with `run.py --rec
 | S2S_Process_Documentation_-_Logistics_and_Ware_house_v2.1.docx | Escalation Matrix and KPIs |  | LOG-REF-ESC-01 | primary |
 | S2S_Process_Documentation_-_Logistics_and_Ware_house_v2.1.docx | Introduction |  | LOG-REF-INTRO-01 | primary |
 | MM_Cleaning_Optimization_Control_Project_Charter_Reformatted.docx | (whole document) |  | MDM-F-MM-01 | primary |
+| S2S_Checlist_Sales_Support_and_Material_Planning.docx | Sales Support Team |  | SAL-FRM-01 | primary |
+| S2S_Checlist_Sales_Support_and_Material_Planning.docx | Material Planning Team |  | MPL-FRM-01 | primary |
+| dormakaba_SC_Enterprise_Architecture_Level0_Level1.drawio | Level 0 - Enterprise Architecture |  | E2E-REF-L0-01 | primary |
+| dormakaba_SC_Enterprise_Architecture_Level0_Level1.drawio | Level 1 - Supply Chain Value Stream | SC-M-VS-01 | SC-M-VS-01 | primary |
+| WL-M-VS-01_Virtual_Stock_Request_Flow.drawio | WL-M-VS-01 | WL-M-VS-01 | WL-M-VS-01 | primary |
+| PMM-M-PR-01_Flow_Material_Master.drawio | PMM-M-PR-01 | PMM-M-PR-01 | PMM-M-PR-01 | primary |
 | S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx | Production Costing Process | FI-M-PC-01 | FI-M-PC-01 | primary |
 | S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx | Project Initiation Process | PM-M-IN-01 | PM-M-IN-01 | primary |
 | S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx | Project Planning Process | PM-M-IN-01 | PM-M-IN-01.2 | primary |
@@ -148,12 +168,11 @@ Generated 2026-11-05T06:31:51Z by MEA Process Hub. Regenerate with `run.py --rec
 | S2S_Process_Documentation_-_Approval_processes.docx | Stock Correction | WL-S-SC-01 | WL-S-SC-01.3 | primary |
 | S2S_Process_Documentation_-_Approval_processes.docx | Escalation Matrix and KPIs |  | LOG-REF-ESC-04 | primary |
 | S2S_Process_Documentation_-_Approval_processes.docx | Introduction |  | LOG-REF-INTRO-01 | duplicate |
+| CS_and_MRP_Checklist.docx | Customer Service Checklist |  | SAL-FRM-01 | duplicate |
+| CS_and_MRP_Checklist.docx | MRP Checklist |  | MPL-FRM-01 | duplicate |
 
 ## 4. Departments without documented processes (Documentation Required)
 
-- Product Marketing & Management
-- Sales & Sales Support
-- Material Planning & OPEX
 - Procurement
 - Production & Engineering
 - Service & Installation

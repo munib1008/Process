@@ -410,7 +410,8 @@ def r_diagram(c, did):
     d = svc.diagram_info(int(did))
     latest = db.one("SELECT * FROM diagram_versions WHERE diagram_id=? ORDER BY ver_no DESC LIMIT 1", (d["id"],))
     p = db.one("SELECT process_id,name FROM processes WHERE id=?", (d["process_id"],)) if d["process_id"] else None
-    return dict(diagram=d, latest=dict(id=latest["id"], ver_no=latest["ver_no"], xml=latest["xml"], validation=latest["validation"], preview_asset_id=latest["preview_asset_id"]),
+    approx = bool(latest["preview_asset_id"] is None or (db.one("SELECT role FROM assets WHERE id=?", (latest["preview_asset_id"],)) or {}).get("role") == "preview-approx")
+    return dict(diagram=d, latest=dict(id=latest["id"], ver_no=latest["ver_no"], xml=latest["xml"], validation=latest["validation"], preview_asset_id=latest["preview_asset_id"], preview_approx=approx),
                 process=p, versions=svc.diagram_versions(d["id"]), nodes=svc.diagram_nodes(latest["id"]))
 
 
@@ -436,6 +437,27 @@ def r_dv_json(c, dvid):
 def r_dv_svg(c, dvid):
     svc.need(c.user, "view_all")
     return file_resp(svc.diagram_svg(int(dvid)).encode(), "image/svg+xml", f"diagram_{dvid}.svg")
+
+
+@route("POST", "/api/diagram-versions/(\\d+)/preview")
+def r_preview(c, dvid):
+    """Replace an *approximate* server-rendered preview with the authoritative PNG exported by draw.io."""
+    dv = db.one("SELECT dv.*,d.process_id FROM diagram_versions dv JOIN diagrams d ON d.id=dv.diagram_id WHERE dv.id=?", (int(dvid),))
+    if not dv:
+        raise svc.NotFound("Not found")
+    proc = db.one("SELECT * FROM processes WHERE id=?", (dv["process_id"],)) if dv["process_id"] else None
+    svc.need(c.user, "edit", proc)
+    old = db.one("SELECT role FROM assets WHERE id=?", (dv["preview_asset_id"],)) if dv["preview_asset_id"] else None
+    if old and old["role"] != "preview-approx":
+        return dict(replaced=False)
+    import base64
+    raw = base64.b64decode((c.json().get("png") or "").split(",", 1)[-1])
+    if raw[:8] != b"\x89PNG\r\n\x1a\n" or len(raw) > 12 * 1024 * 1024:
+        raise svc.Invalid("Preview must be a PNG under 12 MB.")
+    with db.tx():
+        aid = svc.store_asset(raw, "image/png", f"diagram_{dvid}.png", None, "preview")
+        db.db().execute("UPDATE diagram_versions SET preview_asset_id=? WHERE id=?", (aid, dv["id"]))
+    return dict(replaced=True)
 
 
 @route("POST", "/api/diagrams/(\\d+)/lock")
@@ -546,8 +568,8 @@ def r_source_dl(c, sid):
 def r_import(c):
     svc.need(c.user, "import")
     name = os.path.basename(unquote(c.h.headers.get("X-Filename", "upload.docx")))
-    if not name.lower().endswith(".docx"):
-        raise svc.Invalid("Only .docx files can be imported.")
+    if not name.lower().endswith((".docx", ".drawio")):
+        raise svc.Invalid("Only .docx and .drawio files can be imported.")
     if not c.raw:
         raise svc.Invalid("Empty upload.")
     with tempfile.TemporaryDirectory() as td:

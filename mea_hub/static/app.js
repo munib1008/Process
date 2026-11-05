@@ -334,7 +334,7 @@ async function viewReports(tab) {
   else if (tab === "findings") body = await findingsView();
   else if (tab === "sources") { const r = await GET("/api/sources"); body = h("div", null, r.sources.map((s) => h("div", {class: "card"}, h("div", {class: "row spread"}, h("h3", null, s.filename.replace(/^[0-9a-f]{8}-/, "")), h("a", {class: "btn sm", href: "/api/sources/" + s.id + "/download"}, "Download original")),
     h("div", {class: "muted"}, "Cover: " + s.title + " · version " + (s.version_text || "?") + " · imported " + fmtDate(s.imported_at) + " · sha256 " + s.sha256.slice(0, 12)),
-    h("p", null, "Declared (file name): ", h("b", null, s.declared_name || "?"), " → actual content: ", h("b", null, s.actual_name || "?"), " ", s.declared_dept !== s.actual_dept ? h("span", {class: "chip bad"}, "MISMATCH") : h("span", {class: "chip ok"}, "consistent"), " · confidence ", s.confidence),
+    h("p", null, "Declared (file name): ", h("b", null, s.declared_name || "?"), " → actual content: ", h("b", null, s.actual_name || "?"), " ", !s.declared_dept ? h("span", {class: "chip"}, "n/a") : s.declared_dept !== s.actual_dept ? h("span", {class: "chip bad"}, "MISMATCH") : h("span", {class: "chip ok"}, "consistent"), " · confidence ", s.confidence),
     h("p", {class: "muted"}, Object.entries(s.stats).map(([k, v]) => k + ": " + v).join(" · ")),
     table(["Process", "Source section", "Role", "Similarity"], s.processes.map((p) => [pLink(p.process_id, p.process_id + " – " + p.name), p.heading, p.role, p.similarity == null ? "" : Math.round(p.similarity * 100) + "%"]))))); }
   else { const d = await GET("/api/dashboard"); const L = (t, a) => h("div", {class: "card"}, h("h3", null, t + " (" + a.length + ")"), a.length ? a.slice(0, 80).map((x) => h("div", null, pLink(x.process_id, x.process_id + " – " + x.name))) : h("p", {class: "muted"}, "None")); body = h("div", {class: "grid g2"}, L("Processes without a named owner", d.missing_owner), L("Missing flowcharts", d.missing_flowchart), h("div", {class: "card"}, h("h3", null, "Counts"), h("p", null, d.no_kpi + " processes without KPI · " + d.no_raci + " without RACI · " + d.needs_flow_validation + " flowcharts requiring validation · " + d.orphan + " orphans"))); }
@@ -353,8 +353,8 @@ async function findingsView() {
 
 // ---------------------------------------------------------------- import & review workspace
 async function viewImport() {
-  const out = h("div"), drop = h("div", {class: "dropzone"}, "Drop .docx files here or ", h("button", {class: "btn sm", onclick: () => fi.click()}, "choose files"));
-  const fi = h("input", {type: "file", accept: ".docx", multiple: true, style: "display:none", onchange: () => up([...fi.files])});
+  const out = h("div"), drop = h("div", {class: "dropzone"}, "Drop .docx / .drawio files here or ", h("button", {class: "btn sm", onclick: () => fi.click()}, "choose files"));
+  const fi = h("input", {type: "file", accept: ".docx,.drawio", multiple: true, style: "display:none", onchange: () => up([...fi.files])});
   async function up(files) {
     for (const f of files) {
       await guard(async () => { toast("Importing " + f.name + "…"); const buf = await readFile(f); const r = await api("POST", "/api/import", new Blob([buf]), {headers: {"X-Filename": encodeURIComponent(f.name)}});
@@ -363,7 +363,7 @@ async function viewImport() {
     await reloadTree(); viewImport().then((n) => clear($("#main")).append(n));
   }
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); }); drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); up([...e.dataTransfer.files].filter((f) => f.name.toLowerCase().endsWith(".docx"))); });
+  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); up([...e.dataTransfer.files].filter((f) => /\.(docx|drawio)$/i.test(f.name))); });
   const lib = (await GET("/api/library?status=imported")).processes, src = await GET("/api/sources");
   const rows = lib.map((p) => ({click: () => reviewWorkspace(p.process_id, out), cells: [p.process_id, p.name, p.department, p.kind, p.diagram_validation === "requires_validation" ? "flowchart to validate" : (p.has_diagram ? "ok" : "no flowchart")]}));
   return h("div", {class: "page"}, h("h1", null, "Import & Sources"), h("div", {class: "sub"}, src.sources.length + " source document(s) preserved unchanged. Imported content is never published automatically."),

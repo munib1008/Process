@@ -23,7 +23,7 @@ Options: `MEA_Process_Hub.exe --port 9000 --no-browser --demo-users` (one evalua
 
 | Area | Implemented |
 |---|---|
-| Import | DOCX → headings, paragraphs, tables (merged cells), images, chart IDs, "Responsible" lists, escalation tables, KPIs. Originals kept byte-for-byte. Process IDs, regions (UAE & EXP / KSA), duplicates, ID collisions, title-vs-content mismatches and missing flowcharts are detected and logged as **findings** (Source Audit Register). Imported content is *Imported / Unverified* – never auto-published. |
+| Import | **DOCX** → headings, paragraphs, tables (merged cells), images, chart IDs, "Responsible" lists, escalation tables, KPIs; checklist documents become controlled **forms**. **Native `.drawio`** (multi-page supported) → kept as editable XML, and activities (ordered by connectors), lane owners, SAP transaction codes, required-documents / SLA notes and "recommended addition" lanes (labelled *[PROPOSED]*) are extracted. Originals kept byte-for-byte. Process IDs, regions (UAE & EXP / KSA), duplicates, ID collisions, title-vs-content mismatches and missing flowcharts are detected and logged as **findings** (Source Audit Register). Imported content is *Imported / Unverified* – never auto-published. |
 | Process library | Departments, process types, countries, owners, parent/next/supports/approval/triggers/exception links, orphan detection, process map, upstream/downstream trace. |
 | Editing | Structured form + rich-text sections (headings, lists, tables, links, callouts), autosave to a draft. |
 | Flow Studio | Real **draw.io** in an iframe (embed JSON protocol), exclusive edit lease, optimistic revision check, revision history, PNG preview captured from draw.io on every save, templates, `.drawio` import/download, SVG export, per-shape business metadata (process link, SAP transaction, role, approval…). |
@@ -57,7 +57,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 15 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 17 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)
