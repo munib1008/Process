@@ -63,10 +63,12 @@ const pLink = (id, text) => h("a", {href: "#/process/" + encodeURIComponent(id)}
 // ---------------------------------------------------------------- dashboard
 async function viewDashboard() {
   const d = await GET("/api/dashboard");
+  const inbox = (await GET("/api/inbox")).rows;
   const kpi = (n, l, href, cls) => h("div", {class: "card kpi " + (cls || ""), onclick: () => href && (location.hash = href)}, h("div", {class: "n"}, n), h("div", {class: "l"}, l));
   const list = (items, empty, fn) => items.length ? h("ul", {style: "margin:0;padding-left:18px"}, items.slice(0, 8).map(fn), items.length > 8 ? h("li", {class: "muted"}, "… " + (items.length - 8) + " more") : null) : h("p", {class: "muted"}, empty);
   const ip = d.import_progress;
   return h("div", {class: "page"}, h("h1", null, "Enterprise overview"), h("div", {class: "sub"}, "Live from the process database – nothing here is sample data. " + d.sources + " source document(s) imported."),
+    inbox.length ? h("div", {class: "card"}, h("h3", null, "My tasks (" + inbox.length + ")"), table(["Task", "Process", "Detail"], inbox.slice(0, 12).map((x) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(x.process_id)), cells: [h("span", {class: "chip warn"}, x.kind), x.process_id + " – " + x.name, x.detail]})))) : null,
     h("div", {class: "grid g4"}, kpi(d.total, "Registered processes", "#/library"), kpi(d.by_status.published || 0, "Published (approved)", "#/library"),
       kpi(d.pending.length, "In review / approval", "#/governance/approvals", d.pending.length ? "warn" : ""), kpi(d.findings.high, "High-severity open findings", "#/reports/findings", d.findings.high ? "bad" : ""),
       kpi(d.needs_flow_validation, "Flowcharts requiring validation", "#/reports/gaps", d.needs_flow_validation ? "warn" : ""), kpi(d.missing_owner.length, "Processes without owner", "#/reports/gaps", "warn"),
@@ -214,8 +216,8 @@ function tabsView(d, pid, reload) {
     else if (n === "KPI") area.append(tblOrGap(TABLES.kpis, c.kpis, "No KPIs defined for this process."));
     else if (n === "Escalation") area.append(tblOrGap(TABLES.escalation, c.escalation, "No escalation matrix on this record."), c.activities.length ? [h("h3", null, "Detailed activities"), tblOrGap(TABLES.activities, c.activities, "")] : null);
     else if (n === "Related") {
-      area.append(d.relationships.length ? table(["Direction", "Type", "Process", ""], d.relationships.map((r) => [r.dir === "out" ? "→ to" : "← from", r.rel_type + (r.inferred ? " (inferred)" : ""), pLink(r.process_id, r.process_id + " – " + r.name),
-        d.perms.manage_relationships && !r.inferred ? h("button", {class: "btn sm bad", onclick: () => guard(async () => { await DEL("/api/relationships/" + r.id); show("Related"); })}, "Remove") : ""])) : h("p", {class: "muted"}, "No relationships recorded – orphan process."));
+      area.append(d.relationships.length ? table(["Direction", "Type", "Process", ""], d.relationships.map((r) => [r.dir === "out" ? "→ to" : "← from", r.rel_type + (r.inferred == 1 ? " (inferred from text)" : r.inferred == 2 ? " (suggested – confirm or remove)" : ""), pLink(r.process_id, r.process_id + " – " + r.name),
+        d.perms.manage_relationships && r.inferred != 1 ? h("button", {class: "btn sm bad", onclick: () => guard(async () => { await DEL("/api/relationships/" + r.id); show("Related"); })}, "Remove") : ""])) : h("p", {class: "muted"}, "No relationships recorded – orphan process."));
       if (d.perms.manage_relationships) { const to = h("input", {type: "text", placeholder: "Process ID e.g. WL-M-IB-01"}), ty = h("select", {style: "width:auto"}, S.cfg.rel_types.map((t) => h("option", null, t)));
         area.append(h("div", {class: "row", style: "margin-top:10px"}, ty, to, h("button", {class: "btn", onclick: () => guard(async () => { await POST("/api/relationships", {from: pid, to: to.value.trim(), type: ty.value}); toast("Relationship added"); reload(); })}, "Link"))); }
     } else if (n === "Sources") {
@@ -297,7 +299,7 @@ async function viewDepartments(code) {
 // ---------------------------------------------------------------- governance
 async function viewGovernance(tab) {
   tab = tab || "approvals";
-  const tabs = [["approvals", "Approvals"], ["raci", "RACI"], ["escalation", "Escalation matrix"], ["kpis", "KPIs"], ["changelog", "Revision history"], ["map", "Process map"]];
+  const tabs = [["approvals", "Approvals"], ["raci", "RACI"], ["escalation", "Escalation matrix"], ["kpis", "KPIs"], ["changelog", "Revision history"], ["map", "Process map"], ["ownership", "Ownership & register"]];
   const bar = h("div", {class: "tabs"}, tabs.map(([k, l]) => h("a", {class: "tab" + (k === tab ? " on" : ""), href: "#/governance/" + k}, l)));
   let body;
   if (tab === "approvals") { const r = await GET("/api/approvals"); body = h("div", null, h("div", {class: "banner info"}, "Document approval (publishing a procedure) is separate from business-transaction approval (an actual sales order, PR, master-data change). This module controls the former."),
@@ -307,8 +309,24 @@ async function viewGovernance(tab) {
   else if (tab === "escalation") { const r = await GET("/api/escalation"); body = r.rows.length ? table(["Process", "Department", "Stage", "Task / reminder to", "Time period", "Escalation", "Previous SLA"], r.rows.map((x) => [x.process_id, x.department, x.stage, x.to, x.time, x.action, x.sla])) : h("p", null, "No escalation data."); }
   else if (tab === "kpis") { const r = await GET("/api/kpis"); body = r.rows.length ? table(["Process", "Department", "KPI", "Definition", "Target"], r.rows.map((x) => [x.process_id, x.department, x.name, x.definition, x.target])) : h("p", null, "No KPIs."); }
   else if (tab === "changelog") { const r = await GET("/api/changelog"); body = table(["When", "Who", "Action", "Entity", "Detail"], r.rows.map((x) => [fmtDate(x.ts), x.username, x.action, x.entity_id, x.detail])); }
+  else if (tab === "ownership") body = await ownershipView();
   else body = await mapView();
   return h("div", {class: "page"}, h("h1", null, "Governance"), bar, body);
+}
+async function ownershipView() {
+  const lib = (await GET("/api/library")).processes.filter((p) => p.kind !== "reference");
+  const dept = h("select", null, S.tree.map((d) => h("option", {value: d.code}, d.name))), owner = h("input", {type: "text", placeholder: "Process owner (name)"}), rev = h("input", {type: "text", placeholder: "Reviewer (name)"}),
+    months = h("input", {type: "number", placeholder: "Review every N months", min: 1, max: 60}), only = h("input", {type: "checkbox", checked: true, style: "width:auto"});
+  const fi = h("input", {type: "file", accept: ".xlsx"}), out = h("div");
+  const rows = lib.map((p) => { const o = h("input", {type: "text", value: p.owner || ""}), r = h("input", {type: "text", value: p.reviewer || ""});
+    return [h("a", {href: "#/process/" + encodeURIComponent(p.process_id)}, p.process_id), p.name, p.department, o, r, h("button", {class: "btn sm", onclick: () => guard(async () => { await POST("/api/ownership", {items: [{process_id: p.process_id, owner: o.value, reviewer: r.value}]}); toast("Saved " + p.process_id); })}, "Save")]; });
+  return h("div", null, h("div", {class: "card"}, h("h3", null, "Bulk assign owner / reviewer to a department"), h("div", {class: "row"}, dept, owner, rev, months,
+      h("label", {style: "margin:0"}, only, " only fill empty"), h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await POST("/api/ownership", {dept: dept.value, owner: owner.value, reviewer: rev.value, review_months: months.value, only_empty: only.checked}); toast(r.updated + " processes updated"); route(); })}, "Apply")),
+    h("p", {class: "muted"}, "Owners must be real people accountable for the process – the tool never invents them.")),
+    h("div", {class: "card"}, h("h3", null, "Load owners, RACI and KPIs from Excel"), h("p", {class: "muted"}, "Download the register, fill the sheets Ownership, Cross-Functional RACI and KPI Register, and load it back. RACI/KPI changes become draft revisions that still go through review and approval."),
+      h("div", {class: "row"}, h("a", {class: "btn", href: "/api/register.xlsx"}, "Download register workbook"), fi, h("button", {class: "btn pri", onclick: () => guard(async () => { if (!fi.files[0]) throw new Error("Choose the .xlsx first."); const buf = await readFile(fi.files[0]); const r = await api("POST", "/api/register-import", new Blob([buf]));
+        clear(out).append(h("div", {class: "banner " + (r.errors.length ? "warn" : "ok")}, r.ownership + " ownership rows · RACI for " + r.raci_processes + " processes · KPIs for " + r.kpi_processes + " processes"), r.errors.length ? h("ul", null, r.errors.map((e) => h("li", null, e))) : null); })}, "Load workbook")), out),
+    h("div", {class: "card"}, h("h3", null, "Per-process ownership (" + lib.length + ")"), table(["ID", "Name", "Department", "Owner", "Reviewer", ""], rows)));
 }
 async function mapView() {
   const m = await GET("/api/map"), codes = S.tree.map((d) => d.code).filter((c) => m.nodes.some((n) => n.dept === c)), pos = {}, W = 230, H = 22;
@@ -319,7 +337,8 @@ async function mapView() {
   m.edges.forEach((e) => { const a = pos[e.from_id], b = pos[e.to_id]; if (a && b) svg.append(el("path", {d: `M${a.x + 170},${a.y} C${a.x + 215},${a.y} ${b.x - 40},${b.y} ${b.x},${b.y}`, fill: "none", stroke: e.inferred ? "#8aa" : "#d77", "stroke-dasharray": e.inferred ? "4 3" : "0"})); });
   codes.forEach((c, i) => svg.append(el("text", {x: 20 + i * W, y: 20, "font-weight": "bold", fill: "currentColor"}, c)));
   Object.values(pos).forEach((p) => { const g = el("g", {class: "mapnode"}); g.append(el("title", {}, p.n.process_id + " – " + p.n.name), el("rect", {x: p.x, y: p.y - 12, width: 168, height: 18, rx: 4, fill: "none", stroke: "#789"}), el("text", {x: p.x + 4, y: p.y + 1, fill: "currentColor"}, (p.n.process_id + " " + p.n.name).slice(0, 30))); g.onclick = () => (location.hash = "#/process/" + encodeURIComponent(p.n.process_id)); svg.append(g); });
-  return h("div", null, h("div", {class: "banner info"}, "Built from recorded relationships (solid = authored, dashed = inferred from IDs mentioned in text). Diagram layout is not the source of relationships. Add links on a process's Related tab."),
+  const sug = can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await POST("/api/map/suggest-links"); toast(r.links_added + " handover links suggested from the Level 1 value stream (" + r.stages_matched + " stages matched)"); route(); })}, "Suggest links from Level 1 value stream") : null;
+  return h("div", null, sug, h("div", {class: "banner info"}, "Built from recorded relationships (solid = authored, dashed = inferred from IDs mentioned in text). Diagram layout is not the source of relationships. Add links on a process's Related tab."),
     h("div", {class: "card", style: "overflow:auto"}, svg), h("div", {class: "card"}, h("h3", null, m.orphans.length + " orphan processes (no relationships)"), m.orphans.slice(0, 60).map((n) => h("span", {style: "margin-right:8px"}, pLink(n.process_id)))));
 }
 
@@ -342,9 +361,10 @@ async function viewReports(tab) {
 }
 async function findingsView() {
   const st = {kind: "", status: "open"}, out = h("div");
-  const load = async () => { const r = await GET("/api/findings?" + new URLSearchParams(st)); clear(out).append(h("p", {class: "muted"}, r.rows.length + " finding(s)"), r.rows.map((f) => h("div", {class: "card", style: "padding:10px 14px"},
+  const load = async () => { const r = await GET("/api/findings?" + new URLSearchParams(st)); clear(out).append(h("div", {class: "row spread"}, h("p", {class: "muted"}, r.rows.length + " finding(s)"),
+    can("admin", "controller", "dept_owner") && r.rows.length ? h("button", {class: "btn", onclick: async () => { const dc = await promptBox("Apply one decision to all " + r.rows.length + " shown findings", "Decision / rationale (recorded with your name)", {multiline: true, required: true}); if (dc === null) return; const status = (await promptBox("Status", "accepted | resolved | wont_fix", {value: "accepted", required: true})); if (!status) return; await guard(() => POST("/api/findings/bulk", {ids: r.rows.map((x) => x.id), status, decision: dc})); load(); }}, "Apply decision to all shown") : null), r.rows.map((f) => h("div", {class: "card", style: "padding:10px 14px"},
     h("div", {class: "row spread"}, h("div", null, h("span", {class: "chip " + (f.severity === "high" ? "bad" : f.severity === "medium" ? "warn" : "")}, f.severity), " ", h("span", {class: "chip"}, f.kind), " ", h("b", null, f.title)),
-      h("span", {class: "chip"}, f.status)), h("div", {class: "muted", style: "margin:4px 0"}, f.detail), f.pid_text ? h("div", null, "Process: ", pLink(f.pid_text, f.pid_text + " – " + f.pname)) : null, f.decision ? h("div", null, "Decision: " + f.decision + " (" + f.resolved_by + ")") : null,
+      h("span", {class: "chip"}, f.status)), h("div", {class: "muted", style: "margin:4px 0"}, f.detail), h("div", null, h("b", null, "Recommended: "), f.recommended), f.pid_text ? h("div", null, "Process: ", pLink(f.pid_text, f.pid_text + " – " + f.pname)) : null, f.decision ? h("div", null, "Decision: " + f.decision + " (" + f.resolved_by + ")") : null,
     can("admin", "controller", "dept_owner") ? h("div", {class: "row", style: "margin-top:6px"}, ["accepted", "resolved", "wont_fix", "open"].filter((s) => s !== f.status).map((s) => h("button", {class: "btn sm", onclick: async () => { const dc = await promptBox("Record decision", "Decision / rationale", {multiline: true}); if (dc === null) return; await guard(() => PUT("/api/findings/" + f.id, {status: s, decision: dc})); load(); }}, "Mark " + s))) : null))); };
   await load();
   const sel = (k, opts) => h("select", {style: "width:auto", onchange: (e) => { st[k] = e.target.value; load(); }}, h("option", {value: ""}, "All " + k), opts.map((o) => h("option", {value: o, selected: st[k] === o}, o)));

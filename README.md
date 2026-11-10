@@ -29,6 +29,7 @@ Options: `MEA_Process_Hub.exe --port 9000 --no-browser --demo-users` (one evalua
 | Flow Studio | Real **draw.io** in an iframe (embed JSON protocol), exclusive edit lease, optimistic revision check, revision history, PNG preview captured from draw.io on every save, templates, `.drawio` import/download, SVG export, per-shape business metadata (process link, SAP transaction, role, approval…). |
 | Governance | Draft → Under review → Pending approval → Approved → Published → Superseded. Published versions are immutable; rollback = a new controlled draft; separation of duties; before/after comparison; audit log; review schedule dates; findings register with recorded decisions. |
 | Export Center | DOCX (real Word text/tables, cover, document control, TOC, headers/footers, page numbers, flowchart preview, source references, revision appendix), PDF (A4, TOC with page numbers, repeating table headers), HTML, ZIP of editable `.drawio` + previews, Excel **process register**. Every export is built from one consistent snapshot, hashed and logged. |
+| Ownership & data loading | Bulk-assign owners/reviewers per department; round-trip Excel register (Ownership, RACI, KPI sheets → loaded into *draft* revisions); "My tasks" inbox (reviews, approvals, publishing, overdue); decision workbench (recommended action per finding, bulk decisions with rationale); suggested handover links derived from the Level 1 value stream (flagged *suggested*, removable). |
 | Admin | Users, 7 roles with server-side checks on every endpoint, CSRF protection, backup / restore, audit log. |
 
 Read `docs/COMPLETION_REPORT.md` for the honest status of every requirement (including what is **not** built yet) and
@@ -57,7 +58,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 17 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 21 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)

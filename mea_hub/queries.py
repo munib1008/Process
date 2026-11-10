@@ -242,6 +242,29 @@ def change_log(user, process_id=None, limit=200):
     return q("SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,))
 
 
+def recommendation(f):
+    t, k = f["title"], f["kind"]
+    if k == "duplicate":
+        return "Keep the primary definition; owner compares wording if similarity is below 90%." if "differs" in f["detail"] else "Accept: content is essentially identical – keep one controlled definition."
+    if t.startswith("Provisional ID"):
+        return "Accept the provisional ID until the Document Controller issues the permanent ID."
+    if t.startswith("Chart ID") and "provisional" in t:
+        return "Document Controller issues a permanent unique ID; keep both processes until then."
+    if t.startswith("Source document not supplied"):
+        return "Obtain and upload the document (or its flowcharts)."
+    if "No 'Responsible'" in t:
+        return "Process owner names the responsible roles."
+    if "Source title does not match" in t:
+        return "Confirm with the owner that the correct file was supplied."
+    if "ID prefix" in t:
+        return "Decide the ID scheme (prefix per department) and re-issue IDs."
+    if "Proposed" in t:
+        return "Keep labelled [PROPOSED] until the owner approves it as procedure."
+    if "extracted automatically" in t or "flowcharts imported" in t:
+        return "Process owner validates against the original; then mark resolved."
+    return "Owner decision required."
+
+
 def findings(status=None, kind=None):
     sql, args = "SELECT f.*,s.filename,p.process_id AS pid_text,p.name AS pname FROM findings f LEFT JOIN sources s ON s.id=f.source_id LEFT JOIN processes p ON p.id=f.process_id WHERE 1=1", []
     if status:
@@ -250,7 +273,23 @@ def findings(status=None, kind=None):
     if kind:
         sql += " AND f.kind=?"
         args.append(kind)
-    return q(sql + " ORDER BY CASE f.severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, f.id", args)
+    rows = q(sql + " ORDER BY CASE f.severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, f.id", args)
+    for r in rows:
+        r["recommended"] = recommendation(r)
+    return rows
+
+
+def bulk_update_findings(user, ids, status, decision):
+    svc.need(user, "manage_findings")
+    if status not in ("accepted", "resolved", "wont_fix", "open") or not ids:
+        raise svc.Invalid("Choose a status and at least one finding.")
+    if not (decision or "").strip():
+        raise svc.Invalid("A decision / rationale is required.")
+    with db.tx():
+        for fid in ids[:500]:
+            db.db().execute("UPDATE findings SET status=?, decision=?, resolved_by=? WHERE id=?", (status, decision[:2000], user["username"], int(fid)))
+        svc.audit(user, "findings_bulk_updated", "finding", None, f"{len(ids)} -> {status}: {decision[:120]}")
+    return dict(updated=len(ids[:500]))
 
 
 def update_finding(user, fid, status, decision=""):
@@ -300,6 +339,8 @@ def register_xlsx(user) -> bytes:
         ws.auto_filter.ref = ws.dimensions
     wb.remove(wb.active)
     rows = _summary_rows(user)
+    sheet("Ownership", ["Process ID", "Name", "Department", "Owner", "Reviewer", "Review months"],
+          [[r["process_id"], r["name"], r["department"], r["owner"], r["reviewer"], ""] for r in rows])
     sheet("Master Process Inventory", ["Process ID", "Source Chart ID", "Name", "Department", "Type", "Countries", "Owner", "Version", "Status", "Published", "Has flowchart", "Flowchart validation", "Next review"],
           [[r["process_id"], r["chart_id"], r["name"], r["department"], r["kind"], r["countries"], r["owner"], r["version"], r["status_label"], r["published_version"] or "", "Yes" if r["has_diagram"] else "No", r["diagram_validation"] or "", r["next_review"] or ""] for r in rows])
     sheet("Source Document Mapping", ["Source file", "Source version", "Section", "Chart ID in source", "Process ID", "Role", "Similarity to primary"],
@@ -392,3 +433,63 @@ def reconcile_markdown() -> str:
     for d in q("SELECT d.name FROM departments d WHERE NOT EXISTS (SELECT 1 FROM processes p WHERE p.department_id=d.id) ORDER BY d.sort"):
         out.append(f"- {d['name']}")
     return "\n".join(out) + "\n"
+
+
+# ------------------------------------------------------------------ register import (round-trip of the exported workbook)
+def import_register(user, data: bytes) -> dict:
+    """Apply an edited process-register workbook: sheets 'Ownership', 'Cross-Functional RACI', 'KPI Register'.
+    Owner data is applied directly; RACI/KPI changes go into DRAFT revisions (never into published versions)."""
+    from openpyxl import load_workbook
+    if len(data) > 25 * 1024 * 1024 or data[:2] != b"PK":
+        raise svc.Invalid("Not a valid .xlsx workbook.")
+    try:
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception:
+        raise svc.Invalid("The workbook could not be read.")
+    report = dict(ownership=0, raci_processes=0, kpi_processes=0, errors=[])
+
+    def rows(name):
+        if name not in wb.sheetnames:
+            return []
+        it = wb[name].iter_rows(values_only=True)
+        head = next(it, None)
+        if not head:
+            return []
+        h = [str(c or "").strip().lower() for c in head]
+        out = []
+        for r in it:
+            if r and any(c not in (None, "") for c in r):
+                out.append({h[i]: ("" if v is None else str(v).strip()) for i, v in enumerate(r) if i < len(h)})
+        return out[:5000]
+    items = []
+    for r in rows("Ownership"):
+        if r.get("process id") and (r.get("owner") or r.get("reviewer") or r.get("review months")):
+            items.append(dict(process_id=r["process id"], owner=r.get("owner"), reviewer=r.get("reviewer"), review_months=r.get("review months")))
+    for it in items:
+        try:
+            res = svc.assign_ownership(user, [it])
+            report["ownership"] += res["updated"]
+        except (svc.NotFound, svc.Forbidden, svc.Invalid) as e:
+            report["errors"].append(f"Ownership {it['process_id']}: {e}")
+    groups = {"raci": {}, "kpis": {}}
+    for r in rows("Cross-Functional RACI"):
+        if r.get("process id") and r.get("activity"):
+            groups["raci"].setdefault(r["process id"], []).append(dict(activity=r["activity"], R=r.get("r", ""), A=r.get("a", ""), C=r.get("c", ""), I=r.get("i", "")))
+    for r in rows("KPI Register"):
+        if r.get("process id") and r.get("kpi"):
+            groups["kpis"].setdefault(r["process id"], []).append(dict(name=r["kpi"], definition=r.get("definition", ""), target=r.get("target", "")))
+    for field, per in groups.items():
+        for pid_text, table in per.items():
+            try:
+                p = svc.get_process(pid_text)
+                cur = svc.open_version(p["id"]) or svc.latest_version(p["id"])
+                content = dict(cur["content"])
+                if content.get(field) == table:
+                    continue
+                content[field] = table
+                svc.save_draft(pid_text, user, dict(content=content, change_summary=f"{field.upper()} loaded from register workbook", autosave_check=False))
+                report["raci_processes" if field == "raci" else "kpi_processes"] += 1
+            except (svc.NotFound, svc.Forbidden, svc.Invalid, svc.Conflict) as e:
+                report["errors"].append(f"{field} {pid_text}: {e}")
+    svc.audit(user, "register_imported", "system", None, json.dumps({k: v for k, v in report.items() if k != "errors"}) + f" errors={len(report['errors'])}")
+    return report

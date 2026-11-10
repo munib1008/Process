@@ -630,6 +630,7 @@ def import_paths(paths: list[str], user: str = "system") -> dict:
             summary["sources"].append(load_source(d, user))
         generate_cross_findings()
         svc.infer_all_relationships()
+        _auto_links()
     return summary
 
 
@@ -856,3 +857,10 @@ def reconcile_report() -> dict:
         maps = db.q("SELECT m.*,p.process_id,p.name,p.kind FROM mappings m JOIN processes p ON p.id=m.process_id WHERE m.source_id=?", (s["id"],))
         out.append(dict(source=s, mappings=maps))
     return dict(sources=out)
+
+
+def _auto_links():
+    """If the Level-1 value stream is loaded, derive suggested handover links from it (inferred=2, removable)."""
+    vs = db.one("SELECT 1 FROM processes WHERE process_id='SC-M-VS-01'")
+    if vs:
+        svc.suggest_value_stream_links(dict(username="system", display_name="system", role="admin", department_id=None))

@@ -110,15 +110,33 @@ def init():
 
 @contextmanager
 def tx():
-    """Transactional write block (BEGIN IMMEDIATE ... COMMIT / ROLLBACK)."""
+    """Transactional write block. Re-entrant: an inner block becomes a SAVEPOINT of the outer one."""
     c = db()
+    depth = getattr(_local, "depth", 0)
+    if depth:
+        name = f"sp{depth}"
+        c.execute(f"SAVEPOINT {name}")
+        _local.depth = depth + 1
+        try:
+            yield c
+            c.execute(f"RELEASE {name}")
+        except BaseException:
+            c.execute(f"ROLLBACK TO {name}")
+            c.execute(f"RELEASE {name}")
+            raise
+        finally:
+            _local.depth = depth
+        return
     c.execute("BEGIN IMMEDIATE")
+    _local.depth = 1
     try:
         yield c
         c.execute("COMMIT")
     except BaseException:
         c.execute("ROLLBACK")
         raise
+    finally:
+        _local.depth = 0
 
 
 def q(sql, args=()):

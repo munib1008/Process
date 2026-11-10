@@ -132,7 +132,7 @@ class Handler(BaseHTTPRequestHandler):
     def api(self, path, qs):
         method = self.command if self.command != "HEAD" else "GET"
         length = int(self.headers.get("Content-Length") or 0)
-        limit = config.MAX_UPLOAD_BYTES if path in ("/api/import", "/api/restore") else config.MAX_JSON_BYTES
+        limit = config.MAX_UPLOAD_BYTES if path in ("/api/import", "/api/restore", "/api/register-import") else config.MAX_JSON_BYTES
         if length > limit:
             return self.send_json({"error": "Request too large."}, 413)
         raw = self.rfile.read(length) if length else b""
@@ -577,6 +577,40 @@ def r_import(c):
         with open(p, "wb") as f:
             f.write(c.raw)
         return importer.import_paths([p], c.user["username"])
+
+
+@route("GET", "/api/inbox")
+def r_inbox(c):
+    return dict(rows=svc.inbox(c.user))
+
+
+@route("POST", "/api/ownership")
+def r_ownership(c):
+    d = c.json()
+    items = d.get("items")
+    if not items and d.get("dept"):
+        items = [dict(process_id=r["process_id"], owner=d.get("owner"), reviewer=d.get("reviewer"), review_months=d.get("review_months"))
+                 for r in db.q("SELECT p.process_id FROM processes p JOIN departments x ON x.id=p.department_id WHERE x.code=? AND p.kind<>'reference'", (d["dept"],))]
+    if not isinstance(items, list) or not items:
+        raise svc.Invalid("Nothing to assign.")
+    return svc.assign_ownership(c.user, items[:2000], bool(d.get("only_empty")))
+
+
+@route("POST", "/api/register-import")
+def r_register_import(c):
+    svc.need(c.user, "assign_owner")
+    return queries.import_register(c.user, c.raw)
+
+
+@route("POST", "/api/map/suggest-links")
+def r_suggest(c):
+    return svc.suggest_value_stream_links(c.user)
+
+
+@route("POST", "/api/findings/bulk")
+def r_findings_bulk(c):
+    d = c.json()
+    return queries.bulk_update_findings(c.user, d.get("ids") or [], d.get("status"), d.get("decision", ""))
 
 
 @route("GET", "/api/register.xlsx")

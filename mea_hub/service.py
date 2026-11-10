@@ -166,6 +166,7 @@ def can(user, action, proc=None) -> bool:
         "accept_import": {"controller"},
         "manage_findings": {"controller", "dept_owner"},
         "manage_relationships": {"controller", "dept_owner", "editor"},
+        "assign_owner": {"controller", "dept_owner"},
         "comment": {"controller", "dept_owner", "editor", "reviewer", "approver"},
         "import": {"controller"},
         "export_draft": {"controller", "dept_owner", "editor", "reviewer", "approver"},
@@ -173,7 +174,7 @@ def can(user, action, proc=None) -> bool:
     }
     if r not in table.get(action, set()):
         return False
-    if action in ("edit", "review", "manage_findings") and r in ("dept_owner", "editor"):
+    if action in ("edit", "review", "manage_findings", "assign_owner") and r in ("dept_owner", "editor"):
         return in_scope
     return True
 
@@ -851,3 +852,121 @@ def log_finding(pid_text, user, kind, title, detail):
     with tx():
         add_finding(kind, "medium", None, proc["id"], title[:200], detail[:4000])
         audit(user, "finding_logged", "process", pid_text, title[:200])
+
+
+# ------------------------------------------------------------------ ownership workbench
+def assign_ownership(user, items, only_empty=False):
+    """items: list of dicts {process_id, owner?, reviewer?, review_months?}. Process-level metadata (not versioned content)."""
+    done, skipped = 0, []
+    with tx():
+        for it in items:
+            p = get_process(it["process_id"])
+            need(user, "assign_owner", p)
+            sets, args = [], []
+            for k in ("owner", "reviewer"):
+                if k in it and it[k] is not None and str(it[k]).strip():
+                    if only_empty and p[k]:
+                        continue
+                    sets.append(f"{k}=?")
+                    args.append(str(it[k]).strip()[:120])
+            rm = it.get("review_months")
+            if rm not in (None, "") and str(rm).strip().isdigit() and 1 <= int(rm) <= 60 and not (only_empty and p["review_months"]):
+                sets.append("review_months=?")
+                args.append(int(rm))
+            if not sets:
+                skipped.append(p["process_id"])
+                continue
+            db.db().execute(f"UPDATE processes SET {','.join(sets)} WHERE id=?", (*args, p["id"]))
+            reindex(p["id"])
+            audit(user, "ownership_assigned", "process", p["process_id"], ", ".join(f"{a.split('=')[0]}={v}" for a, v in zip(sets, args)))
+            done += 1
+    return dict(updated=done, skipped=skipped)
+
+
+def inbox(user):
+    """Work waiting for this user (reviews, approvals, publishing, returned drafts, overdue reviews of own processes)."""
+    out = []
+    rows = q("SELECT p.process_id,p.name,p.owner,p.reviewer,p.next_review,p.department_id,v.status,v.version,v.author FROM processes p "
+             "JOIN process_versions v ON v.process_id=p.id AND v.id=(SELECT id FROM process_versions WHERE process_id=p.id ORDER BY major DESC,minor DESC,id DESC LIMIT 1)")
+    today = dt.date.today().isoformat()
+    me = {user["username"].lower(), user["display_name"].lower()}
+    for r in rows:
+        proc = dict(department_id=r["department_id"])
+        st = r["status"]
+        if st == "under_review" and can(user, "review", proc) and r["author"] != user["username"]:
+            out.append(dict(kind="Review requested", process_id=r["process_id"], name=r["name"], detail=f"v{r['version']} by {r['author']}"))
+        elif st == "pending_approval" and can(user, "approve", proc) and r["author"] != user["username"]:
+            out.append(dict(kind="Approval requested", process_id=r["process_id"], name=r["name"], detail=f"v{r['version']}"))
+        elif st == "approved" and can(user, "publish", proc):
+            out.append(dict(kind="Ready to publish", process_id=r["process_id"], name=r["name"], detail=f"v{r['version']}"))
+        elif st == "changes_requested" and r["author"] == user["username"]:
+            out.append(dict(kind="Changes requested", process_id=r["process_id"], name=r["name"], detail=f"v{r['version']}"))
+        if r["next_review"] and r["next_review"] < today and ((r["owner"] or "").lower() in me or user["role"] in ("admin", "controller")):
+            out.append(dict(kind="Review overdue", process_id=r["process_id"], name=r["name"], detail=f"due {r['next_review']}"))
+    return out
+
+
+# ------------------------------------------------------------------ value-stream link suggestions
+_STOP = {"process", "material", "and", "the", "of", "to", "for", "in", "with", "a", "uae", "exp", "ksa", "ob", "virtual", "request"}
+_ALIAS = {"cs": ["customer", "service"], "gr": ["goods", "receipt"], "pr": ["pr"], "po": ["po"]}
+
+
+def _tokens(text):
+    toks = []
+    for w in re.findall(r"[a-z0-9]+", (text or "").lower()):
+        toks += _ALIAS.get(w, [w])
+    return {t for t in toks if t not in _STOP and len(t) > 1}
+
+
+def suggest_value_stream_links(user, vs_process="SC-M-VS-01"):
+    """Match Level-1 value-stream stages to process records by name and add *inferred* handover links.
+    Suggestions only (inferred=2): they are labelled as such and can be removed."""
+    need(user, "manage_relationships")
+    vs = one("SELECT id FROM processes WHERE process_id=?", (vs_process,))
+    if not vs:
+        raise NotFound(f"{vs_process} (Level 1 value stream) is not loaded.")
+    v = latest_version(vs["id"])
+    dv = one("SELECT id,xml FROM diagram_versions WHERE id=?", (v["diagram_version_id"],))
+    sc = drawio.scene(dv["xml"])
+    procs = q("SELECT id,process_id,name,kind FROM processes WHERE kind IN ('sop','approval','department','form','work_instruction') AND process_id<>?", (vs_process,))
+    ptok = {p["id"]: _tokens(p["name"]) for p in procs}
+    stages = {b["id"]: b for b in sc["boxes"].values() if b["label"] and not (b["style"]["_first"] == "swimlane" or b["style"].get("swimlane"))}
+    match = {}
+    for sid_, b in stages.items():
+        t = _tokens(b["label"])
+        if not t:
+            continue
+        scored = []
+        for p in procs:
+            pt = ptok[p["id"]]
+            if not pt:
+                continue
+            common = t & pt
+            if not common:
+                continue
+            score = len(common) / min(len(t), len(pt))
+            if score >= 0.5 and (len(common) >= 2 or min(len(t), len(pt)) == 1) and (p["kind"] != "form" or "checklist" in t):
+                scored.append((score, p))
+        if scored:
+            top = max(s for s, _ in scored)
+            match[sid_] = [p for s, p in scored if s >= top - 0.01][:4]
+    added, linked_nodes = 0, 0
+    with tx():
+        for sid_, ps in match.items():
+            if len(ps) == 1:
+                row = one("SELECT meta FROM diagram_nodes WHERE diagram_version_id=? AND node_id=?", (dv["id"], sid_))
+                if row:
+                    meta = jloads(row["meta"], {})
+                    if not meta.get("process_ref"):
+                        meta["process_ref"] = ps[0]["process_id"]
+                        db.db().execute("UPDATE diagram_nodes SET meta=? WHERE diagram_version_id=? AND node_id=?", (json.dumps(meta), dv["id"], sid_))
+                        linked_nodes += 1
+        for e in sc["edges"]:
+            for a in match.get(e["source"], []):
+                for b in match.get(e["target"], []):
+                    if a["id"] != b["id"] and not one("SELECT 1 FROM relationships WHERE from_id=? AND to_id=? AND rel_type='next'", (a["id"], b["id"])):
+                        db.db().execute("INSERT INTO relationships(from_id,to_id,rel_type,note,inferred) VALUES(?,?,?,?,2)",
+                                        (a["id"], b["id"], "next", f"Suggested from {vs_process} value-stream handover (name match) - confirm or remove"))
+                        added += 1
+        audit(user, "value_stream_links_suggested", "process", vs_process, f"{added} links, {linked_nodes} nodes linked")
+    return dict(stages_matched=len(match), links_added=added, nodes_linked=linked_nodes)

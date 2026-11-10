@@ -45,7 +45,9 @@ the *Approval Processes* file is mostly Logistics; chart ID `PM-M-IN-01` is used
 * Search: substring match (AND of terms) over an index; no ranking, no deep-link to the exact section.
 * Export: PDF text uses a Latin font (Arabic/other scripts will not render); DOCX hyperlinks to the editable source are textual references, not live links; no page-range export, no landscape switching.
 
-**Not implemented** – A4 print-layout preview mode · reusable content blocks transcluded across processes (single definition is enforced by relationships, not transclusion) · configurable business-approval matrices (sales order, credit, GP …) · notifications / e-mail · SharePoint/OneDrive integration · AI-assisted drafting · Visio `.vsdx` output (draw.io chosen) · legacy `.doc` · per-document access rules beyond role+department · Docker deployment (replaced by the EXE) · real-time co-editing (lease + revision check instead).
+**Added after review (tested)** – ownership workbench, Excel register round-trip, task inbox, findings recommendations + bulk decisions, value-stream link suggestions (name-match; 18 links on the supplied data – suggestions only).
+
+**Not implemented** – A4 print-layout preview mode · reusable content blocks transcluded across processes (single definition is enforced by relationships, not transclusion) · configurable business-approval matrices (sales order, credit, GP …) · e-mail/push notifications (an in-app task inbox exists) · SharePoint/OneDrive integration · AI-assisted drafting · Visio `.vsdx` output (draw.io chosen) · legacy `.doc` · per-document access rules beyond role+department · Docker deployment (replaced by the EXE) · real-time co-editing (lease + revision check instead).
 
 **Blocked / needs input** – content for the 7 missing documents · master E2E value-stream chapters, department handovers, RACI, KPI definitions, SAP transaction lists and escalation ownership: absent in the sources, so left as *Documentation Required* · ID scheme and ownership decisions listed in the findings register.
 

@@ -272,6 +272,74 @@ def test_dashboard_and_reports(admin):
     assert admin.call("GET", "/api/sources")[1]["sources"][0]["sha256"]
 
 
+# ------------------------------------------------------------------ improvement plan features
+def test_ownership_bulk_and_permissions(users):
+    assert users["viewer"].call("POST", "/api/ownership", {"dept": "LOG", "owner": "X"})[0] == 403
+    assert users["editor"].call("POST", "/api/ownership", {"dept": "LOG", "owner": "X"})[0] == 403
+    s, r = users["controller"].call("POST", "/api/ownership", {"dept": "LOG", "owner": "Logistics Head", "reviewer": "QA Lead", "review_months": 6, "only_empty": True})
+    assert s == 200 and r["updated"] > 0
+    p = users["controller"].call("GET", "/api/process/WL-M-IB-01")[1]["process"]
+    assert p["owner"] == "Logistics Head" and p["reviewer"] == "QA Lead" and p["review_months"] == 6
+    users["controller"].call("POST", "/api/ownership", {"items": [{"process_id": "WL-M-IB-01", "owner": "Someone Else"}]})
+    users["controller"].call("POST", "/api/ownership", {"dept": "LOG", "owner": "Overwrite?", "only_empty": True})
+    assert users["controller"].call("GET", "/api/process/WL-M-IB-01")[1]["process"]["owner"] == "Someone Else"      # only_empty never overwrites
+
+
+def test_register_roundtrip_import(users):
+    from openpyxl import Workbook, load_workbook
+    s, data = users["controller"].call("GET", "/api/register.xlsx", raw=True)
+    assert "Ownership" in load_workbook(io.BytesIO(data)).sheetnames
+    wb = Workbook()
+    ws = wb.active; ws.title = "Ownership"; ws.append(["Process ID", "Owner", "Reviewer", "Review months"]); ws.append(["WL-M-IB-01", "Registry Owner", "", ""]); ws.append(["NOPE-1", "x", "", ""])
+    r = wb.create_sheet("Cross-Functional RACI"); r.append(["Process ID", "Activity", "R", "A", "C", "I"]); r.append(["WL-M-IB-01", "Post goods receipt", "Warehouse", "Logistics Manager", "Procurement", "Finance"])
+    k = wb.create_sheet("KPI Register"); k.append(["Process ID", "Department", "KPI", "Definition", "Target"]); k.append(["WL-M-IB-01", "", "Inbound TAT", "GR posted within 1 day", "1 day"])
+    bio = io.BytesIO(); wb.save(bio)
+    s, rep = users["controller"].call("POST", "/api/register-import", bio.getvalue(), headers={"Content-Type": "application/octet-stream"})
+    assert s == 200 and rep["ownership"] == 1 and rep["raci_processes"] == 1 and rep["kpi_processes"] == 1
+    assert any("NOPE-1" in e for e in rep["errors"])
+    d = users["controller"].call("GET", "/api/process/WL-M-IB-01")[1]
+    assert d["version"]["status"] == "draft" and d["version"]["content"]["raci"][0]["A"] == "Logistics Manager"     # goes into a DRAFT, not published content
+    assert d["version"]["content"]["kpis"][0]["name"] == "Inbound TAT"
+    assert users["viewer"].call("POST", "/api/register-import", b"PK", headers={"Content-Type": "application/octet-stream"})[0] == 403
+    assert users["controller"].call("POST", "/api/register-import", b"not xlsx", headers={"Content-Type": "application/octet-stream"})[0] == 400
+
+
+def test_findings_recommendation_and_bulk(users):
+    rows = users["controller"].call("GET", "/api/findings?status=open")[1]["rows"]
+    assert rows and all(r["recommended"] for r in rows)
+    ids = [r["id"] for r in rows if r["title"].startswith("Provisional ID")][:2]
+    assert users["controller"].call("POST", "/api/findings/bulk", {"ids": ids, "status": "accepted", "decision": ""})[0] == 400       # rationale required
+    assert users["viewer"].call("POST", "/api/findings/bulk", {"ids": ids, "status": "accepted", "decision": "x"})[0] == 403
+    s, r = users["controller"].call("POST", "/api/findings/bulk", {"ids": ids, "status": "accepted", "decision": "Accepted pending permanent IDs"})
+    assert s == 200 and r["updated"] == len(ids)
+
+
+def test_value_stream_suggestions_and_inbox(users, tmp_path):
+    VS = '''<mxfile><diagram name="Level 1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="t" value="Level 1 Test Value Stream (SC-M-VS-01)" style="swimlane;startSize=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="900" height="300" as="geometry"/></mxCell>
+<mxCell id="a" value="Goods Receipt (Inbound)" style="rounded=1;" vertex="1" parent="t"><mxGeometry x="40" y="60" width="200" height="60" as="geometry"/></mxCell>
+<mxCell id="b" value="Quality Check" style="rounded=1;" vertex="1" parent="t"><mxGeometry x="300" y="60" width="200" height="60" as="geometry"/></mxCell>
+<mxCell id="c" value="Scrap Disposal" style="rounded=1;" vertex="1" parent="t"><mxGeometry x="560" y="60" width="200" height="60" as="geometry"/></mxCell>
+<mxCell id="e1" edge="1" source="a" target="b" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e2" edge="1" source="b" target="c" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root></mxGraphModel></diagram></mxfile>'''
+    f = tmp_path / "SC-M-VS-01_test.drawio"
+    f.write_text(VS, encoding="utf-8")
+    importer.import_paths([str(f)], "tester")
+    assert users["viewer"].call("POST", "/api/map/suggest-links")[0] == 403
+    s, r = users["controller"].call("POST", "/api/map/suggest-links")
+    assert s == 200 and r["stages_matched"] >= 3
+    rel = users["controller"].call("GET", "/api/process/WL-M-IB-01")[1]["relationships"]
+    assert any(x["rel_type"] == "next" and x["inferred"] == 2 for x in rel)                          # suggestions are flagged, not authoritative
+    users["editor"].call("PUT", "/api/process/WL-M-IB-01/draft", {"content": {"objective": "touch"}})
+    assert any(x["inferred"] == 2 for x in users["controller"].call("GET", "/api/process/WL-M-IB-01")[1]["relationships"])   # survive re-indexing
+    # inbox: submit something, reviewer sees it, author does not
+    users["editor"].call("POST", "/api/process", {"name": "Inbox proc", "department": "LOG", "process_id": "TST-I-001"})
+    users["editor"].call("POST", "/api/process/TST-I-001/submit", {"change_summary": "x"})
+    assert any(i["process_id"] == "TST-I-001" and i["kind"] == "Review requested" for i in users["reviewer"].call("GET", "/api/inbox")[1]["rows"])
+    assert not any(i["process_id"] == "TST-I-001" for i in users["editor"].call("GET", "/api/inbox")[1]["rows"])
+
+
 # ------------------------------------------------------------------ backup / restore (keep last)
 def test_backup_and_restore(server, admin, users):
     before = admin.call("GET", "/api/library")[1]["processes"]
@@ -361,3 +429,5 @@ def test_checklist_import_creates_forms_and_flags_differing_duplicates(tmp_path)
     assert len(forms) == 1 and forms[0]["process_id"].startswith("SAL-FRM-")                      # same form in two files = ONE record
     assert db.one("SELECT 1 FROM mappings WHERE process_id=(SELECT id FROM processes WHERE process_id=?) AND role='duplicate' AND similarity IS NOT NULL", (forms[0]["process_id"],))
     assert db.one("SELECT 1 FROM findings WHERE kind='duplicate' AND severity='medium' AND title LIKE ?", (f"%{forms[0]['process_id']}%",))
+
+
