@@ -63,7 +63,9 @@ function buildEditor(detail, saveFn) {
   const texts = TEXT_FIELDS.map(([k, label]) => field("t_" + k, label, h("textarea", {value: c[k] || "", oninput: mark})));
   const resp = field("responsible", "Responsible departments / roles (one per line)", h("textarea", {value: (c.responsible || []).join("\n"), oninput: mark}));
   const tabs = {};
-  const tabEls = Object.entries(TABLES).map(([k, spec]) => { tabs[k] = tableEditor(spec, c[k], mark); return h("div", null, h("h3", null, spec.label), tabs[k].el); });
+  const sync = h("input", {type: "checkbox", style: "width:auto", checked: !!c.flow_sync, onchange: mark});
+  const tabEls = Object.entries(TABLES).map(([k, spec]) => { tabs[k] = tableEditor(spec, c[k], mark); return h("div", null, h("h3", null, spec.label),
+    k === "activities" ? h("label", {style: "font-weight:normal;color:var(--ink);margin:0 0 6px"}, sync, " Keep activities, roles and SAP references linked to the flowchart (they are re-read from the diagram every time it is saved; manual changes to this table would then be replaced)") : null, tabs[k].el); });
   const secs = [];
   const secWrap = h("div");
   const addSection = (s) => {
@@ -77,7 +79,7 @@ function buildEditor(detail, saveFn) {
   const summary = h("input", {type: "text", placeholder: "Change summary (required to submit for review)", value: detail.version.change_summary || "", oninput: mark});
 
   function collect() {
-    const content = {responsible: inputs.responsible.value.split("\n").map((x) => x.trim()).filter(Boolean),
+    const content = {flow_sync: sync.checked, responsible: inputs.responsible.value.split("\n").map((x) => x.trim()).filter(Boolean),
       sections: secs.map((s) => ({title: s.title.value, html: s.ed.get()}))};
     TEXT_FIELDS.forEach(([k]) => content[k] = inputs["t_" + k].value);
     Object.keys(TABLES).forEach((k) => content[k] = tabs[k].get());

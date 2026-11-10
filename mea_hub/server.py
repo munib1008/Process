@@ -1,4 +1,6 @@
 """Local HTTP server (stdlib only): static UI, optional self-hosted draw.io, and the JSON API."""
+import gzip
+import hashlib
 import json
 import mimetypes
 import os
@@ -49,6 +51,11 @@ def local_drawio():
     return os.path.isfile(os.path.join(config.DRAWIO_DIR, "index.html"))
 
 
+COMPRESSIBLE = {"application/json", "application/javascript", "text/javascript", "text/css", "text/html", "text/plain", "image/svg+xml",
+                "application/xml", "text/xml", "application/vnd.jgraph.mxfile"}
+_GZ_CACHE = {}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "MEAProcessHub/1.0"
     protocol_version = "HTTP/1.1"
@@ -58,14 +65,38 @@ class Handler(BaseHTTPRequestHandler):
             super().log_message(fmt, *args)
 
     # ---------------------------------------------------------------- plumbing
-    def send_bytes(self, status, data, ctype, extra=None, csp=True):
+    def send_bytes(self, status, data, ctype, extra=None, csp=True, cache="no-store", etag=None, gz_key=None):
+        """cache: Cache-Control value. etag: enables 304 revalidation. gz_key: cache key for the gzipped body."""
+        if etag and self.headers.get("If-None-Match") == etag and status == 200:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", cache)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        enc = None
+        if len(data) > 1400 and "gzip" in (self.headers.get("Accept-Encoding") or "") and ctype.split(";")[0] in COMPRESSIBLE:
+            if gz_key and gz_key in _GZ_CACHE:
+                data = _GZ_CACHE[gz_key]
+            else:
+                data = gzip.compress(data, 5)
+                if gz_key:
+                    if len(_GZ_CACHE) > 400:
+                        _GZ_CACHE.clear()
+                    _GZ_CACHE[gz_key] = data
+            enc = "gzip"
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        if enc:
+            self.send_header("Content-Encoding", enc)
+            self.send_header("Vary", "Accept-Encoding")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
+        if etag:
+            self.send_header("ETag", etag)
         if csp:
             origin = "" if local_drawio() else config.DRAWIO_REMOTE
             self.send_header("Content-Security-Policy", csp_header(origin))
@@ -106,7 +137,7 @@ class Handler(BaseHTTPRequestHandler):
     do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = handle_any
 
     # ---------------------------------------------------------------- static
-    def serve_file(self, root, rel, csp=True):
+    def serve_file(self, root, rel, csp=True, cache="no-cache"):
         rel = rel.lstrip("/") or "index.html"
         full = os.path.realpath(os.path.join(root, rel))
         if not full.startswith(os.path.realpath(root) + os.sep) or not os.path.isfile(full):
@@ -114,8 +145,12 @@ class Handler(BaseHTTPRequestHandler):
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
         if full.endswith(".js"):
             ctype = "application/javascript"
+        st = os.stat(full)
+        etag = f'"{int(st.st_mtime)}-{st.st_size}"'
+        if self.headers.get("If-None-Match") == etag:                      # unchanged: no file read at all
+            return self.send_bytes(200, b"", ctype, csp=csp, cache=cache, etag=etag)
         with open(full, "rb") as f:
-            self.send_bytes(200, f.read(), ctype + ("; charset=utf-8" if ctype.startswith("text/") else ""), csp=csp)
+            self.send_bytes(200, f.read(), ctype + ("; charset=utf-8" if ctype.startswith("text/") else ""), csp=csp, cache=cache, etag=etag, gz_key=full + etag)
 
     def serve_static(self, path):
         if path in ("/", ""):
@@ -126,7 +161,7 @@ class Handler(BaseHTTPRequestHandler):
         if not local_drawio():
             return self.send_bytes(404, b"Local draw.io copy not installed. Run fetch_drawio.py (see docs/ADMIN_GUIDE.md).", "text/plain")
         rel = path[len("/drawio/"):] if path.startswith("/drawio/") else "index.html"
-        self.serve_file(config.DRAWIO_DIR, rel, csp=False)
+        self.serve_file(config.DRAWIO_DIR, rel, csp=False, cache="private, max-age=86400")      # the editor is static: let the browser keep it
 
     # ---------------------------------------------------------------- API
     def api(self, path, qs):
@@ -152,8 +187,9 @@ class Handler(BaseHTTPRequestHandler):
                     res = fn(ctx, *mt.groups())
                     if res is None:
                         res = {"ok": True}
-                    if isinstance(res, tuple):          # (bytes, ctype, extra headers)
-                        return self.send_bytes(200, res[0], res[1], res[2] if len(res) > 2 else None)
+                    if isinstance(res, tuple):          # (bytes, ctype, extra headers[, cache-control, etag])
+                        return self.send_bytes(200, res[0], res[1], res[2] if len(res) > 2 else None, cache=res[3] if len(res) > 3 else "no-store",
+                                               etag=res[4] if len(res) > 4 else None)
                     if isinstance(res, dict) and "_set_cookie" in res:
                         extra = {"Set-Cookie": res.pop("_set_cookie")}
                         return self.send_json(res, 200, extra)
@@ -223,7 +259,8 @@ def r_password(c):
 def r_config(c):
     return dict(drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
-                templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, node_meta_keys=svc.NODE_META_KEYS, version="1.0.0")
+                templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
+                comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version="1.0.0")
 
 
 @route("GET", "/api/departments")
@@ -317,21 +354,30 @@ def r_compare(c, pid):
 
 @route("POST", "/api/process/([^/]+)/comments")
 def r_comment(c, pid):
-    p = svc.get_process(pid)
-    svc.need(c.user, "comment", p)
-    body = (c.json().get("body") or "").strip()
-    if not body:
-        raise svc.Invalid("Comment is empty.")
-    v = svc.latest_version(p["id"])
-    with db.tx():
-        db.db().execute("INSERT INTO comments(process_id,version_id,author,body,created_at) VALUES(?,?,?,?,?)", (p["id"], v["id"], c.user["username"], body[:4000], svc.now()))
+    d = c.json()
+    return dict(id=svc.add_comment(pid, c.user, d.get("body"), d.get("category", "comment"), d.get("severity", "info"), d.get("section", ""), d.get("parent_id"), d.get("version_id")))
 
 
-@route("PUT", "/api/comments/(\\d+)/resolve")
-def r_resolve(c, cid):
-    svc.need(c.user, "comment")
-    with db.tx():
-        db.db().execute("UPDATE comments SET resolved=1 WHERE id=?", (int(cid),))
+@route("PUT", "/api/comments/(\\d+)")
+def r_comment_upd(c, cid):
+    d = c.json()
+    svc.update_comment(c.user, int(cid), d.get("status"), d.get("resolution"))
+
+
+@route("GET", "/api/audit-comments")
+def r_audit_comments(c):
+    return dict(rows=svc.comments_register(c.user, c.arg("status"), c.arg("category"), c.arg("process"), c.arg("dept")))
+
+
+@route("GET", "/api/audit-comments.xlsx")
+def r_audit_comments_xlsx(c):
+    return file_resp(queries.comments_xlsx(c.user), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "MEA_Audit_Comments_Register.xlsx")
+
+
+@route("POST", "/api/departments")
+def r_dept_add(c):
+    d = c.json()
+    svc.add_department(c.user, d.get("code"), d.get("name"))
 
 
 @route("PUT", "/api/process/([^/]+)/department")
@@ -378,7 +424,7 @@ def r_diagram_new(c):
     if d.get("xml"):
         xml = drawio.normalize(d["xml"])
     else:
-        xml = drawio.template_xml(d.get("template", "blank"), title)
+        xml = drawio.template_xml(d.get("template", "blank"), title, legend=svc.master_legend())
     proc = svc.get_process(pid) if pid else None
     svc.need(c.user, "edit", proc)
     with db.tx():
@@ -490,7 +536,7 @@ def r_asset(c, aid):
         if not db.one("SELECT 1 FROM diagram_versions dv JOIN process_versions pv ON pv.diagram_version_id=dv.id WHERE dv.preview_asset_id=? AND pv.status IN ('published','superseded')", (int(aid),)) \
            and not db.one("SELECT 1 FROM process_versions WHERE status IN ('published','superseded') AND content LIKE ?", (f'%/api/assets/{int(aid)}"%',)):
             raise svc.Forbidden("Asset not available.")
-    return data, mime, {"Content-Security-Policy": "sandbox"}
+    return data, mime, {"Content-Security-Policy": "sandbox"}, "private, max-age=31536000, immutable", f'"a{int(aid)}"'      # an asset id never changes content
 
 
 # ---- insight / reports

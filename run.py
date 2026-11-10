@@ -54,7 +54,7 @@ def main():
         return
     files = list(args.imports or [])
     if not db.one("SELECT 1 FROM sources LIMIT 1"):                     # first start: auto-import ./source_documents
-        files += sorted(glob.glob(os.path.join(config.app_root(), "source_documents", "*.docx")) + glob.glob(os.path.join(config.app_root(), "source_documents", "*.drawio")))
+        files += sorted(glob.glob(os.path.join(config.app_root(), "source_documents", "*.docx")) + glob.glob(os.path.join(config.app_root(), "source_documents", "*.drawio")) + glob.glob(os.path.join(config.app_root(), "source_documents", "flows", "*.drawio")))
     if files:
         print(f"Importing {len(files)} document(s)…")
         res = importer.import_paths(files, "system")

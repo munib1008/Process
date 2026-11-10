@@ -1,0 +1,768 @@
+{
+ "source": "dormakaba_All_Approved_process_Project_1.44_master_canvas.drawio",
+ "flows": [
+  {
+   "title": "Service and Operation Overview",
+   "id": "WL-M-WL-01",
+   "name": "Logistics and Warehouse – General Overview",
+   "dept": "LOG",
+   "kind": "department",
+   "attach": true,
+   "note": "Canvas title reads 'Service and Operation Overview' although the content is the Logistics overview."
+  },
+  {
+   "title": "INBOUND",
+   "id": "WL-M-IB-01",
+   "name": "Material Inbound",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "Dispatch",
+   "id": "WL-M-OB-01",
+   "name": "Material Dispatch – UAE & EXP",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "Dispatch_KSA",
+   "id": "WL-M-OB-02",
+   "name": "Material Dispatch – KSA",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "QA/QC",
+   "id": "WL-S-QC-01",
+   "name": "Quality Assurance & Control Check – UAE & EXP",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "QA/QC modified March 12, 2025",
+   "id": "WL-S-QC-02",
+   "name": "Quality Assurance & Control Check – KSA",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "note": "Canvas title is 'QA/QC modified March 12, 2025' (no region). Mapped to the KSA process because its proportions match the KSA flowchart picture in the Logistics document – owner to confirm."
+  },
+  {
+   "title": "Annual Audit",
+   "id": "WL-M-IA-01",
+   "name": "Inventory Audit – UAE & EXP",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "Annual Audit_KSA",
+   "id": "WL-M-IA-02",
+   "name": "Inventory Audit – KSA",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "Stock Correction",
+   "id": "WL-S-SC-01",
+   "name": "Stock Correction",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "Fragile Material Handling",
+   "id": "WL-S-FH-01",
+   "name": "Fragile Material Handling",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "PICK and PACK",
+   "id": "PP-M-PQ-01",
+   "name": "Material Pick & Pack – UAE & EXP",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "note": "The canvas refers to this process as WL-M-PP-01; the Logistics document uses PP-M-PQ-01."
+  },
+  {
+   "title": "PICK and PACK_KSA",
+   "id": "PP-M-PQ-02",
+   "name": "Material Pick & Pack – KSA",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "note": "The canvas refers to this process as WL-M-PP-02; the Logistics document uses PP-M-PQ-02."
+  },
+  {
+   "title": "Shipping Documentation",
+   "id": "WL-M-SP-01",
+   "name": "Shipping Documentation – UAE & EXP",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "Shipping Documentation_KSA",
+   "id": "WL-M-SP-01.2",
+   "name": "Shipping Documentation – KSA",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "📌 Scrap Disposal Process Flow",
+   "id": "WL-S-SC-01.2",
+   "name": "Scrap Disposal",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "note": "The canvas holds several side-by-side variants of this flow under one title; all are kept – owner to select the valid one."
+  },
+  {
+   "title": "OB",
+   "id": "WL-A-OB-01",
+   "name": "Outbound (OB) Request and Escalation",
+   "dept": "LOG",
+   "kind": "approval",
+   "provisional": true
+  },
+  {
+   "title": "📌 SEBAR Material Transfer",
+   "id": "WL-A-SB-01",
+   "name": "KSA Material Export via SABER",
+   "dept": "LOG",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Purchase and Planning Overview",
+   "id": "PP-M-OV-01",
+   "name": "Purchase and Planning – General Overview",
+   "dept": "PRC",
+   "kind": "department",
+   "provisional": true
+  },
+  {
+   "title": "Material Planning",
+   "id": "PP-M-MP-01",
+   "name": "Material Planning",
+   "dept": "MPL",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Vendor Assignment",
+   "id": "PP-M-VA-01",
+   "name": "Vendor Assignment",
+   "dept": "PRC",
+   "kind": "sop"
+  },
+  {
+   "title": "Purchase Requisition",
+   "id": "PP-M-PR-01",
+   "name": "Purchase Requisition",
+   "dept": "MPL",
+   "kind": "sop"
+  },
+  {
+   "title": "Installation Subcontracting",
+   "id": "PP-M-SC-01",
+   "name": "Installation Subcontracting",
+   "dept": "PRC",
+   "kind": "sop",
+   "attach": true
+  },
+  {
+   "title": "Safety Stock Review",
+   "id": "PP-M-SS-01",
+   "name": "Safety Stock Review",
+   "dept": "MPL",
+   "kind": "sop"
+  },
+  {
+   "title": "PO Creation",
+   "id": "PP-M-PO-01",
+   "name": "Purchase Order Creation",
+   "dept": "PRC",
+   "kind": "sop"
+  },
+  {
+   "title": "OC Verification",
+   "id": "PP-M-OC-01",
+   "name": "Order Confirmation (OC) Verification",
+   "dept": "PRC",
+   "kind": "sop"
+  },
+  {
+   "title": "Goods Shipment",
+   "id": "PP-M-GS-01",
+   "name": "Goods Shipment – Direct",
+   "dept": "PRC",
+   "kind": "sop"
+  },
+  {
+   "title": "Goods Shipment Indirect",
+   "id": "PP-M-GS-02",
+   "name": "Goods Shipment – Indirect",
+   "dept": "PRC",
+   "kind": "sop"
+  },
+  {
+   "title": "Purchase price Control",
+   "id": "PP-M-PC-01",
+   "name": "Purchase Price Control",
+   "dept": "PRC",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "PO Delivery Date Expedition",
+   "id": "SS-A-PE-01",
+   "name": "PO Delivery Date Expedition",
+   "dept": "PRC",
+   "kind": "approval"
+  },
+  {
+   "title": "Service and Operation Overview",
+   "id": "OS-M-OV-01",
+   "name": "Service and Operation – General Overview",
+   "dept": "SVC",
+   "kind": "department",
+   "provisional": true,
+   "nth": 1
+  },
+  {
+   "title": "Scope Creation",
+   "id": "OS-M-SA-01",
+   "name": "Installation Scope Analysis",
+   "dept": "SVC",
+   "kind": "sop"
+  },
+  {
+   "title": "Subcontracting",
+   "id": "OS-M-SC-01",
+   "name": "Service Subcontracting",
+   "dept": "SVC",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Installation & Commissioning",
+   "id": "OS-M-IC-01",
+   "name": "Installation & Commissioning",
+   "dept": "SVC",
+   "kind": "sop"
+  },
+  {
+   "title": "Break down",
+   "id": "OS-M-MB-01",
+   "name": "Maintenance & Breakdown",
+   "dept": "SVC",
+   "kind": "sop"
+  },
+  {
+   "title": "Service Documentation & Invoice",
+   "id": "OS-M-DI-01",
+   "name": "Service Documentation & Invoice",
+   "dept": "SVC",
+   "kind": "sop"
+  },
+  {
+   "title": "Contract Renewal",
+   "id": "OS-M-CR-01",
+   "name": "Contract Renewal",
+   "dept": "SVC",
+   "kind": "sop"
+  },
+  {
+   "title": "Payment collection",
+   "id": "OS-M-PC-01",
+   "name": "Payment Collection",
+   "dept": "SVC",
+   "kind": "sop"
+  },
+  {
+   "title": "warranty and NCR",
+   "id": "OS-M-WN-01",
+   "name": "Warranty and NCR",
+   "dept": "SVC",
+   "kind": "sop"
+  },
+  {
+   "title": "Sticker Activation",
+   "id": "OS-M-ST-01",
+   "name": "Sticker Activation",
+   "dept": "SVC",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Project Management Overview",
+   "id": "PP-M-PP-01",
+   "name": "Project Management – General Overview",
+   "dept": "PRJ",
+   "kind": "department",
+   "attach": true,
+   "note": "The approved canvas lists the five project phases with their own IDs: PM-M-IN-01 Initiation, PM-M-PL-01 Planning, PM-M-EX-01 Execution, PM-M-MC-01 Monitoring and Control, PM-M-CL-01 Closing. The Word documents reuse PM-M-IN-01 for all five (provisional IDs PM-M-IN-01.2 to .5 in this tool). Recommendation: Document Controller re-issues the provisional IDs to the canvas IDs. The canvas draws no separate flow per phase, so those five processes keep their pictures."
+  },
+  {
+   "title": "Project Management Complete E2E Flow",
+   "id": "PM-M-EE-01",
+   "name": "Project Management – Complete E2E Flow",
+   "dept": "PRJ",
+   "kind": "e2e",
+   "provisional": true,
+   "note": "Two versions of this flow exist on the canvas; this is the left one."
+  },
+  {
+   "title": "Project Management Complete E2E Flow",
+   "id": "PM-M-EE-02",
+   "name": "Project Management – Complete E2E Flow (second canvas version)",
+   "dept": "PRJ",
+   "kind": "e2e",
+   "provisional": true,
+   "nth": 1,
+   "note": "Second version on the canvas – owner to decide which version is current."
+  },
+  {
+   "hint": "Responsible ■ Sales & Support Team ■ Country Manag",
+   "id": "PM-M-PI-01",
+   "name": "Project Management Involvement (PMT)",
+   "dept": "PRJ",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Slow moving Incentive Scheme process",
+   "id": "OP-M-SM-01",
+   "name": "Slow-Moving Incentive Scheme",
+   "dept": "MPL",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Order process Overview",
+   "id": "SS-M-OV-01",
+   "name": "Order Process Overview (RFQ to Collection)",
+   "dept": "SAL",
+   "kind": "department",
+   "provisional": true
+  },
+  {
+   "hint": "Quotation Management and Order Finalization Ref: S",
+   "id": "SS-M-OV-02",
+   "name": "Sales Support Overview (Quotation to Billing)",
+   "dept": "SAL",
+   "kind": "department",
+   "provisional": true
+  },
+  {
+   "hint": "The estimator registers the project/order with the",
+   "id": "SS-M-EE-01",
+   "name": "Sales Order – Complete E2E Flow",
+   "dept": "SAL",
+   "kind": "e2e",
+   "provisional": true
+  },
+  {
+   "hint": "Status: Complete. Notify CS/Sales Manager of Rejec",
+   "id": "SS-M-CR-01",
+   "name": "Material Order Cancellation and Return",
+   "dept": "SAL",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "hint": "70%/30% to Customer Re-stocking charge",
+   "id": "SS-RF-CR-01",
+   "name": "Order Cancellation / Return – Types and Reasons",
+   "dept": "SAL",
+   "kind": "reference",
+   "provisional": true
+  },
+  {
+   "title": "Sales Sample Approval and Tracking Process",
+   "id": "SS-A-SA-01",
+   "name": "Sales Sample Approval and Tracking",
+   "dept": "SAL",
+   "kind": "approval",
+   "provisional": true
+  },
+  {
+   "title": "MW E2E process Overview",
+   "id": "MW-M-OV-01",
+   "name": "Movable Walls – E2E Process Overview",
+   "dept": "SAL",
+   "kind": "department",
+   "provisional": true,
+   "category": "Movable Walls"
+  },
+  {
+   "title": "Enquiry and Quotation Finalization",
+   "id": "MW-M-EQ-01",
+   "name": "Enquiry and Quotation Finalization",
+   "dept": "SAL",
+   "kind": "sop",
+   "category": "Movable Walls"
+  },
+  {
+   "title": "Sales Order & Technical Validation",
+   "id": "MW-M-ST-01",
+   "name": "Sales Order & Technical Validation",
+   "dept": "SAL",
+   "kind": "sop",
+   "category": "Movable Walls"
+  },
+  {
+   "title": "PR Validation",
+   "id": "MW-S-PR-01",
+   "name": "PR Validation",
+   "dept": "SAL",
+   "kind": "sop",
+   "category": "Movable Walls"
+  },
+  {
+   "title": "PO creation and Expedation",
+   "id": "MW-S-PE-01",
+   "name": "PO Creation & Expedition",
+   "dept": "SAL",
+   "kind": "sop",
+   "category": "Movable Walls"
+  },
+  {
+   "title": "Order-to-Invoice",
+   "id": "MW-M-OI-01",
+   "name": "Order-to-Invoice",
+   "dept": "SAL",
+   "kind": "sop",
+   "category": "Movable Walls"
+  },
+  {
+   "title": "Revenue Recognition",
+   "id": "MW-S-RR-01",
+   "name": "Revenue Recognition",
+   "dept": "SAL",
+   "kind": "sop",
+   "category": "Movable Walls"
+  },
+  {
+   "title": "Production Order Complete flow",
+   "id": "PD-M-EE-01",
+   "name": "Production Order – Complete Flow",
+   "dept": "PRD",
+   "kind": "e2e",
+   "provisional": true,
+   "note": "Two versions of this flow exist on the canvas; this is the left one."
+  },
+  {
+   "title": "Production Order Complete flow",
+   "id": "PD-M-EE-02",
+   "name": "Production Order – Complete Flow (second canvas version)",
+   "dept": "PRD",
+   "kind": "e2e",
+   "provisional": true,
+   "nth": 1,
+   "note": "Second version on the canvas – owner to decide which version is current."
+  },
+  {
+   "hint": "■ Customer ■ Sales ■ Estimator ■ Customer Service",
+   "id": "PD-M-SS-01",
+   "name": "Produced Material Stock Replenishment",
+   "dept": "PRD",
+   "kind": "sop"
+  },
+  {
+   "hint": "Prepare Production plan, Update(On-time, early, de",
+   "id": "PD-M-PA-01",
+   "name": "Production Assembly",
+   "dept": "PRD",
+   "kind": "sop"
+  },
+  {
+   "title": "Machine Repair/Maintenance Process",
+   "id": "PD-M-MR-01",
+   "name": "Machine Repair / Maintenance",
+   "dept": "PRD",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Production Material Picking",
+   "id": "PD-M-MP-01",
+   "name": "Production Material Picking",
+   "dept": "PRD",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Procure Consumable",
+   "id": "PD-M-PC-01",
+   "name": "Procure Consumables",
+   "dept": "PRD",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Procure Machine Spare",
+   "id": "PD-M-PS-01",
+   "name": "Procure Machine Spares",
+   "dept": "PRD",
+   "kind": "sop",
+   "provisional": true
+  },
+  {
+   "title": "Customer creation/ Miscellenous Acc Approval process",
+   "id": "SS-A-CC-01",
+   "name": "Customer Creation and Miscellaneous Account Approval",
+   "dept": "GOV",
+   "kind": "approval"
+  },
+  {
+   "title": "SO Credit Release Request",
+   "id": "FI-A-CR-01",
+   "name": "Sales Order Credit Release Request",
+   "dept": "FIN",
+   "kind": "approval",
+   "provisional": true
+  },
+  {
+   "title": "S&OP Process",
+   "id": "PP-A-SO-01",
+   "name": "S&OP Request and Approval",
+   "dept": "MPL",
+   "kind": "approval",
+   "provisional": true
+  },
+  {
+   "title": "PG Approval Process",
+   "id": "PP-A-PG-01",
+   "name": "PG Usage Approval",
+   "dept": "GOV",
+   "kind": "approval",
+   "provisional": true
+  },
+  {
+   "hint": "Customer LPO",
+   "id": "SC-M-FR-01",
+   "name": "Customer LPO to Invoice – Fulfilment Routes",
+   "dept": "E2E",
+   "kind": "e2e",
+   "provisional": true
+  },
+  {
+   "hint": "Receive Enquiry from Customer and Update Order Acc",
+   "id": "SC-M-EE-01",
+   "name": "Master E2E Process Map (End-to-End)",
+   "dept": "E2E",
+   "kind": "e2e",
+   "provisional": true
+  }
+ ],
+ "legend": {
+  "roles": [
+   {
+    "role": "Sales",
+    "color": "#1E90FF"
+   },
+   {
+    "role": "Sales Support Manager",
+    "color": "#808000"
+   },
+   {
+    "role": "Customer Service",
+    "color": "#2E8B57"
+   },
+   {
+    "role": "Customer",
+    "color": "#6B8E23"
+   },
+   {
+    "role": "Business Development Managers",
+    "color": "#483D8B"
+   },
+   {
+    "role": "Estimation",
+    "color": "#8FBC8F"
+   },
+   {
+    "role": "Specification Team",
+    "color": "#B22222"
+   },
+   {
+    "role": "Specification Manager",
+    "color": "#C71585"
+   },
+   {
+    "role": "Product Manager",
+    "color": "#9370DB"
+   },
+   {
+    "role": "Country Manager",
+    "color": "#48D1CC"
+   },
+   {
+    "role": "Material Planner",
+    "color": "#D8BFD8"
+   },
+   {
+    "role": "MRP Analyst",
+    "color": "#228B22"
+   },
+   {
+    "role": "Purchase",
+    "color": "#BDB76B"
+   },
+   {
+    "role": "Procurement Specialist",
+    "color": "#DAA520"
+   },
+   {
+    "role": "Strategic Team",
+    "color": "#5F9EA0"
+   },
+   {
+    "role": "Procurement Head",
+    "color": "#0000CD"
+   },
+   {
+    "role": "Vendor / Supplier / Service Provider",
+    "color": "#FFD700"
+   },
+   {
+    "role": "Freight Forwarder",
+    "color": "#FF8C00"
+   },
+   {
+    "role": "Warehouse",
+    "color": "#2F4F4F"
+   },
+   {
+    "role": "Logistics",
+    "color": "#008080"
+   },
+   {
+    "role": "Quality and Safety",
+    "color": "#A9A9A9"
+   },
+   {
+    "role": "Production",
+    "color": "#6A5ACD"
+   },
+   {
+    "role": "Production Supervisor",
+    "color": "#9932CC"
+   },
+   {
+    "role": "Production Manager",
+    "color": "#BA55D3"
+   },
+   {
+    "role": "Production Engineering",
+    "color": "#7FFF00"
+   },
+   {
+    "role": "Project Management Team",
+    "color": "#6666FF"
+   },
+   {
+    "role": "Service Team / Service Sales",
+    "color": "#DC143C"
+   },
+   {
+    "role": "Service Manager",
+    "color": "#556B2F"
+   },
+   {
+    "role": "Service Coordinator",
+    "color": "#FF1493"
+   },
+   {
+    "role": "Service Document Controller / Installation Coordinator",
+    "color": "#7B68EE"
+   },
+   {
+    "role": "Technician",
+    "color": "#66CDAA"
+   },
+   {
+    "role": "Credit Controller",
+    "color": "#CD5C5C"
+   },
+   {
+    "role": "Financial Controller",
+    "color": "#8B0000"
+   },
+   {
+    "role": "Finance and Account Manager",
+    "color": "#8B4513"
+   },
+   {
+    "role": "Accountant",
+    "color": "#BC8F8F"
+   },
+   {
+    "role": "Data Analyst",
+    "color": "#660000"
+   },
+   {
+    "role": "Architectural Consultant",
+    "color": "#708090"
+   },
+   {
+    "role": "Technical Team",
+    "color": "#947685"
+   },
+   {
+    "role": "General Requestors",
+    "color": "#4F4F4F"
+   },
+   {
+    "role": "Operations Manager",
+    "color": "#808000"
+   },
+   {
+    "role": "PMM",
+    "color": "#6666FF"
+   }
+  ],
+  "aliases": {
+   "#4682B4": "Warehouse",
+   "#4169E1": "Sales",
+   "#FFBF00": "Purchase",
+   "#800000": "Financial Controller",
+   "#BB3DFA": "Production Supervisor",
+   "#87CEEB": "Strategic Team",
+   "#F0E68C": "Purchase"
+  },
+  "department_overrides": {
+   "SVC": {
+    "#808000": "Operations Manager",
+    "#66CDAA": "Technician"
+   },
+   "PRD": {
+    "#6666FF": "PMM"
+   },
+   "LOG": {
+    "#66CDAA": "Logistics"
+   },
+   "PRC": {
+    "#66CDAA": "Logistics"
+   }
+  },
+  "note": "Roles and colours are the colour chips drawn on the master canvas (latest scheme). Older colours are treated as aliases of the same role. Operations Manager / PMM share a colour with another role and are resolved per department."
+ },
+ "fragments": {
+  "id": "SC-RF-NT-01",
+  "name": "Master canvas – unassigned notes and fragments",
+  "dept": "E2E",
+  "note": "Colour notes, role keys, drafts and duplicate fragments from the master canvas that do not belong to a single process. Kept so that nothing is lost."
+ }
+}

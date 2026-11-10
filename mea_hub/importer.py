@@ -14,7 +14,7 @@ from docx import Document
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
-from . import config, db, drawio
+from . import canvas, config, db, drawio, flowread
 from . import service as svc
 from .security import strip_tags
 
@@ -346,7 +346,15 @@ def parse_drawio(path: str) -> dict:
     except UnicodeDecodeError:
         raise ImportError_("draw.io file is not UTF-8 text.")
     pages = list(drawio.split_pages(text))              # validates; rejects DOCTYPE/ENTITY
-    return dict(kind="drawio", filename=os.path.basename(path), pages=pages, data=data, sections=[], images={}, cover_images=[], ext_links=0,
+    attrs = dict(drawio._parse(text.encode("utf-8")).attrib)
+    sidecar = os.path.splitext(path)[0] + ".png"        # optional authoritative preview rendered by draw.io
+    preview = None
+    if os.path.isfile(sidecar):
+        with open(sidecar, "rb") as f:
+            preview = f.read()
+        if preview[:8] != b"\x89PNG\r\n\x1a\n":
+            preview = None
+    return dict(kind="drawio", attrs=attrs, preview=preview, filename=os.path.basename(path), pages=pages, data=data, sections=[], images={}, cover_images=[], ext_links=0,
                 blocks=sum(len(drawio.scene(x)["boxes"]) for _, x in pages), version="", cover_text=[n for n, _ in pages])
 
 
@@ -360,9 +368,81 @@ def _lane_of(sc, box, lanes):
     return best
 
 
+def flow_plan(xml: str):
+    """Activities/roles/SAP for an untagged (lane-style) diagram, in the same shape flowread.read returns."""
+    try:
+        plan = build_drawio_plan(dict(pages=[("Flow", xml)], filename="flow.drawio", attrs={}))
+    except Exception:
+        return None
+    if not plan["candidates"]:
+        return None
+    c = plan["candidates"][0]
+    return dict(activities=c.get("activities", []), sap=c.get("sap", []), responsible=c.get("responsible", []), notes_html="", node_meta=c.get("node_meta", {}), summary="")
+
+
+def remember_legend(pxml):
+    if svc.cfg("master_legend"):
+        return
+    sc = drawio.scene(pxml)
+    roles = [dict(role=re.sub(r"\s+", " ", b["label"]).strip(), color=b["style"].get("strokeColor"))
+             for b in sorted((b for b in sc["boxes"].values() if b["id"].startswith("mea_lg_c")), key=lambda b: int(b["id"][8:] or 0))
+             if b["label"] and b["style"].get("strokeColor")]
+    if roles:
+        import json as _json
+        svc.set_cfg("master_legend", _json.dumps(dict(roles=roles)))
+
+
+def tidy_name(name: str) -> str:
+    """Presentation only: ALL-CAPS headings become Title Case (IDs, acronyms and '&' are kept)."""
+    letters = [ch for ch in name if ch.isalpha()]
+    if len(letters) >= 6 and sum(ch.isupper() for ch in letters) / len(letters) > 0.9:
+        keep = {"QA", "QC", "QA/QC", "KSA", "UAE", "EXP", "SAP", "PO", "PR", "OC", "NCR", "AMC", "MRP", "E2E"}
+        return " ".join(w if w.upper() in keep else w.capitalize() for w in name.split())
+    return name
+
+
+def tagged_candidate(parsed, pname, pxml):
+    a = parsed.get("attrs", {})
+    fr = flowread.read(pxml)
+    pid = a.get("meaProcessId") or None
+    name = a.get("meaName") or pname
+    extra = []
+    if a.get("meaNote"):
+        extra.append(("uncertain", "medium", f"Mapping note for {pid or name}", a["meaNote"]))
+    if fr["unreached"]:
+        extra.append(("uncertain", "low" if fr["unreached"] < 5 else "medium", f"Flow check: {fr['unreached']} of {fr['shapes']} steps are not connected to the start ({pid or name})",
+                      "Some shapes have no connector path from the start node (separate variants, side branches or missing arrows). Step order for them follows their position on the page – owner to verify and connect."))
+    no_role = sum(1 for x in fr["activities"] if not x["role"] and not x["activity"].startswith("Linked process:"))
+    if no_role and fr["activities"]:
+        extra.append(("gap", "low", f"{no_role} step(s) without a responsible role ({pid or name})", "These shapes have a neutral outline colour, so no role could be read from the master legend."))
+    return dict(kind=a.get("meaKind") or "sop", name=name, chart_id=None, target_id=pid, attach=a.get("meaAttach") == "1", provisional=a.get("meaProvisional") == "1",
+                dept=a.get("meaDept") or "E2E", dept_basis="mapping", objective="", scope=fr["summary"], responsible=fr["responsible"], kpis=[], escalation=[], sap=fr["sap"],
+                activities=fr["activities"], evidence="", notes="", sections=([dict(title=flowread.FLOW_NOTES_TITLE, html=fr["notes_html"])] if fr["notes_html"] else []),
+                images=[], inline_images=[], heading=a.get("meaCanvasTitle") or pname, countries="", category=a.get("meaCategory") or "", native=True, flow=True,
+                diagram_xml=pxml, node_meta=fr["node_meta"], extra_findings=extra, ref_slot="FLW", preview=parsed.get("preview"))
+
+
 def build_drawio_plan(parsed: dict) -> dict:
     cands = []
-    for pname, pxml in parsed["pages"]:
+    pages = parsed["pages"]
+    if len(pages) == 1 and not flowread.is_tagged(pages[0][1]) and canvas.is_canvas(pages[0][1]):
+        # an unmapped master canvas: split by its titles, keep the role colours, mint reference IDs
+        flows, leftovers = canvas.segment(pages[0][1])
+        newpages = []
+        for f in flows:
+            fx = canvas.revamp(canvas.extract(pages[0][1], f["unit_ids"]), f["title"], "", "E2E", dict(roles=[], by_color={}, aliases={}, department_overrides={}),
+                               dict(meaKind="sop", meaAttach="0", meaProvisional="1", meaCanvasTitle=f["title"]))
+            newpages.append((f["title"], fx, dict(meaName=f["title"], meaKind="sop", meaProvisional="1", meaCanvasTitle=f["title"], meaDept="E2E")))
+        for title, fx, at in newpages:
+            cands.append(tagged_candidate(dict(parsed, attrs=at, preview=None), title, fx))
+        if leftovers:
+            cands[0]["extra_findings"].append(("uncertain", "medium", f"{sum(l['n'] for l in leftovers)} shapes on the canvas belong to no titled flow ({parsed['filename']})",
+                                               "They were not imported as processes. Provide a mapping file (see docs) to assign them."))
+        return dict(candidates=cands, doc_default="E2E")
+    for pname, pxml in pages:
+        if flowread.is_tagged(pxml):
+            cands.append(tagged_candidate(parsed, pname, pxml))
+            continue
         sc = drawio.scene(pxml)
         B = sc["boxes"]
         for b_ in B.values():
@@ -624,12 +704,14 @@ def import_paths(paths: list[str], user: str = "system") -> dict:
         d["authority"] = (1 if d["declared"] == d["actual"] else 0, d["version"] or "0", sum(len(cand_text(c)) for c in d["plan"]["candidates"]))
     # most authoritative source first, so that it becomes the primary definition for duplicates
     todo.sort(key=lambda d: d["authority"], reverse=True)
+    todo.sort(key=lambda d: 1 if any(c.get("flow") for c in d["plan"]["candidates"]) else 0)     # documents first, flows attach afterwards
     summary = dict(sources=[], skipped=[d["filename"] for d in parsed_docs if d.get("skip")])
     with db.tx():
         for d in todo:
             summary["sources"].append(load_source(d, user))
         generate_cross_findings()
         svc.infer_all_relationships()
+        svc.link_ref_nodes()
         _auto_links()
     return summary
 
@@ -679,7 +761,72 @@ def cand_text(cand: dict) -> str:
     return " ".join([cand["objective"]] + [strip_tags(s["html"]) for s in cand["sections"]])
 
 
+SYSTEM = dict(username="system", display_name="system", role="admin", department_id=None)
+
+
+def place_flow(d, sid, cand, user):
+    """A per-process flow file: replace the picture on the existing process, or create the process."""
+    import json as _json
+    c = db.db()
+    target = cand.get("target_id")
+    fr = dict(activities=cand["activities"], sap=cand["sap"], responsible=cand["responsible"], notes_html=(cand["sections"][0]["html"] if cand["sections"] else ""),
+              summary=cand.get("scope", ""), node_meta=cand["node_meta"])
+    prev = cand.get("preview")
+    role_ = "preview" if prev else "preview-approx"
+    if not prev:
+        prev = drawio.to_png(cand["diagram_xml"])
+    remember_legend(cand["diagram_xml"])
+    existing = db.one("SELECT p.*,x.name AS department FROM processes p LEFT JOIN departments x ON x.id=p.department_id WHERE p.process_id=?", (target,)) if target else None
+    note = f"Native flow from {d['filename']}" + (f" (canvas title “{cand['heading']}”)" if cand.get("heading") else "")
+    if existing:
+        v = svc.open_version(existing["id"])
+        if not v:
+            v = svc.ensure_draft(existing, SYSTEM)
+        content = flowread.apply_to_content(v["content"], fr)
+        aid = svc.store_asset(prev, "image/png", f"{target}_preview.png", sid, role_) if prev else None
+        old_dv = db.one("SELECT diagram_id FROM diagram_versions WHERE id=?", (v["diagram_version_id"],)) if v.get("diagram_version_id") else None
+        if old_dv:
+            dv = svc._add_dv(old_dv["diagram_id"], drawio.normalize(cand["diagram_xml"]), "imported-drawio", aid, note, user)
+        else:
+            _, dv = svc.create_diagram(existing["id"], target, existing["name"], cand["diagram_xml"], "imported-drawio", aid, note, user)
+        c.execute("UPDATE process_versions SET content=?, diagram_version_id=?, updated_at=? WHERE id=?", (_json.dumps(content), dv, svc.now(), v["id"]))
+        row_id, new = existing["id"], False
+        c.execute("INSERT INTO mappings(process_id,source_id,heading,chart_id,role,similarity,location,excerpt_html,asset_ids) VALUES(?,?,?,?,?,?,?,?,?)",
+                  (row_id, sid, cand["heading"], target, "flow", None, f"Flow file {d['filename']}", "", "[]"))
+        c.execute("UPDATE findings SET status='resolved', decision=?, resolved_by='system' WHERE process_id=? AND status='open' AND title LIKE 'No flowchart image%'",
+                  (f"Native flow supplied by {d['filename']}", row_id))
+        svc.add_finding("uncertain", "low", sid, row_id, f"Flowchart picture replaced by the native flow ({target})",
+                        "The reference picture from the Word document was replaced by the editable flow from the approved master canvas (the picture remains as revision 1). "
+                        "Activities, roles and linked processes were read from the flow – owner to verify.")
+    else:
+        pid_text = target or next_ref_id(cand["dept"], "FLW")
+        content = dict(objective="", scope="", trigger="", inputs="", outputs="", responsible=[], activities=[], raci=[], sap=[], kpis=[], escalation=[], risks="", evidence="",
+                       forms="", sections=[], notes="")
+        content = flowread.apply_to_content(content, fr)
+        pr = svc.create_process_record(pid_text, None, cand["name"], cand["dept"], cand["kind"], content, "imported", "imported", user, category=cand.get("category", ""))
+        row_id, new = pr["id"], True
+        aid = svc.store_asset(prev, "image/png", f"{pid_text}_preview.png", sid, role_) if prev else None
+        _, dv = svc.create_diagram(row_id, pid_text, cand["name"], cand["diagram_xml"], "imported-drawio", aid, note, user)
+        c.execute("INSERT INTO mappings(process_id,source_id,heading,chart_id,role,similarity,location,excerpt_html,asset_ids) VALUES(?,?,?,?,?,?,?,?,?)",
+                  (row_id, sid, cand["heading"], target, "primary", None, f"Flow file {d['filename']}", "", "[]"))
+        if cand.get("provisional") or not target:
+            svc.add_finding("gap", "low", sid, row_id, f"Provisional ID {pid_text}", "The master canvas gives no ID for this flow; a provisional ID was assigned. Document Controller to confirm.")
+        svc.add_finding("gap", "medium", sid, row_id, f"Process text missing for {pid_text} – {cand['name']}",
+                        "Only the flowchart exists for this process (no departmental document was supplied). Objective, RACI, KPIs and SLA must be written by the owner; "
+                        "activities, roles and scope were derived from the flow.")
+        target = pid_text
+    for node_id, meta in cand.get("node_meta", {}).items():
+        if meta:
+            c.execute("UPDATE diagram_nodes SET meta=? WHERE diagram_version_id=? AND node_id=?", (_json.dumps(meta), dv, node_id))
+    for kind_, sev_, title_, detail_ in cand.get("extra_findings", []):
+        svc.add_finding(kind_, sev_, sid, row_id, title_, detail_)
+    svc.reindex(row_id)
+    return dict(new=new, process_id=target)
+
+
 def place_candidate(d, sid, cand, asset_ids, user):
+    if cand.get("flow"):
+        return place_flow(d, sid, cand, user)
     c = db.db()
     dept = db.one("SELECT id FROM departments WHERE code=?", (cand["dept"],))
     heading = cand["heading"]
@@ -745,7 +892,7 @@ def place_candidate(d, sid, cand, asset_ids, user):
         pid_text, provisional = "MDM-F-MM-01", True
     else:
         pid_text, provisional = next_ref_id(cand["dept"], cand.get("ref_slot", "GEN") if cand["kind"] != "form" else "", "FRM" if cand["kind"] == "form" else "REF"), True
-    pr = svc.create_process_record(pid_text, chart, cand["name"], cand["dept"], cand["kind"], content, "imported", "imported", user,
+    pr = svc.create_process_record(pid_text, chart, tidy_name(cand["name"]), cand["dept"], cand["kind"], content, "imported", "imported", user,
                                    countries=cand["countries"], category=cand["category"])
     row_id = pr["id"]
     c.execute("INSERT INTO mappings(process_id,source_id,heading,chart_id,role,similarity,location,excerpt_html,asset_ids) VALUES(?,?,?,?,?,?,?,?,?)",
@@ -824,7 +971,7 @@ def source_findings(d, sid, dept_names, created, merged):
         svc.add_finding("uncertain", "medium", sid, None, f"{n_flow} flowcharts imported as reference images ({d['filename']})",
                         "The source flowcharts are embedded pictures, not draw.io/Visio objects. Each is wrapped in an editable draw.io page with the picture as a locked reference "
                         "layer. Shapes/connectors were not auto-reconstructed (risk of silent errors); each is flagged Requires Functional Validation.")
-    native = [cd for cd in d["plan"]["candidates"] if cd.get("native")]
+    native = [cd for cd in d["plan"]["candidates"] if cd.get("native") and not cd.get("flow")]
     if native:
         svc.add_finding("uncertain", "medium", sid, None, f"Activities extracted automatically from native diagram ({d['filename']})",
                         f"{len(native)} diagram page(s) were parsed: step order follows the connectors, roles follow the drawn swimlane, SAP transaction codes were read from shape text. "

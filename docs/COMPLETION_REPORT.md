@@ -3,6 +3,24 @@
 Status vocabulary: **Tested** = automated test and/or driven in a real browser; **Built, untested** = code exists, not verified;
 **Partial**; **Not implemented**; **Blocked**. The platform is **not** declared complete against the full brief – see §3 and §4.
 
+## 0. Latest round (flows per process, audit tool, add-options, branching, performance)
+**State with all supplied files loaded:** 100 processes, and no department is empty; 76 have native, editable, linked flows
+(72 files from the master canvas, plus the earlier native diagrams); 13 still carry pictures (the five project phases, which the canvas does not draw separately, and
+duplicates from the "Approval" document). 1,270 activities were read from the flows, 795 with a role. 248 open findings (24 high).
+
+| Item | Status |
+|---|---|
+| One flow file per process from the master canvas, master legend inside each, dormakaba style | **Done, tested** (26 automated tests; all 72 files open in draw.io and were rendered by it) |
+| Flow linked to the document (activities/roles/SAP re-read on save) | **Done, tested** via API; the browser test opened flows but did not draw inside draw.io |
+| Flow *correctness* for the business | **Not verified** – only structural checks (see `FLOWS.md`); 20 flows have steps not connected to the start |
+| Mapping of flows to processes | **Partly inferred** – recorded in `canvas_mapping.json`; uncertain ones are findings (e.g. QA/QC "modified March 12, 2025" → KSA) |
+| Add user / KPI / RACI / SAP / escalation / activities / department / relationship | **Done, browser-tested** (buttons on the tabs and in Governance; changes go into a draft) |
+| Department branching (handbook tree, department page) | **Done** – branch = process type or business line; regional variants nested |
+| Audit & Review (comments tied to versions, register, Excel) | **Done, tested** |
+| Content writing | **Limited on purpose** – titles tidied, a factual scope sentence generated from each flow; objectives, RACI, KPIs are not invented |
+| Performance | First-start import 26 s → 3.3 s; handbook PDF 35 s → 16.5 s; flow editor reopen 1.6 s → 0.8 s; images cached (392 KB → 10 KB on revisit). Page queries were already 6–13 ms, so there was no 100× to gain there |
+| Windows EXE | Built by GitHub Actions on push; **result not seen from here** |
+
 ## 1. Input actually received
 Only **5 of the 12** briefed source documents were supplied (Supply Chain v1.0, Finance & Accounts v0.1, Logistics & Warehouse v2.1, Approval Processes, MM Cleaning charter).
 Missing: Purchase & Planning, Production, Project Management, Sales Support MENA, Sales Support Movable Wall, Service & Installation, Product Marketing & Management.

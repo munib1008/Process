@@ -1,0 +1,508 @@
+<mxfile host="MEA Process Hub" meaProcessId="PD-M-EE-02" meaName="Production Order – Complete Flow (second canvas version)" meaDept="PRD" meaKind="e2e" meaAttach="0" meaProvisional="1" meaCanvasTitle="Production Order Complete flow" meaNote="Second version on the canvas – owner to decide which version is current." meaCategory=""><diagram id="PDMEE02" name="PD-M-EE-02"><mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="mea_frame" value="Process Map – Production Order – Complete Flow (second canvas version) – PD-M-EE-02" vertex="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;fillColor=#003594;fontColor=#FFFFFF;strokeColor=#003594;fontSize=14;fontStyle=1;fontFamily=Arial;startSize=34;swimlaneFillColor=#FFFFFF;connectable=0;meaKind=frame;"><mxGeometry x="20.0" y="40.0" width="970" height="3308.0" as="geometry"/></mxCell><mxCell id="z2CaZEmbSJY_6mVRshWb-14" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;BIG Project | S&amp;amp;OP Workflow&lt;/font&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;fontSize=11;align=left;verticalAlign=top;spacing=8;meaKind=activity;" parent="1" vertex="1">
+          <mxGeometry x="61.93" y="926.0" width="215" height="461" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-114" target="z2CaZEmbSJY_6mVRshWb-45" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-17" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-18" target="z2CaZEmbSJY_6mVRshWb-20" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-18" value="Start Process" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#009900;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=start;" parent="1" vertex="1">
+          <mxGeometry x="327.93" y="110.0" width="107.13" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-19" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-20" target="z2CaZEmbSJY_6mVRshWb-22" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-20" value="Customer Inquiry" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B8E23;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=5;meaKind=activity;meaRole=Customer;" parent="1" vertex="1">
+          <mxGeometry x="321.5" y="163.0" width="120" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-21" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-22" target="z2CaZEmbSJY_6mVRshWb-25" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-22" value="Update OAF &amp;amp; shared with Estimator" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E90FF;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=5;meaKind=activity;meaRole=Sales;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="202.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-23" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-25" target="z2CaZEmbSJY_6mVRshWb-26" edge="1">
+          <mxGeometry x="-0.1111" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-24" value="&lt;font&gt;Standard&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;Production&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;Configuration&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;fontSize=10;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-25" target="z2CaZEmbSJY_6mVRshWb-39" edge="1">
+          <mxGeometry x="0.6417" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-25" value="Customized Production?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8FBC8F;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Estimation;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="252.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-26" value="Request Pricing from Vendor and Share SAP GP with Requested Estimator" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6666FF;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=5;meaKind=activity;meaRole=PMM;" parent="1" vertex="1">
+          <mxGeometry x="321.5" y="370.0" width="120" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-27" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-26" target="z2CaZEmbSJY_6mVRshWb-29" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.5" y="420.0" as="sourcePoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-28" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-29" target="z2CaZEmbSJY_6mVRshWb-31" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-29" value="Produce Quotation with SAP GP and Discount requested by Sales" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8FBC8F;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Estimation;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="440.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-30" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-31" target="z2CaZEmbSJY_6mVRshWb-35" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-31" value="Share Quotation with Customer" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E90FF;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=5;meaKind=activity;meaRole=Sales;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="500.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-32" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-35" target="z2CaZEmbSJY_6mVRshWb-37" edge="1">
+          <mxGeometry x="-0.4074" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-33" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-35" target="z2CaZEmbSJY_6mVRshWb-132" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-34" value="Notify&lt;br style=&quot;font-size: 10px;&quot;&gt;Sales" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontSize=10;spacing=0;spacingTop=2;fontFamily=Arial;fontColor=#484848;" parent="z2CaZEmbSJY_6mVRshWb-33" vertex="1" connectable="0">
+          <mxGeometry x="-0.0704" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-35" value="Quotation &#10;Accepted?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B8E23;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Customer;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="550.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-36" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-161" target="z2CaZEmbSJY_6mVRshWb-41" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-37" value="Share Customer LPO/OA with Customer service (CS)" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E90FF;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=3;meaKind=activity;meaRole=Sales;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="664.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-38" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-39" target="z2CaZEmbSJY_6mVRshWb-29" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-39" value="Calculated SAP GP using Price list / Configurator" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8FBC8F;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Estimation;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="380.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-40" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-41" target="z2CaZEmbSJY_6mVRshWb-43" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-41" value="Create OC/SO and share with Customer" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E8B57;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Customer Service;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="822.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-42" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-43" target="z2CaZEmbSJY_6mVRshWb-114" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-43" value="Forward OA/SO, final OAF with Engineering &amp;amp; &lt;br&gt;Notify if &lt;b&gt;BIG Project&lt;/b&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E8B57;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Customer Service;" parent="1" vertex="1">
+          <mxGeometry x="316.93" y="870.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-44" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-62" target="z2CaZEmbSJY_6mVRshWb-48" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-45" value="Produce/Revise Shop Drawing as per Agreed OAF &amp;amp; Sales Order" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FFF00;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Production Engineering;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1041.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-46" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-48" target="z2CaZEmbSJY_6mVRshWb-156" edge="1">
+          <mxGeometry x="-0.2296" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-47" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-48" target="z2CaZEmbSJY_6mVRshWb-133" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-48" value="Drawing&#10;Accepted?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B8E23;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Customer;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="1374.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-49" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-50" target="z2CaZEmbSJY_6mVRshWb-55" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="383.93" y="1772.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-50" value="Forward OA/SO, Approved Shop drawing with Engineering" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E8B57;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Customer Service;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1608.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-51" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-101" target="z2CaZEmbSJY_6mVRshWb-58" edge="1">
+          <mxGeometry x="-0.1538" relative="1" as="geometry">
+            <mxPoint x="381.5" y="1875.0" as="sourcePoint"/>
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-52" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-53" target="z2CaZEmbSJY_6mVRshWb-74" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-53" value="Submit Fabrication Order (FO)  as per approved Shop drawing &amp;amp; SO" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FFF00;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Production Engineering;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1782.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-54" value="Email&lt;br&gt;" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;horizontal=1;endArrow=classic;endFill=1;startArrow=none;startFill=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;align=center;verticalAlign=middle;spacingTop=-6;spacing=-1;fontFamily=Arial;fontSize=10;fontColor=#484848;labelBackgroundColor=none;resizable=0;fillColor=none;gradientColor=none;strokeColor=#484848;strokeWidth=1.5;" parent="1" source="z2CaZEmbSJY_6mVRshWb-55" target="z2CaZEmbSJY_6mVRshWb-107" edge="1">
+          <mxGeometry x="-0.3082" y="8" relative="1" as="geometry">
+            <mxPoint x="332.5" y="1611.0" as="sourcePoint"/>
+            <mxPoint x="268.93" y="1274.0" as="targetPoint"/>
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-55" value="Approved Drawing, OAF, OC/SO&#10;Aligned?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FFF00;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Production Engineering;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="1667.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-56" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;fontSize=10;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-55" target="z2CaZEmbSJY_6mVRshWb-53" edge="1">
+          <mxGeometry x="-0.2296" relative="1" as="geometry">
+            <mxPoint x="557.36" y="1832.0" as="targetPoint"/>
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-57" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-157" target="z2CaZEmbSJY_6mVRshWb-66" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-58" value="FO Received by Production Planner " style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=3;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2002.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-59" value="" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-45" target="z2CaZEmbSJY_6mVRshWb-60" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="1109.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="1175.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-60" value="Production Manager/OIC Approval with Stamp" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BA55D3;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Production Manager;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1100.0" width="130" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-61" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-105" target="z2CaZEmbSJY_6mVRshWb-62" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="1146.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="1239.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-62" value="Share Approved Shop Drawing with Stamp to Sales Support for Customer Alignment" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FFF00;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Production Engineering;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1264.0" width="130" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-63" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;dashed=1;fontSize=10;fontFamily=Arial;spacing=5;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;" parent="1" source="z2CaZEmbSJY_6mVRshWb-58" target="z2CaZEmbSJY_6mVRshWb-64" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="461.93" y="2009.0" as="sourcePoint"/>
+            <mxPoint x="583.94" y="2132.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-64" value="&lt;p&gt;&lt;/p&gt;Request Involves: FO Hard Copy, Email, Order Requirements &amp;amp; Advance Orders (Glass, Special Accessories, Bumper, Floor Mat&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;br&gt;&lt;/span&gt;" style="shape=note;size=12;whiteSpace=wrap;html=1;fillColor=#FFFFE0;strokeColor=#BFBFBF;fontColor=#484848;fontFamily=Arial;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingRight=10;meaKind=note;" parent="1" vertex="1">
+          <mxGeometry x="487.92" y="1987.0" width="170" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-65" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="LxgO9VzUmhNrh_9o7duP-4" target="z2CaZEmbSJY_6mVRshWb-68" edge="1">
+          <mxGeometry x="-0.5417" relative="1" as="geometry">
+            <mxPoint x="381.5" y="2291.0" as="sourcePoint"/>
+            <mxPoint x="417.93" y="2402.0" as="targetPoint"/>
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LxgO9VzUmhNrh_9o7duP-5" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-66" target="LxgO9VzUmhNrh_9o7duP-4" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-66" value="Create/Update SAP Production Order, Upload BOM, Notify Supervisor." style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=3;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2142.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-67" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-68" target="z2CaZEmbSJY_6mVRshWb-70" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="LxgO9VzUmhNrh_9o7duP-7" value="Procure" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontFamily=Arial;fontColor=#484848;" parent="z2CaZEmbSJY_6mVRshWb-67" vertex="1" connectable="0">
+          <mxGeometry x="-0.1298" y="-3" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-68" value="Material Available&#10;  as per BOM?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="2339.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-69" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;startArrow=none;startFill=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-139" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="266.93" y="2313.0" as="sourcePoint"/>
+            <mxPoint x="380.93" y="2313.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-70" value="Notify Customer Service about missing parts, Obtain instructions for MOS, Release Purchase Requisition if no existing PO accommodates the job" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=3;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="2440.0" width="130" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-71" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;edgeStyle=orthogonalEdgeStyle;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-68" target="z2CaZEmbSJY_6mVRshWb-76" edge="1">
+          <mxGeometry x="-0.2308" relative="1" as="geometry">
+            <mxPoint x="391.93" y="2065.0" as="sourcePoint"/>
+            <mxPoint x="379.93" y="2382.33" as="targetPoint"/>
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-72" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;dashed=1;fontSize=10;fontFamily=Arial;spacing=5;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;" parent="1" source="z2CaZEmbSJY_6mVRshWb-26" target="z2CaZEmbSJY_6mVRshWb-73" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="467.93" y="419.0" as="sourcePoint"/>
+            <mxPoint x="487.92" y="395.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-73" value="&lt;p&gt;&lt;/p&gt;Coordinate with Engineering:&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;font style=&quot;border-color: var(--border-color);&quot;&gt;&lt;span style=&quot;border-color: var(--border-color); background-color: initial; font-size: 11px;&quot;&gt;-&lt;/span&gt;&lt;span style=&quot;border-color: var(--border-color); font-size: 9px; background-color: initial;&quot;&gt; Finalize Bill of Materials (BOM)&lt;/span&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;/font&gt;&lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;&lt;font style=&quot;border-color: var(--border-color); font-size: 11px;&quot;&gt;-&lt;/font&gt;&lt;font style=&quot;border-color: var(--border-color); font-size: 9px;&quot;&gt; Determine Special Requirements&lt;/font&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;/span&gt;&lt;font style=&quot;border-color: var(--border-color); font-size: 4px;&quot;&gt;            &lt;/font&gt;&lt;font style=&quot;border-color: var(--border-color); font-size: 8px;&quot;&gt;&lt;font style=&quot;border-color: var(--border-color);&quot;&gt;■&lt;/font&gt; &lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;Finish&lt;/span&gt;&lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;/span&gt;&lt;font style=&quot;border-color: var(--border-color);&quot;&gt;      ■&lt;/font&gt; &lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;Special Glass&lt;/span&gt;&lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;/span&gt;&lt;font style=&quot;border-color: var(--border-color);&quot;&gt;      ■&lt;/font&gt; &lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;Air Curtain&lt;/span&gt;&lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;/span&gt;&lt;font style=&quot;border-color: var(--border-color);&quot;&gt;      ■&lt;/font&gt; &lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;Floor Mat&lt;/span&gt;&lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;/span&gt;&lt;font style=&quot;border-color: var(--border-color);&quot;&gt;      ■&lt;/font&gt; &lt;span style=&quot;border-color: var(--border-color); background-color: initial;&quot;&gt;Other Special Requirements&lt;/span&gt;&lt;/font&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;/span&gt;" style="shape=note;size=12;whiteSpace=wrap;html=1;fillColor=#FFFFE0;strokeColor=#BFBFBF;fontColor=#484848;fontFamily=Arial;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingRight=10;meaKind=note;" parent="1" vertex="1">
+          <mxGeometry x="487.92" y="345.0" width="170" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-74" value="Production Manager/OIC&lt;br&gt; to approve the FO" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BA55D3;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Production Manager;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1842.0" width="130" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-75" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-81" target="z2CaZEmbSJY_6mVRshWb-78" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-76" value="FO, Production Order &amp;amp; Picking list if shared with Production supervisor" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=3;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2456.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-77" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-170" target="z2CaZEmbSJY_6mVRshWb-83" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.5" y="2769.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-78" value="Create Purchase Requisition/s(PR)" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=2;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2555.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-79" value="" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-70" target="z2CaZEmbSJY_6mVRshWb-137" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="234.93" y="2440.0" as="sourcePoint"/>
+            <mxPoint x="234.93" y="2378.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-80" value="" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-76" target="z2CaZEmbSJY_6mVRshWb-81" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="2496.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="2543.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-81" value="Develop Production Plan" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=3;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2516.0" width="130" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-82" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-83" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.94" y="2906.5" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-83" value="Prepare Production plan,&lt;br&gt;Update(On-time, early, delay with remarks) CS every Tuesday" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=3;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2835.0" width="130" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-92" value="&lt;p&gt;&lt;/p&gt;PR Laser Cutting, Special Finish, Custom Job &amp;amp; Prepare Delivery Note (where applicable)&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;br&gt;&lt;/span&gt;" style="shape=note;size=12;whiteSpace=wrap;html=1;fillColor=#FFFFE0;strokeColor=#BFBFBF;fontColor=#484848;fontFamily=Arial;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingRight=10;meaKind=note;" parent="1" vertex="1">
+          <mxGeometry x="470.93" y="2550.0" width="170" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-93" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;dashed=1;fontSize=10;fontFamily=Arial;spacing=5;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;" parent="1" source="z2CaZEmbSJY_6mVRshWb-78" target="z2CaZEmbSJY_6mVRshWb-92" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="451.36" y="2173.0" as="sourcePoint"/>
+            <mxPoint x="588.37" y="2288.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-94" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-78" target="z2CaZEmbSJY_6mVRshWb-95" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="2585.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="2676.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-95" value="Scheduling Project in the Production Pipeline" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=2;meaKind=activity;meaRole=Production;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2603.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-99" value="" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-74" target="z2CaZEmbSJY_6mVRshWb-101" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="1875.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="2002.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-100" value="Correction" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;horizontal=0;fontSize=10;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-101" target="z2CaZEmbSJY_6mVRshWb-53" edge="1">
+          <mxGeometry x="0.0871" y="8" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-101" value="Approved ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BA55D3;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Production Manager;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="1886.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-102" value="" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-60" target="z2CaZEmbSJY_6mVRshWb-105" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="1146.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="1248.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-103" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-105" target="z2CaZEmbSJY_6mVRshWb-45" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-104" value="Correction/ Update" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];horizontal=0;fontSize=10;fontFamily=Arial;fontColor=#484848;" parent="z2CaZEmbSJY_6mVRshWb-103" vertex="1" connectable="0">
+          <mxGeometry x="-0.1264" relative="1" as="geometry">
+            <mxPoint x="-9" y="-11" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-105" value="Approved ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BA55D3;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Production Manager;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="1146.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-106" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-107" target="z2CaZEmbSJY_6mVRshWb-50" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-107" value="Update OC/SO and share with Customer" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E8B57;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Customer Service;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="1697.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-111" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-114" target="z2CaZEmbSJY_6mVRshWb-118" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-112" value="BIG&lt;br style=&quot;font-size: 10px;&quot;&gt;Project" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=default;fontSize=10;fontFamily=Arial;fontColor=#484848;" parent="z2CaZEmbSJY_6mVRshWb-111" vertex="1" connectable="0">
+          <mxGeometry x="-0.2779" relative="1" as="geometry">
+            <mxPoint x="-7" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-113" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-114" target="z2CaZEmbSJY_6mVRshWb-45" edge="1">
+          <mxGeometry x="-0.1814" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-114" value="Standard Project&#10;?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FFF00;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Production Engineering;" parent="1" vertex="1">
+          <mxGeometry x="331.93" y="927.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-115" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;dashed=1;fontSize=10;fontFamily=Arial;spacing=5;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;" parent="1" source="z2CaZEmbSJY_6mVRshWb-43" target="z2CaZEmbSJY_6mVRshWb-116" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="764.93" y="958.0" as="sourcePoint"/>
+            <mxPoint x="810.92" y="958.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-116" value="&lt;p&gt;&lt;/p&gt;Below criteria for BIG project:&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;br&gt;&lt;/span&gt;" style="shape=note;size=12;whiteSpace=wrap;html=1;fillColor=#FFFFE0;strokeColor=#BFBFBF;fontColor=#484848;fontFamily=Arial;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingRight=10;meaKind=note;" parent="1" vertex="1">
+          <mxGeometry x="481.93" y="860.0" width="170" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-117" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-118" target="z2CaZEmbSJY_6mVRshWb-123" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-118" value="Generate BOM &amp;amp; shared with CS for Material procurement" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FFF00;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Production Engineering;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="952.0" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-119" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-121" target="z2CaZEmbSJY_6mVRshWb-41" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-120" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;Customer&lt;br&gt;Comments&lt;/font&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;spacing=-1;spacingTop=-6;fontFamily=Arial;fontColor=#484848;" parent="z2CaZEmbSJY_6mVRshWb-119" vertex="1" connectable="0">
+          <mxGeometry x="-0.1555" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-121" value="P2" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#009900;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=start;" parent="1" vertex="1">
+          <mxGeometry x="217.94" y="823.5" width="27" height="27" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-122" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-123" target="z2CaZEmbSJY_6mVRshWb-126" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-123" value="Get Sales approval using S&amp;amp;OP Form, before requesting DVP Finance for advance ordering Approval" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E8B57;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=1;meaKind=activity;meaRole=Customer Service;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="1012.0" width="130" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-124" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-126" target="z2CaZEmbSJY_6mVRshWb-127" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-125" value="Yes" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-126" target="z2CaZEmbSJY_6mVRshWb-129" edge="1">
+          <mxGeometry x="-0.1667" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-126" value="DVP&#10;Finance &#10;Approved&#10;?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8B0000;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Financial Controller;" parent="1" vertex="1">
+          <mxGeometry x="153.93" y="1078.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-127" value="Rejected" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=3;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=end;" parent="1" vertex="1">
+          <mxGeometry x="72.93" y="1110.0" width="59.13" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-128" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-129" target="z2CaZEmbSJY_6mVRshWb-152" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="203.93" y="1274.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-129" value="Order the materials as per BOM (VSF - PO referenced to Project), Notify Production" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=3;meaKind=activity;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="1192.0" width="130" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-130" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-131" target="z2CaZEmbSJY_6mVRshWb-22" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355.5" y="193.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-131" value="P1" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#009900;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=start;" parent="1" vertex="1">
+          <mxGeometry x="217.94" y="203.5" width="27" height="27" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-132" value="P1" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=3;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=end;" parent="1" vertex="1">
+          <mxGeometry x="217.94" y="581.5" width="27" height="27" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-133" value="Provide Changes to Incorporate/Align with the Shop Drawing" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B8E23;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;spacingLeft=0;spacing=5;meaKind=activity;meaRole=Customer;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="1398.5" width="130" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-134" value="P2" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=3;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=end;" parent="1" vertex="1">
+          <mxGeometry x="60.0" y="1405.0" width="27" height="27" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-135" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-133" target="z2CaZEmbSJY_6mVRshWb-134" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-136" value="PO Expedition&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Ref S#: SS-A-PE-01&lt;/span&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="2360.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-137" value="PO Creation (5800)&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Ref S#: PP-M-PO-01&lt;/span&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="2391.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-138" value="Goods Shipment&lt;br style=&quot;border-color: var(--border-color); padding: 0px; margin: 0px; font-weight: 400;&quot;&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Direct Ref: PP-M-GS-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="2329.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-139" value="&lt;font color=&quot;#ffffff&quot;&gt;PO Inbound&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Ref S#: WL-M-IB-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="138.93" y="2298.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-150" value="" style="group" parent="1" vertex="1" connectable="0">
+          <mxGeometry x="138.93" y="1258.0" width="130" height="123" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-151" value="Reserve Stock for the project" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;fontSize=10;align=center;verticalAlign=middle;spacingLeft=0;spacing=3;meaKind=activity;" parent="z2CaZEmbSJY_6mVRshWb-150" vertex="1">
+          <mxGeometry y="93" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-152" value="PO Creation (5800)&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Ref S#: PP-M-PO-01&lt;/span&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="z2CaZEmbSJY_6mVRshWb-150" vertex="1">
+          <mxGeometry width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-153" value="Goods Shipment&lt;br style=&quot;border-color: var(--border-color); padding: 0px; margin: 0px; font-weight: 400;&quot;&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Direct Ref: PP-M-GS-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="z2CaZEmbSJY_6mVRshWb-150" vertex="1">
+          <mxGeometry y="31" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-154" value="&lt;font color=&quot;#ffffff&quot;&gt;PO Inbound&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Ref S#: WL-M-IB-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="z2CaZEmbSJY_6mVRshWb-150" vertex="1">
+          <mxGeometry y="62" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-156" value="&lt;span style=&quot;font-weight: 400;&quot;&gt;Fabrication Order Process&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-FO-01&lt;/span&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1493.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-160" value="" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-37" target="z2CaZEmbSJY_6mVRshWb-155" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="694.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="796.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-163" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-155" target="z2CaZEmbSJY_6mVRshWb-37" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-155" value="&lt;span style=&quot;font-weight: 400;&quot;&gt;Shop Drawing Finalization&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-SD-01&lt;/span&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="713.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-161" value="&lt;span style=&quot;font-weight: 400;&quot;&gt;Shop Drawing Finalization&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-SD-01&lt;/span&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="770.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-165" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-164" target="z2CaZEmbSJY_6mVRshWb-50" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-164" value="&lt;span style=&quot;font-weight: 400;&quot;&gt;Fabrication Order Process&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-FO-01&lt;/span&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="1555.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-167" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-58" target="z2CaZEmbSJY_6mVRshWb-166" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="2032.0" as="sourcePoint"/>
+            <mxPoint x="381.93" y="2142.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-166" value="&lt;font color=&quot;#ffffff&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;RM Availability Check&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-RA-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2049.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-157" value="&lt;font color=&quot;#ffffff&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;RM Availability Check&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-RA-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2093.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-169" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="z2CaZEmbSJY_6mVRshWb-95" target="z2CaZEmbSJY_6mVRshWb-158" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="381.93" y="2741.0" as="targetPoint"/>
+            <mxPoint x="381.93" y="2633.0" as="sourcePoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-158" value="&lt;font color=&quot;#ffffff&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Production Assembly&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-PA-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2649.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="z2CaZEmbSJY_6mVRshWb-170" value="&lt;font color=&quot;#ffffff&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Production Assembly&lt;/span&gt;&lt;br style=&quot;font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Ref: PD-M-PA-01&lt;/span&gt;&lt;/font&gt;" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=ref;" parent="1" vertex="1">
+          <mxGeometry x="316.5" y="2786.0" width="130" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="LxgO9VzUmhNrh_9o7duP-6" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.997;entryY=0.554;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;fontSize=10;strokeColor=#E4002B;strokeWidth=1.5;fontColor=#484848;fontFamily=Arial;endArrow=classic;" parent="1" source="LxgO9VzUmhNrh_9o7duP-4" target="z2CaZEmbSJY_6mVRshWb-66" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="LxgO9VzUmhNrh_9o7duP-4" value="Verified?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E4002B;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;" parent="1" vertex="1">
+          <mxGeometry x="331.5" y="2201.0" width="100" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="LxgO9VzUmhNrh_9o7duP-8" value="&lt;p&gt;&lt;/p&gt;Production Supervisor reviews BOM quantities to ensure accuracy before pre-release of any production order.&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;br&gt;&lt;/span&gt;" style="shape=note;size=12;whiteSpace=wrap;html=1;fillColor=#FFFFE0;strokeColor=#BFBFBF;fontColor=#484848;fontFamily=Arial;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingRight=10;meaKind=note;" parent="1" vertex="1">
+          <mxGeometry x="470.93" y="2221.0" width="170" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="LxgO9VzUmhNrh_9o7duP-9" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;dashed=1;fontSize=10;fontFamily=Arial;spacing=5;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;strokeColor=#484848;strokeWidth=1.5;fontColor=#484848;" parent="1" source="LxgO9VzUmhNrh_9o7duP-4" target="LxgO9VzUmhNrh_9o7duP-8" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="433.36" y="2245.0" as="sourcePoint"/>
+            <mxPoint x="574.8" y="1963.0" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="mea_legend" value="" style="group;connectable=0;rounded=0;fillColor=none;strokeColor=none;meaKind=legend;" vertex="1" parent="1"><mxGeometry x="60.0" y="2935.0" width="890" height="373" as="geometry"/></mxCell><mxCell id="mea_lg_bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#BFBFBF;dashed=1;connectable=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="0" y="0" width="890" height="373" as="geometry"/></mxCell><mxCell id="mea_lg_t" value="Master legend" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#003594;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="6" width="240" height="20" as="geometry"/></mxCell><mxCell id="mea_lg_k0" value="Start" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#009900;strokeWidth=2;fontStyle=1;fontFamily=Arial;fontSize=9;fontColor=#484848;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="34" width="86" height="28" as="geometry"/></mxCell><mxCell id="mea_lg_k1" value="End" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=3;fontStyle=1;fontFamily=Arial;fontSize=9;fontColor=#484848;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="108" y="34" width="86" height="28" as="geometry"/></mxCell><mxCell id="mea_lg_k2" value="Activity (outline = role)" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#484848;strokeWidth=1.5;fontFamily=Arial;fontSize=9;fontColor=#484848;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="206" y="34" width="150" height="28" as="geometry"/></mxCell><mxCell id="mea_lg_k3" value="Decision" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E4002B;strokeWidth=2;fontStyle=1;fontFamily=Arial;fontSize=9;fontColor=#484848;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="368" y="34" width="96" height="40" as="geometry"/></mxCell><mxCell id="mea_lg_k4" value="Linked process (Ref ID)" style="shape=process;size=0.06;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#003594;fontColor=#003594;fontStyle=1;fontFamily=Arial;fontSize=9;fontColor=#484848;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="476" y="34" width="150" height="28" as="geometry"/></mxCell><mxCell id="mea_lg_k5" value="Note / checklist" style="shape=note;size=10;whiteSpace=wrap;html=1;fillColor=#FFFFE0;strokeColor=#BFBFBF;fontFamily=Arial;fontSize=9;fontColor=#484848;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="638" y="34" width="110" height="28" as="geometry"/></mxCell><mxCell id="mea_lg_y0" value="— Yes →" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=9;fontStyle=1;fontColor=#009900;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="760" y="34" width="110" height="16" as="geometry"/></mxCell><mxCell id="mea_lg_y1" value="— No →" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=9;fontStyle=1;fontColor=#E4002B;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="760" y="52" width="110" height="16" as="geometry"/></mxCell><mxCell id="mea_lg_r" value="Responsible role = outline colour (bold = used in this flow)" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=10;fontStyle=1;fontColor=#484848;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="82" width="500" height="18" as="geometry"/></mxCell><mxCell id="mea_lg_c0" value="Sales" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E90FF;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="104" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c1" value="Sales Support Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#808000;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="104" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c2" value="Customer Service" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E8B57;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="104" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c3" value="Customer" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B8E23;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="104" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c4" value="Business Development Managers" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#483D8B;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="104" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c5" value="Estimation" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8FBC8F;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="131" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c6" value="Specification Team" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#B22222;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="131" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c7" value="Specification Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#C71585;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="131" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c8" value="Product Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#9370DB;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="131" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c9" value="Country Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#48D1CC;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="131" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c10" value="Material Planner" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#D8BFD8;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="158" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c11" value="MRP Analyst" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#228B22;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="158" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c12" value="Purchase" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#BDB76B;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="158" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c13" value="Procurement Specialist" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#DAA520;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="158" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c14" value="Strategic Team" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#5F9EA0;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="158" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c15" value="Procurement Head" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#0000CD;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="185" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c16" value="Vendor / Supplier / Service Provider" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#FFD700;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="185" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c17" value="Freight Forwarder" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#FF8C00;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="185" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c18" value="Warehouse" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#2F4F4F;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="185" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c19" value="Logistics" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#008080;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="185" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c20" value="Quality and Safety" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#A9A9A9;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="212" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c21" value="Production" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A5ACD;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="212" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c22" value="Production Supervisor" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#9932CC;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="212" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c23" value="Production Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BA55D3;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="212" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c24" value="Production Engineering" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FFF00;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="212" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c25" value="Project Management Team" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#6666FF;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="239" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c26" value="Service Team / Service Sales" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#DC143C;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="239" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c27" value="Service Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#556B2F;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="239" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c28" value="Service Coordinator" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#FF1493;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="239" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c29" value="Service Document Controller / Installation Coordinator" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#7B68EE;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="239" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c30" value="Technician" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#66CDAA;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="266" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c31" value="Credit Controller" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#CD5C5C;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="266" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c32" value="Financial Controller" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8B0000;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="266" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c33" value="Finance and Account Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#8B4513;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="266" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c34" value="Accountant" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#BC8F8F;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="266" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c35" value="Data Analyst" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#660000;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="293" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c36" value="Architectural Consultant" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#708090;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="184" y="293" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c37" value="Technical Team" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#947685;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="358" y="293" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c38" value="General Requestors" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#4F4F4F;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="532" y="293" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c39" value="Operations Manager" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#808000;strokeWidth=1.5;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=0;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="706" y="293" width="168" height="22" as="geometry"/></mxCell><mxCell id="mea_lg_c40" value="PMM" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6666FF;strokeWidth=3;fontFamily=Arial;fontSize=8;fontColor=#484848;fontStyle=1;meaKind=legend;" vertex="1" parent="mea_legend"><mxGeometry x="10" y="320" width="168" height="22" as="geometry"/></mxCell></root></mxGraphModel></diagram></mxfile>

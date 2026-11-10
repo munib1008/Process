@@ -30,7 +30,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist/MEA_Process_Hub/source_documents | Out-Null
-          if (Test-Path source_documents) { Copy-Item source_documents/* dist/MEA_Process_Hub/source_documents/ -Force }
+          if (Test-Path source_documents) { Copy-Item source_documents/* dist/MEA_Process_Hub/source_documents/ -Recurse -Force }
           Copy-Item dist/bin/MEA_Process_Hub.exe dist/MEA_Process_Hub/
           Copy-Item drawio_webapp dist/MEA_Process_Hub/drawio_webapp -Recurse
           Copy-Item README.md dist/MEA_Process_Hub/
@@ -59,7 +59,7 @@ jobs:
               -Body (@{ old = $pw; new = 'Smoke#Test2026' } | ConvertTo-Json) | Out-Null
             $lib = Invoke-RestMethod "$base/api/library" -WebSession $sess
             Write-Host "Processes in library: $($lib.processes.Count)"
-            if ($lib.processes.Count -lt 40) { throw "Expected the source documents to be imported (got $($lib.processes.Count) processes)" }
+            if ($lib.processes.Count -lt 90) { throw "Expected the source documents to be imported (got $($lib.processes.Count) processes)" }
             foreach ($fmt in 'docx', 'pdf') {
               $e = Invoke-RestMethod "$base/api/exports" -Method Post -WebSession $sess -Headers $h -ContentType 'application/json' `
                      -Body (@{ scope = 'handbook'; fmt = $fmt } | ConvertTo-Json)

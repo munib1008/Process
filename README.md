@@ -12,7 +12,7 @@ Your documents never leave the machine unless you choose the online draw.io fall
 ## Quick start (Windows)
 
 1. Get `MEA_Process_Hub_win64.zip` (see *Building the EXE*) and unzip it anywhere.
-2. The repository's `source_documents/` folder (10 supplied `.docx` / `.drawio` files) is shipped inside the package and **imported automatically on the first start**, so the tool opens already populated. To add more later, drop files into **Import & Sources** (or into `source_documents` before a first start).
+2. The repository's `source_documents/` folder (supplied `.docx` / `.drawio` files and the 72 per-process flows) is shipped inside the package and **imported automatically on the first start**, so the tool opens already populated. To add more later, drop files into **Import & Sources** (or into `source_documents` before a first start).
 3. Double-click `MEA_Process_Hub.exe`. A console window opens and your browser goes to `http://127.0.0.1:8765/`.
 4. First start prints a **one-time admin password** (also saved to `data\FIRST_RUN_ADMIN_PASSWORD.txt`). Sign in as `admin`; you must change it immediately.
 5. Create users under **Administration → Users & roles**. Keep the console window open while using the app; close it to stop.
@@ -26,12 +26,14 @@ Options: `MEA_Process_Hub.exe --port 9000 --no-browser --demo-users` (one evalua
 | Area | Implemented |
 |---|---|
 | Import | **DOCX** → headings, paragraphs, tables (merged cells), images, chart IDs, "Responsible" lists, escalation tables, KPIs; checklist documents become controlled **forms**. **Native `.drawio`** (multi-page supported) → kept as editable XML, and activities (ordered by connectors), lane owners, SAP transaction codes, required-documents / SLA notes and "recommended addition" lanes (labelled *[PROPOSED]*) are extracted. Originals kept byte-for-byte. Process IDs, regions (UAE & EXP / KSA), duplicates, ID collisions, title-vs-content mismatches and missing flowcharts are detected and logged as **findings** (Source Audit Register). Imported content is *Imported / Unverified* – never auto-published. |
+| Flows per process | A one-page **master canvas** (all approved flows side by side) is cut into **one draw.io file per process**, restyled to the dormakaba process-map look with the **master legend** inside each flow, and linked: activities, roles (outline colour), SAP codes and linked processes are read from the diagram and **re-read on every save**. See `docs/FLOWS.md`. |
 | Process library | Departments, process types, countries, owners, parent/next/supports/approval/triggers/exception links, orphan detection, process map, upstream/downstream trace. |
 | Editing | Structured form + rich-text sections (headings, lists, tables, links, callouts), autosave to a draft. |
 | Flow Studio | Real **draw.io** in an iframe (embed JSON protocol), exclusive edit lease, optimistic revision check, revision history, PNG preview captured from draw.io on every save, templates, `.drawio` import/download, SVG export, per-shape business metadata (process link, SAP transaction, role, approval…). |
 | Governance | Draft → Under review → Pending approval → Approved → Published → Superseded. Published versions are immutable; rollback = a new controlled draft; separation of duties; before/after comparison; audit log; review schedule dates; findings register with recorded decisions. |
 | Export Center | DOCX (real Word text/tables, cover, document control, TOC, headers/footers, page numbers, flowchart preview, source references, revision appendix), PDF (A4, TOC with page numbers, repeating table headers), HTML, ZIP of editable `.drawio` + previews, Excel **process register**. Every export is built from one consistent snapshot, hashed and logged. |
 | Ownership & data loading | Bulk-assign owners/reviewers per department; round-trip Excel register (Ownership, RACI, KPI sheets → loaded into *draft* revisions); "My tasks" inbox (reviews, approvals, publishing, overdue); decision workbench (recommended action per finding, bulk decisions with rationale); suggested handover links derived from the Level 1 value stream (flagged *suggested*, removable). |
+| Audit & Review | Comments, questions, observations and non-conformities per process, tied to the **version they were raised on**, with severity, section, replies, mandatory resolution note, status history in the audit log, and an Excel register. |
 | Admin | Users, 7 roles with server-side checks on every endpoint, CSRF protection, backup / restore, audit log. |
 
 The UI and all exports use the dormakaba corporate identity – see `docs/BRANDING.md`.
@@ -62,7 +64,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 21 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 26 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)

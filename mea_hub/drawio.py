@@ -114,7 +114,7 @@ SWIMLANE_TEMPLATES = {"cross_functional_swimlane": ["Department A", "Department 
                       "enterprise_e2e": ["Sales", "Planning", "Procurement", "Logistics", "Finance"]}
 
 
-def template_xml(key: str, title: str, swimlanes: bool = False) -> str:
+def template_xml(key: str, title: str, swimlanes: bool = False, legend: dict | None = None) -> str:
     name, steps = TEMPLATES.get(key, TEMPLATES["blank"])
     st = BRAND_STYLES
     cells = ['<mxCell id="0"/>', '<mxCell id="1" parent="0"/>']
@@ -146,6 +146,11 @@ def template_xml(key: str, title: str, swimlanes: bool = False) -> str:
             cells.append(f'<mxCell id="e{i}"{lbl} style="{st["edge"]}" edge="1" parent="1" source="{prev}" target="{cid}"><mxGeometry relative="1" as="geometry"/></mxCell>')
         prev = cid
         x += w + (70 if lanes else 50)
+    if legend and legend.get("roles"):
+        from . import canvas
+        ly = (30 + lane_h * len(lanes) + 80) if lanes else 280
+        for c_ in canvas.legend_block(legend, [], 40, ly)[0]:
+            cells.append(etree.tostring(c_, encoding="unicode"))
     return (f'<mxfile host="MEA Process Hub"><diagram id="d1" name="{esc_attr(title[:60] or name)}"><mxGraphModel dx="1000" dy="700" '
             f'grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" '
             f'pageWidth="1654" pageHeight="1169"><root>{"".join(cells)}</root></mxGraphModel></diagram></mxfile>')
@@ -230,9 +235,15 @@ def scene(xml: str, page: int = 0) -> dict:
         return cache[cid]
 
     boxes, edges = {}, []
+    edge_ids = {cid for cid, r in raw.items() if r["node"].get("edge") == "1"}
+    edge_labels = {}
     for cid, r in raw.items():
         n = r["node"]
         g = n.find("mxGeometry")
+        if n.get("vertex") == "1" and r["parent"] in edge_ids:
+            if strip_tags(r["label"]):
+                edge_labels.setdefault(r["parent"], strip_tags(r["label"]))
+            continue
         if n.get("vertex") == "1" and g is not None:
             x, y = origin(cid)
             boxes[cid] = dict(id=cid, x=x, y=y, w=_num(g.get("width"), 60), h=_num(g.get("height"), 40), label=strip_tags(r["label"]), raw_label=r["label"],
@@ -253,7 +264,7 @@ def scene(xml: str, page: int = 0) -> dict:
                 arr = g.find("Array")
                 if arr is not None:
                     pts = [(ox + _num(p.get("x")), oy + _num(p.get("y"))) for p in arr.findall("mxPoint")]
-            edges.append(dict(id=cid, source=n.get("source"), target=n.get("target"), label=strip_tags(r["label"]), style=_style(n.get("style")), points=pts))
+            edges.append(dict(id=cid, source=n.get("source"), target=n.get("target"), label=strip_tags(r["label"]) or edge_labels.get(cid, ""), style=_style(n.get("style")), points=pts))
     return dict(boxes=boxes, edges=edges)
 
 
@@ -501,6 +512,7 @@ def to_png(xml: str, page: int = 0, max_px: int = 3000):
         if e["label"]:
             mx, my = tp[len(tp) // 2]
             f3 = _font(False, 11 * k)
+            e["label"] = " ".join(e["label"].split())[:60]
             tw = dr.textlength(e["label"], font=f3)
             dr.rectangle([mx - tw / 2 - 2, my - 8 * k, mx + tw / 2 + 2, my + 6 * k], fill="white")
             dr.text((mx, my - k), e["label"], font=f3, fill="#222", anchor="mm")

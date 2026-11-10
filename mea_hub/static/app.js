@@ -1,7 +1,7 @@
 "use strict";
 let editorInst = null;
 const NAV = [["#/dashboard", "Dashboard", "▦"], ["#/handbook", "Master Handbook", "☰"], ["#/library", "Process Library", "≣"], ["#/flow", "Flow Studio", "⬡"], ["#/departments", "Departments", "▤"],
-  ["#/governance", "Governance", "⚖"], ["#/reports", "Reports", "◔"], ["#/import", "Import & Sources", "⇪"], ["#/export", "Export Center", "⇩"], ["#/admin", "Administration", "⚙"]];
+  ["#/governance", "Governance", "⚖"], ["#/audit", "Audit & Review", "✎"], ["#/reports", "Reports", "◔"], ["#/import", "Import & Sources", "⇪"], ["#/export", "Export Center", "⇩"], ["#/admin", "Administration", "⚙"]];
 
 async function boot() {
   S.cfg = await GET("/api/config");
@@ -57,12 +57,15 @@ async function route() {
   clear(main).append(h("p", {class: "muted"}, "Loading…"));
   try {
     const V = {dashboard: viewDashboard, handbook: viewHandbook, process: viewHandbook, library: viewLibrary, flow: viewFlow, departments: viewDepartments, governance: viewGovernance,
-      reports: viewReports, import: viewImport, export: viewExport, admin: viewAdmin, search: viewSearch, new: viewNew};
+      reports: viewReports, audit: viewAudit, import: viewImport, export: viewExport, admin: viewAdmin, search: viewSearch, new: viewNew};
     const node = await (V[top] || viewDashboard)(...parts.slice(1));
     if (node) {
       const h1 = node.querySelector && node.querySelector("h1");
       const navItem = NAV.find((n) => n[0] === "#/" + (top === "process" ? "handbook" : top));
-      if (h1 && !node.querySelector(".kicker")) h1.before(h("div", {class: "kicker"}, (S.cfg.org || "dormakaba MEA") + " · " + (navItem ? navItem[1] : "Process Hub")));
+      if (h1 && !node.querySelector(".kicker")) {
+        const anchor = h1.parentElement && h1.parentElement !== node && h1.parentElement.classList.contains("row") ? h1.parentElement : h1;   // keep the kicker above a title row
+        anchor.before(h("div", {class: "kicker"}, (S.cfg.org || "dormakaba MEA") + " · " + (navItem ? navItem[1] : "Process Hub")));
+      }
       clear(main).append(node);
     }
   } catch (e) { clear(main).append(h("div", {class: "banner bad"}, e.message)); }
@@ -97,19 +100,57 @@ async function viewDashboard() {
 }
 
 // ---------------------------------------------------------------- tree + handbook / process page
+const KIND_GROUP = {department: "Overview", e2e: "End-to-end flows", sop: "Processes", work_instruction: "Work instructions", approval: "Approvals",
+  form: "Forms & checklists", reference: "Reference", future_state: "Future state (proposed)"};
+const GROUP_ORDER = ["Overview", "End-to-end flows", "Processes", "Work instructions", "Approvals", "Forms & checklists", "Reference", "Future state (proposed)"];
+const AUTO_CAT = /^(Imported|Escalation|Document|Controlled|Canvas|Master data)/;
+const VARIANT = /\s+[–-]\s+(UAE & EXP|KSA|Direct|Indirect)$/;
+/* Department -> branch (business line or process type) -> process, with regional variants nested under their base process */
+function branches(processes) {
+  const catCount = {};
+  processes.forEach((p) => { if (p.category && !AUTO_CAT.test(p.category)) catCount[p.category] = (catCount[p.category] || 0) + 1; });
+  const groups = new Map();
+  for (const p of processes) {
+    const g = p.category && catCount[p.category] >= 2 ? p.category : (KIND_GROUP[p.kind] || "Processes");
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(p);
+  }
+  const order = (g) => { const i = GROUP_ORDER.indexOf(g); return i < 0 ? 2.5 : i; };
+  return [...groups.entries()].sort((x, y) => order(x[0]) - order(y[0]) || x[0].localeCompare(y[0])).map(([label, items]) => {
+    const byBase = new Map();
+    items.forEach((p) => { const base = p.name.replace(VARIANT, ""); if (!byBase.has(base)) byBase.set(base, []); byBase.get(base).push(p); });
+    return {label, count: items.length, nodes: [...byBase.entries()].map(([base, ps]) => ps.length > 1 && ps.every((p) => VARIANT.test(p.name)) ? {label: base, variants: ps} : ps.map((p) => ({proc: p}))).flat()};
+  });
+}
+function procLink(p, current, label) {
+  return h("a", {class: "p" + (p.process_id === current ? " on" : ""), href: "#/process/" + encodeURIComponent(p.process_id), title: p.process_id + " · " + (S.cfg.statuses[p.status] || p.status)},
+    h("span", {class: "dot s-" + p.status}), label || p.name);
+}
 function treePanel(current) {
   const wrap = h("div", {class: "tree"}, h("div", {class: "hd"}, "MASTER HANDBOOK"));
   for (const d of S.tree) {
     const has = d.processes.some((p) => p.process_id === current);
     const det = h("details", {open: has || (!current && d.processes.length && d === S.tree.find((x) => x.processes.length))}, h("summary", null, d.name, h("span", {class: "cnt"}, d.processes.length)));
     if (!d.processes.length) det.append(h("div", {class: "muted", style: "padding:4px 20px;font-size:12px"}, "No processes yet"));
-    d.processes.forEach((p) => det.append(h("a", {class: "p" + (p.process_id === current ? " on" : ""), href: "#/process/" + encodeURIComponent(p.process_id), title: p.process_id}, p.name + (p.countries ? " (" + p.countries + ")" : ""))));
+    for (const br of branches(d.processes)) {
+      const open = br.nodes.some((n) => n.proc ? n.proc.process_id === current : n.variants.some((p) => p.process_id === current));
+      const bd = h("details", {class: "branch", open: open || d.processes.length <= 8}, h("summary", null, br.label, h("span", {class: "cnt"}, br.count)));
+      br.nodes.forEach((n) => {
+        if (n.proc) return bd.append(procLink(n.proc, current));
+        const vd = h("details", {class: "variant", open: n.variants.some((p) => p.process_id === current)}, h("summary", null, n.label, h("span", {class: "cnt"}, n.variants.length + " variants")));
+        n.variants.forEach((p) => vd.append(procLink(p, current, (p.name.match(VARIANT) || ["", p.name])[1])));
+        bd.append(vd);
+      });
+      det.append(bd);
+    }
     wrap.append(det);
   }
   if (can("admin", "controller", "dept_owner", "editor")) wrap.append(h("div", {style: "margin-top:10px"}, h("a", {class: "btn sm", href: "#/new"}, "+ New process")));
   return wrap;
 }
-async function viewHandbook(pid) {
+let OPEN_TAB = null, TAB_MEM = {};
+async function viewHandbook(pid, tab) {
+  OPEN_TAB = tab || null;
   if (!pid) {
     const first = S.tree.flatMap((d) => d.processes)[0];
     return h("div", {class: "page hb"}, treePanel(null), h("div", null, h("h1", null, "Master Handbook"), h("div", {class: "sub"}, "Generated dynamically from the process database. Choose a process on the left."),
@@ -162,6 +203,8 @@ async function processPage(pid, versionId, editing) {
   if (ov && v.id !== ov.id && isLatest === false && d.published_version) banners.push(h("div", {class: "banner info"}, "A newer revision " + ov.version + " is " + (S.cfg.statuses[ov.status] || ov.status) + "."));
   if (v.status === "changes_requested" && v.review_note) banners.push(h("div", {class: "banner bad"}, "Changes requested: " + v.review_note));
   if (d.diagram && d.diagram.validation === "requires_validation") banners.push(h("div", {class: "banner warn"}, "Flowchart status: Requires Functional Validation – the imported picture is a locked reference layer; redraw it in Flow Studio and have the owner confirm it."));
+  d.canQuick = isLatest && perms.edit && (!ov || ["imported", "draft", "changes_requested"].includes(ov.status));
+  d.reload = reload;
   const body = h("div");
   if (editing) {
     editorInst = buildEditor(d, (payload) => PUT("/api/process/" + encodeURIComponent(pid) + "/draft", payload));
@@ -217,37 +260,92 @@ async function diagramHistory(dg) {
   modal("Diagram revisions – " + dg.code, table(["Rev", "Origin", "Validation", "By", "When", "Note", ""], r.versions.map((v) => ["#" + v.ver_no, v.origin, v.validation, v.author, fmtDate(v.created_at), v.note,
     h("span", {class: "row"}, h("a", {href: "/api/diagram-versions/" + v.id + "/xml"}, ".drawio"), v.preview_asset_id ? h("a", {href: "/api/assets/" + v.preview_asset_id, target: "_blank"}, "preview") : null)])), {wide: true});
 }
+function editTableModal(d, key, pid) {
+  const spec = TABLES[key], rows = (d.version.content[key] || []).slice();
+  const ed = tableEditor(spec, rows.length ? rows : [{}], () => {});
+  const m = modal((rows.length ? "Edit " : "Add ") + spec.label + " – " + pid, h("div", null,
+    h("p", {class: "muted"}, d.version.status === "published" || !d.open_version ? "Saving creates a new draft revision. The published version stays unchanged until the draft is reviewed and approved."
+      : "Saved into the current draft (" + d.status_label + ")."),
+    ed.el, h("div", {class: "row", style: "margin-top:14px"},
+      h("button", {class: "btn pri", onclick: () => guard(async () => {
+        const content = Object.assign({}, d.version.content, {[key]: ed.get()});
+        if (key === "activities") content.flow_sync = false;
+        await PUT("/api/process/" + encodeURIComponent(pid) + "/draft", {content, change_summary: d.version.change_summary || ("Updated " + spec.label)});
+        m.close(); toast(spec.label + " saved to draft"); d.reload();
+      })}, "Save"), h("button", {class: "btn", onclick: () => m.close()}, "Cancel"))), {wide: true});
+}
+function tableTab(d, key, pid, gap) {
+  const spec = TABLES[key], rows = d.version.content[key] || [];
+  const btn = d.canQuick ? h("button", {class: "btn pri sm", onclick: () => editTableModal(d, key, pid)}, rows.length ? "Edit " + spec.label : "+ Add " + spec.label) : null;
+  return h("div", null, h("div", {class: "row spread", style: "margin-bottom:8px"}, h("b", null, spec.label + (rows.length ? " (" + rows.length + ")" : "")), btn), tblOrGap(spec, rows, gap));
+}
+function commentThread(d, pid, cm, all) {
+  const replies = all.filter((x) => x.parent_id === cm.id).reverse();
+  const stale = cm.version_label && cm.version_label !== d.versions[0].version;
+  const act = (label, status, needNote) => h("button", {class: "btn sm", onclick: async () => {
+    let note; if (needNote) { note = await promptBox(label, "Resolution / response (recorded with your name)", {multiline: true, required: true}); if (note === null) return; }
+    await guard(() => PUT("/api/comments/" + cm.id, {status, resolution: note})); d.reload();
+  }}, label);
+  return h("div", {class: "card cm st-" + cm.status}, h("div", {class: "row spread"},
+      h("div", {class: "row"}, h("span", {class: "chip " + (cm.category === "nonconformity" ? "bad" : cm.category === "observation" || cm.category === "improvement" ? "warn" : "")}, cm.category),
+        cm.severity !== "info" ? h("span", {class: "chip " + (cm.severity === "major" ? "bad" : "warn")}, cm.severity) : null, cm.section ? h("span", {class: "chip"}, cm.section) : null,
+        h("b", null, cm.author), h("span", {class: "muted"}, fmtDate(cm.created_at) + " · raised on v" + (cm.version_label || "?") + (stale ? " (current v" + d.versions[0].version + ")" : ""))),
+      h("span", {class: "chip " + (cm.status === "open" ? "warn" : cm.status === "in_progress" ? "s-under_review" : "ok")}, cm.status.replace("_", " "))),
+    h("div", {style: "white-space:pre-wrap;margin:6px 0"}, cm.body),
+    cm.resolution ? h("div", {class: "banner ok", style: "margin:6px 0;padding:6px 10px"}, "Resolution (" + (cm.resolved_by || "") + " " + fmtDate(cm.resolved_at) + "): " + cm.resolution) : null,
+    replies.map((r) => h("div", {class: "reply"}, h("b", null, r.author), " ", h("span", {class: "muted"}, fmtDate(r.created_at)), h("div", {style: "white-space:pre-wrap"}, r.body))),
+    d.perms.comment ? h("div", {class: "row", style: "margin-top:6px"},
+      h("button", {class: "btn sm", onclick: async () => { const t = await promptBox("Reply", "Your reply", {multiline: true, required: true}); if (t === null) return; await guard(() => POST("/api/process/" + encodeURIComponent(pid) + "/comments", {body: t, parent_id: cm.id})); d.reload(); }}, "Reply"),
+      cm.status === "open" ? act("Mark in progress", "in_progress") : null, ["open", "in_progress"].includes(cm.status) ? act("Resolve", "resolved", true) : null,
+      cm.status === "resolved" ? act("Close", "closed") : null, ["resolved", "closed"].includes(cm.status) ? act("Reopen", "open") : null) : null);
+}
+function commentForm(d, pid) {
+  const sel = (opts, lab) => h("select", {style: "width:auto", "aria-label": lab}, opts.map((o) => h("option", {value: o}, o || "General")));
+  const cat = sel(S.cfg.comment_categories, "Category"), sev = sel(S.cfg.comment_severities, "Severity"), sec = sel(S.cfg.comment_sections, "Section"), body = h("textarea", {placeholder: "Comment, question, audit observation or non-conformity…"});
+  return h("div", {class: "card"}, h("h3", null, "Add comment on version " + d.version.version), h("div", {class: "row", style: "margin-bottom:6px"}, "Type", cat, "Severity", sev, "About", sec), body,
+    h("button", {class: "btn pri", style: "margin-top:8px", onclick: () => guard(async () => { await POST("/api/process/" + encodeURIComponent(pid) + "/comments", {body: body.value, category: cat.value, severity: sev.value, section: sec.value, version_id: d.version.id}); toast("Comment recorded"); d.reload(); })}, "Post comment"));
+}
 function tabsView(d, pid, reload) {
-  const c = d.version.content, names = ["Content", "RACI", "SAP", "KPI", "Escalation", "Related", "Sources", "Comments", "History"];
+  const c = d.version.content, openC = d.comments.filter((x) => !x.parent_id && ["open", "in_progress"].includes(x.status)).length;
+  const names = ["Activities", "Content", "RACI", "SAP", "KPI", "Escalation", "Related", "Sources", "Audit & comments" + (openC ? " (" + openC + ")" : ""), "History"];
   const area = h("div", {class: "card"}), bar = h("div", {class: "tabs", role: "tablist"});
   const show = async (n) => {
+    TAB_MEM = {pid, name: n.split(" (")[0]};
     [...bar.children].forEach((b) => b.classList.toggle("on", b.textContent === n)); clear(area);
-    if (n === "Content") { (c.sections || []).length ? c.sections.forEach((s) => area.append(h("h3", null, s.title), setHTML(h("div", {class: "rt"}), s.html))) : area.append(h("p", {class: "muted"}, "No additional content.")); }
-    else if (n === "RACI") area.append(tblOrGap(TABLES.raci, c.raci, "No RACI defined. Responsible list from source: " + ((c.responsible || []).join(", ") || "none")));
-    else if (n === "SAP") area.append(tblOrGap(TABLES.sap, c.sap, "No SAP transactions documented in the source (Documentation Required)."));
-    else if (n === "KPI") area.append(tblOrGap(TABLES.kpis, c.kpis, "No KPIs defined for this process."));
-    else if (n === "Escalation") area.append(tblOrGap(TABLES.escalation, c.escalation, "No escalation matrix on this record."), c.activities.length ? [h("h3", null, "Detailed activities"), tblOrGap(TABLES.activities, c.activities, "")] : null);
+    if (n === "Activities") {
+      area.append(c.flow_sync ? h("div", {class: "banner info"}, "Linked to the flowchart: steps, roles and SAP references are re-read from the diagram every time it is saved. Change the flow (Edit diagram) to change this table.") : null,
+        c.flow_sync ? h("div", null, h("b", null, "Detailed activities (" + (c.activities || []).length + ")"), tblOrGap(TABLES.activities, c.activities, "The flowchart has no readable steps yet."))
+          : tableTab(d, "activities", pid, "No step-by-step activities documented yet."));
+    }
+    else if (n === "Content") { (c.sections || []).length ? c.sections.forEach((s) => area.append(h("h3", null, s.title), setHTML(h("div", {class: "rt"}), s.html))) : area.append(h("p", {class: "muted"}, "No additional content.")); }
+    else if (n === "RACI") area.append(tableTab(d, "raci", pid, "No RACI defined. Roles named in the source / flowchart: " + ((c.responsible || []).join(", ") || "none")));
+    else if (n === "SAP") area.append(c.flow_sync && (c.sap || []).length ? h("p", {class: "muted"}, "Read from the flowchart.") : null, tableTab(d, "sap", pid, "No SAP transactions documented."));
+    else if (n === "KPI") area.append(tableTab(d, "kpis", pid, "No KPIs defined for this process."));
+    else if (n === "Escalation") area.append(tableTab(d, "escalation", pid, "No escalation matrix on this record."));
     else if (n === "Related") {
       area.append(d.relationships.length ? table(["Direction", "Type", "Process", ""], d.relationships.map((r) => [r.dir === "out" ? "→ to" : "← from", r.rel_type + (r.inferred == 1 ? " (inferred from text)" : r.inferred == 2 ? " (suggested – confirm or remove)" : ""), pLink(r.process_id, r.process_id + " – " + r.name),
         d.perms.manage_relationships && r.inferred != 1 ? h("button", {class: "btn sm bad", onclick: () => guard(async () => { await DEL("/api/relationships/" + r.id); show("Related"); })}, "Remove") : ""])) : h("p", {class: "muted"}, "No relationships recorded – orphan process."));
-      if (d.perms.manage_relationships) { const to = h("input", {type: "text", placeholder: "Process ID e.g. WL-M-IB-01"}), ty = h("select", {style: "width:auto"}, S.cfg.rel_types.map((t) => h("option", null, t)));
-        area.append(h("div", {class: "row", style: "margin-top:10px"}, ty, to, h("button", {class: "btn", onclick: () => guard(async () => { await POST("/api/relationships", {from: pid, to: to.value.trim(), type: ty.value}); toast("Relationship added"); reload(); })}, "Link"))); }
+      if (d.perms.manage_relationships) { const to = h("input", {type: "text", placeholder: "Process ID e.g. WL-M-IB-01", list: "allpids"}), ty = h("select", {style: "width:auto"}, S.cfg.rel_types.map((t) => h("option", null, t)));
+        area.append(h("datalist", {id: "allpids"}, S.tree.flatMap((x) => x.processes).map((x) => h("option", {value: x.process_id}, x.name))),
+          h("div", {class: "row", style: "margin-top:10px"}, h("b", null, "+ Add link"), ty, to, h("button", {class: "btn pri sm", onclick: () => guard(async () => { await POST("/api/relationships", {from: pid, to: to.value.trim(), type: ty.value}); toast("Relationship added"); reload(); })}, "Link"))); }
     } else if (n === "Sources") {
       area.append(d.mappings.length ? table(["Source file", "Section", "Role", "Similarity", ""], d.mappings.map((m) => [m.filename, m.heading, m.role, m.similarity == null ? "—" : Math.round(m.similarity * 100) + "%", h("a", {href: "/api/sources/" + m.source_id + "/download"}, "original")])) : h("p", {class: "muted"}, "Authored in the application – no source document."),
         d.findings.length ? [h("h3", null, "Findings"), table(["Sev", "Kind", "Title", "Status"], d.findings.map((f) => [h("span", {class: "chip " + (f.severity === "high" ? "bad" : f.severity === "medium" ? "warn" : "")}, f.severity), f.kind, f.title, f.status]))] : null);
-    } else if (n === "Comments") {
-      const inp = h("textarea", {placeholder: "Add a comment…"});
-      area.append(d.comments.length ? d.comments.map((cm) => h("div", {class: "card", style: "padding:8px 12px"}, h("b", null, cm.author), " ", h("span", {class: "muted"}, fmtDate(cm.created_at) + " · " + cm.kind + (cm.resolved ? " · resolved" : "")), h("div", {style: "white-space:pre-wrap"}, cm.body))) : h("p", {class: "muted"}, "No comments."),
-        d.perms.comment ? h("div", null, inp, h("button", {class: "btn", style: "margin-top:6px", onclick: () => guard(async () => { await POST("/api/process/" + pid + "/comments", {body: inp.value}); reload(); })}, "Post comment")) : null);
+    } else if (n.startsWith("Audit")) {
+      const tops = d.comments.filter((x) => !x.parent_id);
+      area.append(d.perms.comment ? commentForm(d, pid) : null, tops.length ? tops.map((cm) => commentThread(d, pid, cm, d.comments)) : h("p", {class: "muted"}, "No comments yet."));
     } else if (n === "History") {
-      area.append(table(["Version", "Status", "Author", "Created", "Reviewed", "Approved", "Published", "Summary", ""], d.versions.map((v) => [h("a", {href: "javascript:void 0", onclick: () => reloadVersion(pid, v.id)}, "v" + v.version), chipS(v.status), v.author, fmtDate(v.created_at), v.reviewed_by || "", v.approved_by || "", fmtDate(v.published_at), v.change_summary,
+      const cnt = (vid) => d.comments.filter((x) => x.version_id === vid && !x.parent_id).length;
+      area.append(table(["Version", "Status", "Author", "Created", "Reviewed", "Approved", "Published", "Version comment (change summary)", "Audit comments", ""], d.versions.map((v) => [h("a", {href: "javascript:void 0", onclick: () => reloadVersion(pid, v.id)}, "v" + v.version), chipS(v.status), v.author, fmtDate(v.created_at), v.reviewed_by || "", v.approved_by || "", fmtDate(v.published_at), v.change_summary + (v.review_note ? " · Reviewer: " + v.review_note : ""), cnt(v.id) || "",
         d.versions.length > 1 && v.id !== d.version.id ? h("button", {class: "btn sm", onclick: () => compareModal(pid, v.id, d.version.id)}, "Compare with shown") : ""])));
       const log = await GET("/api/changelog?process=" + encodeURIComponent(pid));
       area.append(h("h3", null, "Change log"), table(["When", "Who", "Action", "Detail"], log.rows.map((r) => [fmtDate(r.ts), r.username, r.action, r.detail])));
     }
   };
   names.forEach((n) => bar.append(h("button", {class: "tab", role: "tab", onclick: () => show(n)}, n)));
-  show(c.sections && c.sections.length ? "Content" : "RACI");
+  const want = OPEN_TAB === "audit" ? names.find((x) => x.startsWith("Audit")) : (TAB_MEM.pid === pid ? names.find((x) => x.split(" (")[0] === TAB_MEM.name) : null);
+  OPEN_TAB = null;
+  show(want || ((c.activities || []).length ? "Activities" : (c.sections && c.sections.length ? "Content" : "RACI")));
   return h("div", null, bar, area);
 }
 function tblOrGap(spec, rows, gap) { return rows && rows.length ? table(spec.cols.map((c) => c[1]), rows.map((r) => spec.cols.map((c) => r[c[0]]))) : h("p", {class: "muted"}, gap); }
@@ -303,9 +401,17 @@ async function viewDepartments(code) {
     d.processes.length ? null : h("span", {class: "chip warn"}, "No documented processes – Documentation Required")))));
   const d = S.tree.find((x) => x.code === code); if (!d) throw new Error("Unknown department");
   const pend = (await GET("/api/approvals")).rows.filter((x) => x.department === d.name);
+  const br = branches(d.processes);
+  const row = (p, label) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(p.process_id)), cells: [h("span", {class: "mono"}, p.process_id), label || p.name, chipS(p.status), "v" + p.version,
+    p.has_diagram ? (p.diagram_validation === "requires_validation" ? h("span", {class: "chip warn"}, "picture") : h("span", {class: "chip ok"}, "native flow")) : h("span", {class: "chip bad"}, "missing"), p.owner || "—"]});
   return h("div", {class: "page"}, h("div", {class: "row spread"}, h("h1", null, d.name), h("div", {class: "row"}, exportBtns({scope: "department", dept: d.code}))),
-    h("div", {class: "card"}, h("h3", null, "Pending reviews / approvals"), pend.length ? table(["Process", "Status", "Version", "Author"], pend.map((x) => [pLink(x.process_id, x.process_id + " – " + x.name), chipS(x.status), x.version, x.author])) : h("p", {class: "muted"}, "None.")),
-    h("div", {class: "card"}, h("h3", null, "Processes"), d.processes.length ? table(["ID", "Name", "Type", "Status", "Owner"], d.processes.map((p) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(p.process_id)), cells: [p.process_id, p.name, p.kind, chipS(p.status), p.owner || "—"]}))) : h("p", {class: "muted"}, "No processes.")));
+    h("div", {class: "sub"}, d.processes.length + " processes in " + br.length + " branch(es)"),
+    h("div", {class: "branchmap"}, h("div", {class: "bm-root"}, d.name), h("div", {class: "bm-row"}, br.map((b2) => h("div", {class: "bm-col"}, h("div", {class: "bm-branch"}, b2.label, h("span", {class: "cnt"}, b2.count)),
+      b2.nodes.map((n) => n.proc ? h("a", {class: "bm-leaf", href: "#/process/" + encodeURIComponent(n.proc.process_id), title: n.proc.process_id}, h("span", {class: "dot s-" + n.proc.status}), n.proc.name)
+        : h("div", {class: "bm-var"}, h("div", {class: "bm-vt"}, n.label), n.variants.map((p) => h("a", {class: "bm-leaf", href: "#/process/" + encodeURIComponent(p.process_id), title: p.process_id}, h("span", {class: "dot s-" + p.status}), (p.name.match(VARIANT) || ["", p.name])[1])))))))),
+    pend.length ? h("div", {class: "card"}, h("h3", null, "Pending reviews / approvals"), table(["Process", "Status", "Version", "Author"], pend.map((x) => [pLink(x.process_id, x.process_id + " – " + x.name), chipS(x.status), x.version, x.author]))) : null,
+    br.map((b2) => h("div", {class: "card"}, h("h3", null, b2.label + " (" + b2.count + ")"), table(["ID", "Name", "Status", "Version", "Flowchart", "Owner"],
+      b2.nodes.flatMap((n) => n.proc ? [row(n.proc)] : n.variants.map((p) => row(p, n.label + " – " + (p.name.match(VARIANT) || ["", ""])[1])))))));
 }
 
 // ---------------------------------------------------------------- governance
@@ -316,10 +422,12 @@ async function viewGovernance(tab) {
   let body;
   if (tab === "approvals") { const r = await GET("/api/approvals"); body = h("div", null, h("div", {class: "banner info"}, "Document approval (publishing a procedure) is separate from business-transaction approval (an actual sales order, PR, master-data change). This module controls the former."),
     r.rows.length ? table(["Process", "Department", "Status", "Version", "Author", "Submitted", "Summary"], r.rows.map((x) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(x.process_id)), cells: [x.process_id + " – " + x.name, x.department, chipS(x.status), x.version, x.author, fmtDate(x.submitted_at), x.summary]}))) : h("p", {class: "muted"}, "Nothing is waiting for review or approval.")); }
-  else if (tab === "raci") { const r = await GET("/api/raci"); body = h("div", null, h("div", {class: "banner warn"}, "Suggested corrections never rewrite approved responsibility assignments – owners must edit RACI in the process draft."),
+  else if (tab === "raci") { const r = await GET("/api/raci"); body = h("div", null, can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", style: "margin-bottom:10px", onclick: () => quickAdd("raci")}, "+ Add / edit RACI for a process") : null,
+    h("div", {class: "banner warn"}, "Suggested corrections never rewrite approved responsibility assignments – RACI changes go into a draft and through approval."),
     table(["Process", "Department", "Owner", "Responsible (source)", "RACI rows", "Issues"], r.rows.map((x) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(x.process_id)), cells: [x.process_id + " – " + x.name, x.department, x.owner || "—", x.responsible_listed.join(", "), x.raci.length, x.issues.length ? h("span", {class: "chip bad"}, x.issues[0] + (x.issues.length > 1 ? " (+" + (x.issues.length - 1) + ")" : "")) : h("span", {class: "chip ok"}, "OK")]})))); }
-  else if (tab === "escalation") { const r = await GET("/api/escalation"); body = r.rows.length ? table(["Process", "Department", "Stage", "Task / reminder to", "Time period", "Escalation", "Previous SLA"], r.rows.map((x) => [x.process_id, x.department, x.stage, x.to, x.time, x.action, x.sla])) : h("p", null, "No escalation data."); }
-  else if (tab === "kpis") { const r = await GET("/api/kpis"); body = r.rows.length ? table(["Process", "Department", "KPI", "Definition", "Target"], r.rows.map((x) => [x.process_id, x.department, x.name, x.definition, x.target])) : h("p", null, "No KPIs."); }
+  else if (tab === "escalation") { const r = await GET("/api/escalation"); body = h("div", null, can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", style: "margin-bottom:10px", onclick: () => quickAdd("escalation")}, "+ Add / edit escalation rules for a process") : null, r.rows.length ? table(["Process", "Department", "Stage", "Task / reminder to", "Time period", "Escalation", "Previous SLA"], r.rows.map((x) => [pLink(x.process_id), x.department, x.stage, x.to, x.time, x.action, x.sla])) : h("p", null, "No escalation data.")); }
+  else if (tab === "kpis") { const r = await GET("/api/kpis"); body = h("div", null, can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", style: "margin-bottom:10px", onclick: () => quickAdd("kpis")}, "+ Add / edit KPIs for a process") : null,
+    r.rows.length ? table(["Process", "Department", "KPI", "Definition", "Target"], r.rows.map((x) => [pLink(x.process_id), x.department, x.name, x.definition, x.target])) : h("p", null, "No KPIs defined yet.")); }
   else if (tab === "changelog") { const r = await GET("/api/changelog"); body = table(["When", "Who", "Action", "Entity", "Detail"], r.rows.map((x) => [fmtDate(x.ts), x.username, x.action, x.entity_id, x.detail])); }
   else if (tab === "ownership") body = await ownershipView();
   else body = await mapView();
@@ -352,6 +460,46 @@ async function mapView() {
   const sug = can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await POST("/api/map/suggest-links"); toast(r.links_added + " handover links suggested from the Level 1 value stream (" + r.stages_matched + " stages matched)"); route(); })}, "Suggest links from Level 1 value stream") : null;
   return h("div", null, sug, h("div", {class: "banner info"}, "Built from recorded relationships (solid = authored, dashed = inferred from IDs mentioned in text). Diagram layout is not the source of relationships. Add links on a process's Related tab."),
     h("div", {class: "card", style: "overflow:auto"}, svg), h("div", {class: "card"}, h("h3", null, m.orphans.length + " orphan processes (no relationships)"), m.orphans.slice(0, 60).map((n) => h("span", {style: "margin-right:8px"}, pLink(n.process_id)))));
+}
+
+// ---------------------------------------------------------------- audit & review
+function pickProcess(title) {
+  return new Promise((res) => {
+    const sel = h("select", {size: 14}, S.tree.flatMap((d) => d.processes.map((p) => h("option", {value: p.process_id}, p.process_id + " – " + p.name + "  [" + d.name + "]"))));
+    const f = h("input", {type: "text", placeholder: "Filter by name or ID", oninput: () => { [...sel.options].forEach((o) => { o.hidden = !o.textContent.toLowerCase().includes(f.value.toLowerCase()); }); }});
+    const m = modal(title, h("div", null, f, h("div", {style: "margin-top:8px"}, sel), h("div", {class: "row", style: "margin-top:12px"},
+      h("button", {class: "btn pri", onclick: () => { if (!sel.value) return toast("Choose a process", true); m.close(); res(sel.value); }}, "Continue"), h("button", {class: "btn", onclick: () => { m.close(); res(null); }}, "Cancel"))));
+  });
+}
+async function quickAdd(key) {
+  const pid = await pickProcess("Choose the process for the new " + TABLES[key].label + " entry"); if (!pid) return;
+  const d = await GET("/api/process/" + encodeURIComponent(pid));
+  if (!d.perms.edit) return toast("You may not edit this process.", true);
+  if (d.open_version && !["imported", "draft", "changes_requested"].includes(d.open_version.status)) return toast("This process is " + d.status_label + " – withdraw it before editing.", true);
+  d.reload = () => route();
+  editTableModal(d, key, pid);
+}
+async function viewAudit() {
+  const st = {status: "open", category: "", dept: ""}, out = h("div");
+  const load = async () => {
+    const r = await GET("/api/audit-comments?" + new URLSearchParams(st));
+    clear(out).append(h("p", {class: "muted"}, r.rows.length + " item(s)"), r.rows.length ? table(["#", "Process", "Raised on", "Now", "Type", "Severity", "About", "Status", "By", "When", "Comment", "Replies"],
+      r.rows.map((x) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(x.pid_text)), cells: [x.id, x.pid_text + " – " + x.pname, "v" + x.version_label, "v" + x.current_version + (x.version_label !== x.current_version ? " ⚑" : ""),
+        h("span", {class: "chip " + (x.category === "nonconformity" ? "bad" : x.category === "observation" || x.category === "improvement" ? "warn" : "")}, x.category), x.severity, x.section || "General",
+        h("span", {class: "chip " + (x.status === "open" ? "warn" : x.status === "in_progress" ? "s-under_review" : "ok")}, x.status.replace("_", " ")), x.author, fmtDate(x.created_at), x.body.slice(0, 140), x.replies || ""]})))
+      : h("p", null, "Nothing matches these filters."));
+  };
+  const sel = (k, opts, lab) => h("select", {style: "width:auto", "aria-label": lab, onchange: (e) => { st[k] = e.target.value; load(); }}, h("option", {value: ""}, "All " + lab), opts.map(([v, l]) => h("option", {value: v, selected: st[k] === v}, l)));
+  const all = (await GET("/api/audit-comments")).rows, n = (f) => all.filter(f).length;
+  await load();
+  const kpi = (v, l, cls) => h("div", {class: "card kpi " + (cls || "")}, h("div", {class: "n"}, v), h("div", {class: "l"}, l));
+  return h("div", {class: "page"}, h("div", {class: "row spread"}, h("h1", null, "Audit & Review"),
+      h("div", {class: "row"}, h("a", {class: "btn", href: "/api/audit-comments.xlsx"}, "Export register (Excel)"),
+        h("button", {class: "btn pri", onclick: async () => { const pid = await pickProcess("Add an audit comment to which process?"); if (pid) location.hash = "#/process/" + encodeURIComponent(pid) + "/audit"; }}, "+ New audit comment"))),
+    h("div", {class: "sub"}, "Every comment is tied to the process version it was raised on, keeps its status history in the audit log, and stays visible across later versions until it is resolved and closed. ⚑ = the process has moved on since the comment was raised."),
+    h("div", {class: "grid g4"}, kpi(n((x) => x.status === "open"), "Open", n((x) => x.status === "open") ? "warn" : ""), kpi(n((x) => x.status === "in_progress"), "In progress"),
+      kpi(n((x) => x.category === "nonconformity" && !["resolved", "closed"].includes(x.status)), "Open non-conformities", "bad"), kpi(n((x) => ["resolved", "closed"].includes(x.status)), "Resolved / closed")),
+    h("div", {class: "row", style: "margin-bottom:10px"}, sel("status", S.cfg.comment_statuses.map((x) => [x, x.replace("_", " ")]), "statuses"), sel("category", S.cfg.comment_categories.map((x) => [x, x]), "types"), sel("dept", S.tree.map((d) => [d.code, d.name]), "departments")), out);
 }
 
 // ---------------------------------------------------------------- reports
@@ -444,19 +592,25 @@ async function viewAdmin(tab) {
   let body;
   if (tab === "users") {
     const r = await GET("/api/users"), u = h("input", {type: "text"}), n = h("input", {type: "text"}), pw = h("input", {type: "password"}), role = h("select", null, S.cfg.roles.map((x) => h("option", null, x))), dp = h("select", null, h("option", {value: ""}, "All departments"), S.tree.map((d) => h("option", {value: d.id}, d.name)));
-    body = h("div", null, table(["User", "Name", "Role", "Dept scope", "Active", ""], r.users.map((x) => [x.username, x.display_name, h("select", {style: "width:auto", onchange: (e) => guard(async () => { await PUT("/api/users/" + x.id, {role: e.target.value}); toast("Role updated"); })}, S.cfg.roles.map((rr) => h("option", {selected: rr === x.role}, rr))), x.department || "all", x.active ? "yes" : "no",
+    const addUser = () => { const f2 = {u: h("input", {type: "text", placeholder: "e.g. m.munib"}), n: h("input", {type: "text", placeholder: "Full name"}), pw: h("input", {type: "text", placeholder: "min 8 characters"}),
+        role: h("select", null, S.cfg.roles.map((x) => h("option", null, x))), dp: h("select", null, h("option", {value: ""}, "All departments"), S.tree.map((d) => h("option", {value: d.id}, d.name)))};
+      const m = modal("Add user", h("div", null, h("div", {class: "fields"}, [["Username", f2.u], ["Display name", f2.n], ["Temporary password", f2.pw], ["Role", f2.role], ["Department scope", f2.dp]].map(([l, e]) => h("div", null, h("label", null, l), e))),
+        h("p", {class: "muted"}, "The user must change the temporary password at first sign-in. Editors and department owners can be limited to one department."),
+        h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => guard(async () => { await POST("/api/users", {username: f2.u.value, display_name: f2.n.value, password: f2.pw.value, role: f2.role.value, department_id: f2.dp.value ? +f2.dp.value : null}); m.close(); toast("User " + f2.u.value + " created"); route(); })}, "Create user"), h("button", {class: "btn", onclick: () => m.close()}, "Cancel")))); f2.u.focus(); };
+    body = h("div", null, h("div", {class: "row spread", style: "margin-bottom:10px"}, h("b", null, r.users.length + " user(s)"), h("button", {class: "btn pri", onclick: addUser}, "+ Add user")), table(["User", "Name", "Role", "Dept scope", "Active", ""], r.users.map((x) => [x.username, x.display_name, h("select", {style: "width:auto", onchange: (e) => guard(async () => { await PUT("/api/users/" + x.id, {role: e.target.value}); toast("Role updated"); })}, S.cfg.roles.map((rr) => h("option", {selected: rr === x.role}, rr))), x.department || "all", x.active ? "yes" : "no",
       h("span", {class: "row"}, h("button", {class: "btn sm", onclick: () => guard(async () => { await PUT("/api/users/" + x.id, {active: !x.active}); route(); })}, x.active ? "Deactivate" : "Activate"),
         h("button", {class: "btn sm", onclick: async () => { const p = await promptBox("Reset password", "New temporary password (min 8)"); if (p) guard(async () => { await PUT("/api/users/" + x.id, {password: p}); toast("Password reset (user must change it)"); }); }}, "Reset password"))])),
-      h("div", {class: "card", style: "margin-top:14px"}, h("h3", null, "Add user"), h("div", {class: "fields"}, [["Username", u], ["Display name", n], ["Temporary password", pw], ["Role", role], ["Department scope", dp]].map(([l, e]) => h("div", null, h("label", null, l), e))),
-        h("button", {class: "btn pri", style: "margin-top:10px", onclick: () => guard(async () => { await POST("/api/users", {username: u.value, display_name: n.value, password: pw.value, role: role.value, department_id: dp.value ? +dp.value : null}); toast("User created"); route(); })}, "Create user")),
       h("div", {class: "card"}, h("h3", null, "Role permissions"), table(["Role", "Can"], [["admin", "Everything"], ["controller", "Import, accept imports, edit, review, publish approved revisions, manage findings, view all"], ["dept_owner", "Edit/submit/review within own department, manage findings, relationships"],
         ["editor", "Edit drafts and diagrams (own department if scoped), submit for review"], ["reviewer", "Review and comment (cannot review own changes)"], ["approver", "Approve / reject pending revisions (separation of duties enforced)"], ["viewer", "Read published content only"]])));
   } else if (tab === "settings") {
     const s = await GET("/api/settings"), f = {org_name: h("input", {type: "text", value: s.org_name}), export_footer: h("input", {type: "text", value: s.export_footer}), classification: h("input", {type: "text", value: s.classification || "Internal"}), region_label: h("input", {type: "text", value: s.region_label || "Region MEA"}), default_review_months: h("input", {type: "number", value: s.default_review_months}),
       allow_self_approval: h("select", null, h("option", {value: "0", selected: s.allow_self_approval !== "1"}, "No – enforce separation of duties (recommended)"), h("option", {value: "1", selected: s.allow_self_approval === "1"}, "Yes – single-user / pilot mode"))};
-    body = h("div", {class: "card"}, h("div", {class: "fields"}, [["Organisation name", f.org_name], ["Export footer text", f.export_footer], ["Classification label (cover, footers)", f.classification], ["Region label (footers)", f.region_label], ["Default review frequency (months)", f.default_review_months], ["Author may review/approve own revision", f.allow_self_approval]].map(([l, e]) => h("div", null, h("label", null, l), e))),
+    const dc = h("input", {type: "text", placeholder: "Code e.g. HSE", style: "width:140px"}), dn = h("input", {type: "text", placeholder: "Department name"});
+    body = h("div", null, h("div", {class: "card"}, h("h3", null, "Departments"), h("p", {class: "muted"}, S.tree.map((d) => d.code + " " + d.name).join(" · ")),
+      h("div", {class: "row"}, dc, dn, h("button", {class: "btn pri", onclick: () => guard(async () => { await POST("/api/departments", {code: dc.value, name: dn.value}); await reloadTree(); toast("Department added"); route(); })}, "+ Add department"))),
+    h("div", {class: "card"}, h("div", {class: "fields"}, [["Organisation name", f.org_name], ["Export footer text", f.export_footer], ["Classification label (cover, footers)", f.classification], ["Region label (footers)", f.region_label], ["Default review frequency (months)", f.default_review_months], ["Author may review/approve own revision", f.allow_self_approval]].map(([l, e]) => h("div", null, h("label", null, l), e))),
       h("button", {class: "btn pri", style: "margin-top:10px", onclick: () => guard(async () => { const b = {}; Object.entries(f).forEach(([k, e]) => b[k] = e.value); await PUT("/api/settings", b); toast("Saved"); })}, "Save settings"),
-      h("p", {class: "muted"}, "draw.io editor: " + (S.cfg.drawio_local ? "self-hosted copy at /drawio/ (offline)" : "online host " + S.cfg.drawio_url + " – run fetch_drawio.py for a local copy.")));
+      h("p", {class: "muted"}, "draw.io editor: " + (S.cfg.drawio_local ? "self-hosted copy at /drawio/ (offline)" : "online host " + S.cfg.drawio_url + " – run fetch_drawio.py for a local copy."))));
   } else if (tab === "backup") {
     const fi = h("input", {type: "file", accept: ".zip"});
     body = h("div", {class: "grid g2"}, h("div", {class: "card"}, h("h3", null, "Backup"), h("p", {class: "muted"}, "Consistent ZIP of database, imported source documents and assets."), h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await api("POST", "/api/backup", {}, {raw: true}); const b = await r.blob(); const a = h("a", {href: URL.createObjectURL(b), download: "mea_hub_backup.zip"}); document.body.append(a); a.click(); a.remove(); toast("Backup downloaded"); })}, "Create & download backup")),

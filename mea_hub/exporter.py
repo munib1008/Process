@@ -115,6 +115,35 @@ def diagram_image(diagram):
         return None
 
 
+_PDF_IMG_CACHE = {}
+
+
+def pdf_image(data: bytes):
+    """(jpeg bytes, width, height) for PDF embedding. JPEG is passed through by the PDF writer, whereas PNG is
+    re-encoded pixel by pixel on every layout pass - that was the dominant cost of large PDF exports."""
+    key = hashlib.sha1(data).hexdigest()
+    hit = _PDF_IMG_CACHE.get(key)
+    if hit:
+        return hit
+    from PIL import Image
+    im = Image.open(io.BytesIO(data))
+    if im.mode in ("RGBA", "LA", "P"):
+        im = im.convert("RGBA")
+        bg = Image.new("RGB", im.size, "white")
+        bg.paste(im, mask=im.split()[-1])
+        im = bg
+    else:
+        im = im.convert("RGB")
+    if im.width > 2000:
+        im = im.resize((2000, int(im.height * 2000 / im.width)), Image.LANCZOS)
+    bio = io.BytesIO()
+    im.save(bio, "JPEG", quality=88, optimize=True)
+    if len(_PDF_IMG_CACHE) > 300:
+        _PDF_IMG_CACHE.clear()
+    _PDF_IMG_CACHE[key] = (bio.getvalue(), im.width, im.height)
+    return _PDF_IMG_CACHE[key]
+
+
 # ------------------------------------------------------------------ html -> blocks
 class _Blocks(HTMLParser):
     def __init__(self):
@@ -512,6 +541,8 @@ def build_pdf(snap) -> bytes:
     from reportlab.platypus.tableofcontents import TableOfContents
     import reportlab
 
+    from reportlab import rl_config
+    rl_config.useA85 = 0            # binary streams: ASCII85 text-encoding of images (pure Python) was ~75% of export time
     base, bold, ital = brand.pdf_font_family()
     ss = getSampleStyleSheet()
     BLUE, RED, GREYC, INKC, MUTEC = (colors.HexColor(x) for x in (brand.BLUE, brand.RED, brand.GREY, brand.INK, brand.MUTE))
@@ -605,10 +636,9 @@ def build_pdf(snap) -> bytes:
         return t
 
     def fit_image(data, maxw=17 * cm, maxh=19 * cm):
-        from PIL import Image as PI
-        w, h = PI.open(io.BytesIO(data)).size
+        jpg, w, h = pdf_image(data)
         sc = min(maxw / w, maxh / h)
-        return Image(io.BytesIO(data), width=w * sc, height=h * sc)
+        return Image(io.BytesIO(jpg), width=w * sc, height=h * sc)
 
     def block_flow(html):
         out = []

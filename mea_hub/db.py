@@ -102,10 +102,23 @@ def close_all_for_thread():
         _local.conn = None
 
 
+MIGRATIONS = {   # table -> columns added after the first release (applied with ALTER TABLE when missing)
+    "comments": [("category", "TEXT NOT NULL DEFAULT 'comment'"), ("severity", "TEXT NOT NULL DEFAULT 'info'"), ("status", "TEXT NOT NULL DEFAULT 'open'"),
+                 ("version_label", "TEXT NOT NULL DEFAULT ''"), ("section", "TEXT NOT NULL DEFAULT ''"), ("parent_id", "INTEGER"),
+                 ("resolution", "TEXT NOT NULL DEFAULT ''"), ("resolved_by", "TEXT"), ("resolved_at", "TEXT")],
+}
+
+
 def init():
     config.ensure_dirs()
     c = db()
     c.executescript(SCHEMA)
+    for table, cols in MIGRATIONS.items():
+        have = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
+        for name, ddl in cols:
+            if name not in have:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_comments_proc ON comments(process_id, status)")
 
 
 @contextmanager

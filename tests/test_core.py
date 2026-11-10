@@ -353,6 +353,162 @@ def test_value_stream_suggestions_and_inbox(users, tmp_path):
     assert not any(i["process_id"] == "TST-I-001" for i in users["editor"].call("GET", "/api/inbox")[1]["rows"])
 
 
+# ------------------------------------------------------------------ master canvas, flow <-> document link, audit comments
+def _canvas_xml():
+    """Two titled flows on one page, role-coloured outlines, a note, a linked-process reference and a loose label."""
+    def box(i, label, x, y, color, extra=""):
+        return (f'<mxCell id="{i}" value="{label}" style="rounded=0;whiteSpace=wrap;html=1;strokeColor={color};fillColor=#FFFFF5;{extra}" vertex="1" parent="1">'
+                f'<mxGeometry x="{x}" y="{y}" width="140" height="40" as="geometry"/></mxCell>')
+    def edge(i, a, b, label=""):
+        return f'<mxCell id="{i}" value="{label}" edge="1" source="{a}" target="{b}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>'
+    cells = ['<mxCell id="0"/>', '<mxCell id="1" parent="0"/>']
+    for k, (title, x) in enumerate((("Alpha Flow", 0), ("Beta Flow", 900), ("Gamma", 1800), ("Delta", 2700), ("Epsilon", 3600))):
+        cells.append(f'<mxCell id="t{k}" value="{title}" style="text;html=1;fontSize=20;" vertex="1" parent="1"><mxGeometry x="{x}" y="0" width="200" height="30" as="geometry"/></mxCell>')
+        cells.append(f'<mxCell id="s{k}" value="START" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="{x}" y="80" width="140" height="30" as="geometry"/></mxCell>')
+        cells.append(box(f"a{k}", f"Receive goods {k}", x, 150, "#2F4F4F"))
+        cells.append(f'<mxCell id="d{k}" value="Complete?" style="rhombus;whiteSpace=wrap;html=1;strokeColor=#008080;" vertex="1" parent="1"><mxGeometry x="{x + 10}" y="230" width="120" height="80" as="geometry"/></mxCell>')
+        cells.append(box(f"b{k}", "Post GR (MIGO)", x, 360, "#2F4F4F"))
+        cells.append(box(f"c{k}", "Inform buyer", x + 220, 250, "#DAA520"))
+        cells.append(f'<mxCell id="r{k}" value="2Q CHECK Ref S#: WL-S-QC-0 1" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="{x}" y="430" width="140" height="40" as="geometry"/></mxCell>')
+        cells.append(f'<mxCell id="e{k}" value="END" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="{x}" y="500" width="140" height="30" as="geometry"/></mxCell>')
+        cells.append(f'<mxCell id="n{k}" value="CHECK-LIST: BOL, invoice" style="shape=dataStorage;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="{x + 220}" y="150" width="150" height="50" as="geometry"/></mxCell>')
+        cells += [edge(f"x1{k}", f"s{k}", f"a{k}"), edge(f"x2{k}", f"a{k}", f"d{k}"), edge(f"x3{k}", f"d{k}", f"b{k}", "Yes"), edge(f"x4{k}", f"d{k}", f"c{k}", "No"),
+                  edge(f"x5{k}", f"b{k}", f"r{k}"), edge(f"x6{k}", f"r{k}", f"e{k}"), edge(f"x7{k}", f"a{k}", f"n{k}")]
+    cells += [box(f"f{i}", f"filler {i}", 5000 + i * 200, 3000, "#000000") for i in range(120)]            # a real canvas is large
+    return f'<mxfile><diagram name="Page-1"><mxGraphModel><root>{"".join(cells)}</root></mxGraphModel></diagram></mxfile>'
+
+
+LEGEND = {"roles": [{"role": "Warehouse", "color": "#2F4F4F"}, {"role": "Logistics", "color": "#008080"}, {"role": "Procurement Specialist", "color": "#DAA520"}]}
+
+
+def test_canvas_split_revamp_and_read():
+    from mea_hub import canvas, flowread
+    xml = drawio.normalize(_canvas_xml())
+    assert canvas.is_canvas(xml)
+    flows, left = canvas.segment(xml)
+    assert sorted(f["title"] for f in flows) == ["Alpha Flow", "Beta Flow", "Delta", "Epsilon", "Gamma"]
+    assert all(f["n"] == 8 for f in flows), "each flow owns its 8 shapes incl. the loose note; neighbours are not merged"
+    built, rest, frag = canvas.build_all(xml, {"flows": [{"title": "Alpha Flow", "id": "TST-C-AL-01", "name": "Alpha", "dept": "LOG"}], "legend": LEGEND})
+    out = built[0]["xml"]
+    drawio.normalize(out)                                                              # still a valid, editable draw.io file
+    assert "Process Map – Alpha – TST-C-AL-01" in out and "mea_legend" in out and "WL-S-QC-01" in out and "QC-0 1" not in out
+    assert 'meaProcessId="TST-C-AL-01"' in out and len(rest) >= 4 and frag
+    fr = flowread.read(out)
+    acts = fr["activities"]
+    assert [a["activity"] for a in acts][:2] == ["Receive goods 0", "Decision: Complete?"] and fr["unreached"] == 0 and fr["has_start"]
+    assert acts[0]["role"] == "Warehouse" and acts[1]["role"] == "Logistics"            # role = outline colour via the legend
+    assert "Yes: Post GR (MIGO)" in acts[1]["output"] and "No: Inform buyer" in acts[1]["output"]
+    post = [a for a in acts if a["activity"].startswith("Post GR")][0]
+    assert post["sap"] == "MIGO" and fr["sap"][0]["transaction"] == "MIGO"
+    assert any(a["activity"].startswith("Linked process:") for a in acts)
+    assert "CHECK-LIST" in fr["notes_html"] and "Step 1" in fr["notes_html"]            # note is tied to its step
+    assert fr["responsible"] == ["Warehouse", "Logistics", "Procurement Specialist"] and "Roles involved" in fr["summary"]
+    # a shape drawn later (no tag) gets its role from the legend chips inside the diagram
+    added = out.replace("</root>", '<mxCell id="new1" value="Notify customer" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#008080;" vertex="1" parent="1">'
+                                   '<mxGeometry x="60" y="700" width="140" height="40" as="geometry"/></mxCell></root>')
+    new = [a for a in flowread.read(added)["activities"] if a["activity"] == "Notify customer"][0]
+    assert new["role"] == "Logistics"
+
+
+def test_flow_file_replaces_picture_and_stays_linked(users, tmp_path):
+    from mea_hub import canvas
+    built, _, _ = canvas.build_all(drawio.normalize(_canvas_xml()), {"flows": [
+        {"title": "Alpha Flow", "id": "WL-M-IB-01", "name": "Material Inbound", "dept": "LOG", "attach": True},
+        {"title": "Beta Flow", "id": "TST-C-BE-01", "name": "Beta New Process", "dept": "PRC", "provisional": True}], "legend": LEGEND})
+    paths = []
+    for b in built:
+        f = tmp_path / (b["spec"]["id"] + ".drawio")
+        f.write_text(b["xml"], encoding="utf-8")
+        paths.append(str(f))
+    before = users["editor"].call("GET", "/api/process/WL-M-IB-01")[1]
+    res = importer.import_paths(paths, "tester")
+    d = users["editor"].call("GET", "/api/process/WL-M-IB-01")[1]
+    assert d["diagram"]["origin"] == "imported-drawio" and d["diagram"]["validation"] == "ok" and d["diagram"]["ver_no"] == before["diagram"]["ver_no"] + 1
+    assert d["version"]["content"]["flow_sync"] and d["version"]["content"]["activities"][0]["role"] == "Warehouse"
+    assert d["version"]["content"]["objective"] == before["version"]["content"]["objective"]          # document text is kept
+    assert d["process"]["name"] == before["process"]["name"]
+    vers = users["editor"].call("GET", f"/api/diagrams/{d['diagram']['diagram_id']}")[1]["versions"]
+    assert [v["origin"] for v in vers][-1] == "imported-image", "the original picture remains as revision 1"
+    assert any(n["meta"].get("process_ref") == "WL-S-QC-01" for n in d["diagram"]["nodes"])               # 'Ref S#' shape became a link
+    new = users["editor"].call("GET", "/api/process/TST-C-BE-01")[1]
+    assert new["process"]["department"] == "Procurement" and new["version"]["status"] == "imported" and len(new["version"]["content"]["activities"]) >= 5
+    assert db.one("SELECT 1 FROM findings WHERE title LIKE 'Provisional ID TST-C-BE-01%'") and db.one("SELECT 1 FROM findings WHERE title LIKE 'Process text missing for TST-C-BE-01%'")
+    # ---- editing the flow updates the document (draft), never the published text
+    did = new["diagram"]["diagram_id"]
+    xml = users["editor"].call("GET", f"/api/diagrams/{did}")[1]["latest"]["xml"]
+    xml2 = xml.replace("Receive goods 1", "Receive and count goods").replace("</root>",
+        '<mxCell id="zz1" value="Archive documents (VL02N)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#008080;" vertex="1" parent="1"><mxGeometry x="60" y="760" width="160" height="40" as="geometry"/></mxCell></root>')
+    assert users["editor"].call("POST", f"/api/diagrams/{did}/lock")[0] == 200
+    s, r = users["editor"].call("POST", f"/api/diagrams/{did}/save", {"xml": xml2, "base_ver": 1})
+    assert s == 200 and r["synced"] is True
+    acts = users["editor"].call("GET", "/api/process/TST-C-BE-01")[1]["version"]["content"]["activities"]
+    assert acts[0]["activity"] == "Receive and count goods"
+    arch = [a for a in acts if a["activity"].startswith("Archive documents")][0]
+    assert arch["role"] == "Logistics" and arch["sap"] == "VL02N"
+    # switching the link off keeps manual edits
+    c2 = dict(users["editor"].call("GET", "/api/process/TST-C-BE-01")[1]["version"]["content"], flow_sync=False)
+    c2["activities"] = [{"no": "1", "activity": "Manual step", "role": "X", "sap": "", "output": ""}]
+    users["editor"].call("PUT", "/api/process/TST-C-BE-01/draft", {"content": c2})
+    s, r = users["editor"].call("POST", f"/api/diagrams/{did}/save", {"xml": xml2.replace("Inform buyer", "Inform the buyer"), "base_ver": 2})
+    assert s == 200 and r["synced"] is False
+    assert users["editor"].call("GET", "/api/process/TST-C-BE-01")[1]["version"]["content"]["activities"][0]["activity"] == "Manual step"
+    users["editor"].call("POST", f"/api/diagrams/{did}/unlock")
+
+
+def test_audit_comments_track_versions(users):
+    pid = "TST-W-001"
+    assert users["viewer"].call("POST", f"/api/process/{pid}/comments", {"body": "x"})[0] == 403
+    assert users["reviewer"].call("POST", f"/api/process/{pid}/comments", {"body": ""})[0] == 400
+    s, r = users["reviewer"].call("POST", f"/api/process/{pid}/comments", {"body": "Step 3 has no evidence requirement", "category": "nonconformity", "severity": "major", "section": "Activities"})
+    assert s == 200
+    cid = r["id"]
+    ver = users["reviewer"].call("GET", f"/api/process/{pid}")[1]["version"]["version"]
+    assert users["editor"].call("POST", f"/api/process/{pid}/comments", {"body": "Will add the GR document as evidence", "parent_id": cid})[0] == 200
+    reg = users["reviewer"].call("GET", "/api/audit-comments?status=open")[1]["rows"]
+    row = [x for x in reg if x["id"] == cid][0]
+    assert row["version_label"] == ver and row["category"] == "nonconformity" and row["severity"] == "major" and row["replies"] == 1
+    assert users["editor"].call("PUT", f"/api/comments/{cid}", {"status": "resolved"})[0] == 400                    # resolution note is mandatory
+    assert users["editor"].call("PUT", f"/api/comments/{cid}", {"status": "resolved", "resolution": "Evidence column filled"})[0] == 200
+    assert users["editor"].call("PUT", f"/api/comments/{cid}", {"status": "closed"})[0] == 403                      # author/reviewer/controller close it
+    assert users["reviewer"].call("PUT", f"/api/comments/{cid}", {"status": "closed"})[0] == 200
+    cm = [c for c in users["reviewer"].call("GET", f"/api/process/{pid}")[1]["comments"] if c["id"] == cid][0]
+    assert cm["status"] == "closed" and cm["resolved_by"] == "demo_reviewer" and cm["version_label"] == ver
+    assert {"comment_added", "comment_updated"} <= {x["action"] for x in db.q("SELECT action FROM audit WHERE entity_id=?", (pid,))}
+    assert users["viewer"].call("GET", "/api/audit-comments")[0] == 403
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(users["reviewer"].call("GET", "/api/audit-comments.xlsx", raw=True)[1]))
+    assert wb.active.max_row >= 2 and wb.active["E1"].value == "Raised on version"
+
+
+def test_departments_legend_templates_and_caching(server, admin, users):
+    assert users["editor"].call("POST", "/api/departments", {"code": "HSE", "name": "Health & Safety"})[0] == 403
+    assert admin.call("POST", "/api/departments", {"code": "HSE", "name": "Health & Safety"})[0] == 200
+    assert admin.call("POST", "/api/departments", {"code": "HSE", "name": "again"})[0] == 400
+    assert any(d["code"] == "HSE" for d in admin.call("GET", "/api/tree")[1]["departments"])
+    # new flows carry the master legend learned from the imported flows
+    s, r = users["editor"].call("POST", "/api/diagrams", {"title": "New flow", "template": "approval_workflow"})
+    xml = users["editor"].call("GET", f"/api/diagrams/{r['diagram_id']}")[1]["latest"]["xml"]
+    assert "mea_legend" in xml and "Warehouse" in xml
+    # caching: static files revalidate with 304, assets are immutable, large JSON is compressed
+    import urllib.request
+    r1 = urllib.request.urlopen(server + "/app.js")
+    etag = r1.headers["ETag"]
+    assert etag and r1.headers["Cache-Control"] == "no-cache"
+    with pytest.raises(urllib.error.HTTPError) as ei:
+        urllib.request.urlopen(urllib.request.Request(server + "/app.js", headers={"If-None-Match": etag}))
+    assert ei.value.code == 304
+    aid = db.one("SELECT id FROM assets ORDER BY id LIMIT 1")["id"]
+    req = urllib.request.Request(server + f"/api/assets/{aid}", headers={"Cookie": "; ".join(f"{c.name}={c.value}" for c in admin.op.handlers[-1].cookiejar) if False else ""})
+    s, _ = admin.call("GET", f"/api/assets/{aid}", raw=True)
+    assert s == 200
+    r2 = admin.op.open(urllib.request.Request(server + f"/api/assets/{aid}"))
+    assert "immutable" in r2.headers["Cache-Control"]
+    r3 = admin.op.open(urllib.request.Request(server + "/api/library", headers={"Accept-Encoding": "gzip"}))
+    assert r3.headers.get("Content-Encoding") == "gzip"
+    import gzip as _gz
+    assert "processes" in json.loads(_gz.decompress(r3.read()))
+
+
 # ------------------------------------------------------------------ sign-in recovery
 def test_one_time_password_file_and_admin_reset(server, admin):
     import conftest

@@ -35,3 +35,18 @@ Choose whether unapproved processes are included (they are labelled and the cove
 DOCX contains editable Word text and tables; flowcharts are preview pictures – the editable source is the `.drawio` in the **ZIP** format.
 In Word, right-click the Contents list → *Update Field* to add page numbers.
 **Reports → Process inventory** downloads the Excel process register.
+
+## Add things quickly
+* **RACI, KPI, SAP, escalation, activities**: open the process → the tab → **+ Add / Edit**. Or Governance → RACI / KPIs / Escalation → **+ Add … for a process**. Changes are saved to a draft.
+* **Users**: Administration → Users & roles → **+ Add user**. **Departments**: Administration → Settings → **+ Add department**.
+* **Links between processes**: process → Related → **+ Add link**.
+
+## Flows linked to the document
+See `FLOWS.md`. In short: *Edit diagram*, change the flow, and the Activities tab (steps, role per step, SAP codes) follows on save while the link is on.
+The role of a step is its outline colour – the master legend is inside every flow.
+
+## Audit & Review
+Process → **Audit & comments**: choose type (comment, question, observation, improvement, non-conformity), severity and the part concerned, and post.
+Each item shows the version it was raised on, can be replied to, moved to *in progress*, **resolved with a mandatory note**, closed or reopened.
+**Audit & Review** (left menu) is the register across all processes with filters and an Excel export; ⚑ marks items raised on an older version.
+The History tab shows the version comment (change summary) of every revision and how many audit comments it has.

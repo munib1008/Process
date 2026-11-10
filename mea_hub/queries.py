@@ -88,7 +88,7 @@ def process_detail(user, pid_text, version_id=None):
                 JOIN sources s ON s.id=m.source_id WHERE m.process_id=?""", (p["id"],)) if staff else []
     for m in maps:
         m["asset_ids"] = jloads(m["asset_ids"], [])
-    comments = q("SELECT * FROM comments WHERE process_id=? ORDER BY id DESC LIMIT 100", (p["id"],)) if staff else []
+    comments = q("SELECT * FROM comments WHERE process_id=? ORDER BY id DESC LIMIT 400", (p["id"],)) if staff else []
     findings = q("SELECT * FROM findings WHERE process_id=? ORDER BY id", (p["id"],)) if staff else []
     ov = svc.open_version(p["id"])
     perms = dict(
@@ -493,3 +493,27 @@ def import_register(user, data: bytes) -> dict:
                 report["errors"].append(f"{field} {pid_text}: {e}")
     svc.audit(user, "register_imported", "system", None, json.dumps({k: v for k, v in report.items() if k != "errors"}) + f" errors={len(report['errors'])}")
     return report
+
+
+def comments_xlsx(user) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    rows = svc.comments_register(user)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Audit comments"
+    head = ["#", "Process ID", "Process", "Department", "Raised on version", "Current version", "Category", "Severity", "Section", "Status", "Author", "Raised at", "Comment", "Replies", "Resolution", "Resolved by", "Resolved at"]
+    ws.append(head)
+    for c_ in ws[1]:
+        c_.font = Font(bold=True, color="FFFFFF")
+        c_.fill = PatternFill("solid", fgColor="003594")
+    for r in rows:
+        ws.append([r["id"], r["pid_text"], r["pname"], r["department"], r["version_label"], r["current_version"], r["category"], r["severity"], r["section"], r["status"], r["author"],
+                   r["created_at"], r["body"], r["replies"], r["resolution"], r["resolved_by"], r["resolved_at"]])
+    for i, w in enumerate([6, 14, 34, 24, 10, 10, 14, 10, 18, 12, 14, 20, 60, 8, 50, 14, 20], 1):
+        ws.column_dimensions[ws.cell(1, i).column_letter].width = w
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+    bio = io.BytesIO()
+    wb.save(bio)
+    return bio.getvalue()

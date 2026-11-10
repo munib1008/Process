@@ -252,7 +252,7 @@ def asset_bytes(aid: int):
 
 # ------------------------------------------------------------------ content helpers
 EMPTY = dict(objective="", scope="", trigger="", inputs="", outputs="", responsible=[], activities=[], raci=[], sap=[], kpis=[],
-             escalation=[], risks="", evidence="", forms="", sections=[], notes="")
+             escalation=[], risks="", evidence="", forms="", sections=[], notes="", flow_sync=False)
 STR_FIELDS = ["objective", "scope", "trigger", "inputs", "outputs", "risks", "evidence", "forms", "notes"]
 TABLE_FIELDS = {"activities": ["no", "activity", "role", "sap", "output"], "raci": ["activity", "R", "A", "C", "I"],
                 "sap": ["transaction", "purpose"], "kpis": ["name", "definition", "target"], "escalation": ["stage", "to", "time", "action", "sla"]}
@@ -280,6 +280,7 @@ def clean_content(c: dict) -> dict:
             row = {col: str(r.get(col, ""))[:2000] for col in cols}
             if any(v.strip() for v in row.values()):
                 out[k].append(row)
+    out["flow_sync"] = bool(c.get("flow_sync", False))
     secs = c.get("sections", [])
     if not isinstance(secs, list) or len(secs) > 200:
         raise Invalid("sections invalid.")
@@ -752,14 +753,31 @@ def save_diagram(did, user, xml, png_b64, base_ver, note=""):
         if proc:
             ensure_draft(proc, user)
         dv = _add_dv(did, xml, "editor", asset, note or "Edited in Flow Studio", user["username"])
+        synced = False
         if proc:
             v = open_version(proc["id"])
-            db.db().execute("UPDATE process_versions SET diagram_version_id=?, updated_at=? WHERE id=?", (dv, now(), v["id"]))
+            content = v["content"]
+            if content.get("flow_sync"):                      # the flowchart drives activities / roles / SAP references
+                try:
+                    from . import flowread, importer
+                    fr = flowread.read(xml) if flowread.is_tagged(xml) else importer.flow_plan(xml)
+                    if fr and fr["activities"]:
+                        content = flowread.apply_to_content(content, fr)
+                        for node_id, meta in fr.get("node_meta", {}).items():
+                            row = one("SELECT meta FROM diagram_nodes WHERE diagram_version_id=? AND node_id=?", (dv, node_id))
+                            if row:
+                                merged = dict(meta, **{k: v_ for k, v_ in jloads(row["meta"], {}).items() if k not in ("role", "sap")})
+                                db.db().execute("UPDATE diagram_nodes SET meta=? WHERE diagram_version_id=? AND node_id=?", (json.dumps(merged), dv, node_id))
+                        synced = True
+                except Exception:
+                    synced = False
+            db.db().execute("UPDATE process_versions SET diagram_version_id=?, content=?, updated_at=? WHERE id=?", (dv, json.dumps(content), now(), v["id"]))
+            link_ref_nodes(dv)
             reindex(proc["id"])
         new_exp = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=config.LOCK_MINUTES)).strftime("%Y-%m-%dT%H:%M:%SZ")
         db.db().execute("UPDATE diagrams SET lock_user=?, lock_expires=? WHERE id=?", (user["username"], new_exp, did))
         audit(user, "diagram_saved", "diagram", d["code"], f"revision {latest['ver_no'] + 1 if latest else 1}")
-    return dict(ver_no=(latest["ver_no"] + 1 if latest else 1), changed=True)
+    return dict(ver_no=(latest["ver_no"] + 1 if latest else 1), changed=True, synced=synced)
 
 
 def diagram_versions(did):
@@ -1013,3 +1031,104 @@ def suggest_value_stream_links(user, vs_process="SC-M-VS-01"):
                         added += 1
         audit(user, "value_stream_links_suggested", "process", vs_process, f"{added} links, {linked_nodes} nodes linked")
     return dict(stages_matched=len(match), links_added=added, nodes_linked=linked_nodes)
+
+
+def link_ref_nodes(dvid=None):
+    """Shapes that name another process ("Ref S#: WL-S-QC-01") become navigable links when that process exists."""
+    rows = q("SELECT id,diagram_version_id,node_id,meta FROM diagram_nodes WHERE meta LIKE '%\"related\"%'" + (" AND diagram_version_id=?" if dvid else ""), (dvid,) if dvid else ())
+    n = 0
+    for r in rows:
+        meta = jloads(r["meta"], {})
+        ref = meta.get("related")
+        if ref and not meta.get("process_ref") and one("SELECT 1 FROM processes WHERE process_id=?", (ref,)):
+            meta["process_ref"] = ref
+            db.db().execute("UPDATE diagram_nodes SET meta=? WHERE id=?", (json.dumps(meta), r["id"]))
+            n += 1
+    return n
+
+
+# ------------------------------------------------------------------ audit & review comments
+COMMENT_CATEGORIES = ["comment", "question", "observation", "improvement", "nonconformity"]
+COMMENT_SEVERITIES = ["info", "minor", "major"]
+COMMENT_STATUSES = ["open", "in_progress", "resolved", "closed"]
+COMMENT_SECTIONS = ["", "Objective & definition", "Flowchart", "Activities", "RACI", "SAP", "KPI", "Escalation", "Content", "Other"]
+
+
+def add_comment(pid_text, user, body, category="comment", severity="info", section="", parent_id=None, version_id=None):
+    proc = get_process(pid_text)
+    need(user, "comment", proc)
+    body = (body or "").strip()
+    if not body:
+        raise Invalid("Comment is empty.")
+    if category not in COMMENT_CATEGORIES or severity not in COMMENT_SEVERITIES:
+        raise Invalid("Unknown category or severity.")
+    v = get_version(int(version_id)) if version_id else latest_version(proc["id"])
+    if v["process_id"] != proc["id"]:
+        raise Invalid("Version belongs to another process.")
+    if parent_id:
+        par = one("SELECT * FROM comments WHERE id=? AND process_id=?", (int(parent_id), proc["id"]))
+        if not par:
+            raise Invalid("Parent comment not found.")
+        category, severity, section = "reply", "info", par["section"]
+    with tx():
+        cur = db.db().execute("INSERT INTO comments(process_id,version_id,author,body,kind,category,severity,status,version_label,section,parent_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                              (proc["id"], v["id"], user["username"], body[:4000], "comment", category, severity, "open", v["version"], str(section)[:60], parent_id, now()))
+        audit(user, "comment_added", "process", pid_text, f"#{cur.lastrowid} {category}/{severity} on v{v['version']}: {body[:120]}")
+    return cur.lastrowid
+
+
+def update_comment(user, cid, status=None, resolution=None):
+    cm = one("SELECT c.*,p.process_id AS pid_text,p.department_id FROM comments c JOIN processes p ON p.id=c.process_id WHERE c.id=?", (int(cid),))
+    if not cm:
+        raise NotFound("Comment not found")
+    need(user, "comment", dict(department_id=cm["department_id"]))
+    if status and status not in COMMENT_STATUSES:
+        raise Invalid("Unknown status.")
+    if status in ("resolved", "closed") and not (resolution or cm["resolution"] or "").strip():
+        raise Invalid("A resolution note is required to resolve or close a comment.")
+    if status == "closed" and cm["author"] != user["username"] and user["role"] not in ("admin", "controller", "reviewer", "approver"):
+        raise Forbidden("Only the author, a reviewer/approver or the document controller can close a comment.")
+    with tx():
+        sets, args = [], []
+        if status:
+            sets.append("status=?"); args.append(status)
+            sets.append("resolved=?"); args.append(1 if status in ("resolved", "closed") else 0)
+            if status in ("resolved", "closed"):
+                sets += ["resolved_by=?", "resolved_at=?"]; args += [user["username"], now()]
+        if resolution is not None and resolution.strip():
+            sets.append("resolution=?"); args.append(resolution.strip()[:2000])
+        if sets:
+            db.db().execute(f"UPDATE comments SET {','.join(sets)} WHERE id=?", (*args, int(cid)))
+        audit(user, "comment_updated", "process", cm["pid_text"], f"#{cid} -> {status or cm['status']}: {(resolution or '')[:120]}")
+
+
+def comments_register(user, status=None, category=None, process=None, dept=None):
+    need(user, "view_all")
+    sql = ("SELECT c.*,p.process_id AS pid_text,p.name AS pname,d.name AS department,d.code AS dept_code,"
+           "(SELECT version FROM process_versions v WHERE v.process_id=p.id ORDER BY major DESC,minor DESC,id DESC LIMIT 1) AS current_version,"
+           "(SELECT COUNT(*) FROM comments r WHERE r.parent_id=c.id) AS replies "
+           "FROM comments c JOIN processes p ON p.id=c.process_id LEFT JOIN departments d ON d.id=p.department_id WHERE c.parent_id IS NULL")
+    args = []
+    for col, val in (("c.status", status), ("c.category", category), ("p.process_id", process), ("d.code", dept)):
+        if val:
+            sql += f" AND {col}=?"
+            args.append(val)
+    return q(sql + " ORDER BY CASE c.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, CASE c.severity WHEN 'major' THEN 0 WHEN 'minor' THEN 1 ELSE 2 END, c.id DESC LIMIT 2000", args)
+
+
+def add_department(user, code, name):
+    need(user, "admin")
+    code = (code or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{2,6}", code) or not (name or "").strip():
+        raise Invalid("Code must be 2-6 letters/digits and a name is required.")
+    if one("SELECT 1 FROM departments WHERE code=?", (code,)):
+        raise Invalid("Department code already exists.")
+    with tx():
+        srt = one("SELECT COALESCE(MAX(sort),0)+1 n FROM departments")["n"]
+        db.db().execute("INSERT INTO departments(code,name,sort) VALUES(?,?,?)", (code, name.strip()[:120], srt))
+        audit(user, "department_added", "department", code, name)
+
+
+def master_legend():
+    """Role/colour legend (from the imported master canvas) used for new flows."""
+    return jloads(cfg("master_legend", ""), None) or dict(roles=[])
