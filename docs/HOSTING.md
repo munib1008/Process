@@ -42,5 +42,5 @@ passwords. The content is classified *Internal*. Check with IT Security / the do
 - Forgot the admin password in a Codespace: stop the app (`pkill -f run.py`), `python run.py --reset-admin`, `bash tools/codespace_start.sh`.
 
 ## After the review
-Download a backup, build the Windows EXE from the same branch (GitHub Actions ▸ *build-exe*), restore the backup in the EXE.
+Download a backup, build the Windows EXE from the same branch (GitHub Actions ▸ *Build Windows EXE*), restore the backup in the EXE.
 For permanent multi-user hosting use a company server or the company's Azure tenant, not Codespaces.
