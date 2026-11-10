@@ -7,6 +7,7 @@
 """
 import argparse
 import glob
+import json
 import os
 import sys
 import threading
@@ -62,6 +63,15 @@ def main():
             print(f"  {s['filename']}: {len(s['new'])} new processes, {len(s['merged'])} duplicate mappings")
         for f in res["skipped"]:
             print("  skipped (already imported):", f)
+    mapping = os.path.join(config.app_root(), "source_documents", "_canvas", "canvas_mapping.json")
+    if os.path.isfile(mapping):                                          # recorded ID decisions also reach an existing data folder (idempotent)
+        try:
+            with open(mapping, encoding="utf-8") as f:
+                cor = [c for spec in json.load(f).get("flows", []) for c in spec.get("id_corrections", [])]
+            for old_id, new_id in svc.apply_id_corrections(cor, "canvas_mapping.json"):
+                print(f"  process ID changed by recorded decision: {old_id} -> {new_id}")
+        except (OSError, ValueError) as e:
+            print("  ID decisions not applied:", e)
     srv = make_server(args.host, args.port)
     url = f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}/"
     print("=" * 66)

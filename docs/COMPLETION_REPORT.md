@@ -6,11 +6,19 @@ Status vocabulary: **Tested** = automated test and/or driven in a real browser; 
 ## 0. Latest round (flows per process, audit tool, add-options, branching, performance)
 **State with all supplied files loaded:** 100 processes, and no department is empty; 76 have native, editable, linked flows
 (72 files from the master canvas, plus the earlier native diagrams); 13 still carry pictures (the five project phases, which the canvas does not draw separately, and
-duplicates from the "Approval" document). 1,270 activities were read from the flows, 795 with a role. 248 open findings (24 high).
+duplicates from the "Approval" document). 1,270 activities were read from the flows, 795 with a role. 243 open findings (18 high), 6 resolved by decision.
+
+**Process IDs (update of 2026-11-10).** By owner decision the four project phases that the Word documents all label `PM-M-IN-01` carry the IDs of the approved canvas:
+Planning `PM-M-PL-01`, Execution `PM-M-EX-01`, Monitoring and Control `PM-M-MC-01`, Closing `PM-M-CL-01` (Initiation stays `PM-M-IN-01`). The decision is stored in
+`source_documents/_canvas/canvas_mapping.json` (`id_corrections`), so a new installation imports with these IDs and an existing data folder is corrected at the next start.
+The six related conflict findings are closed with the decision; the source chart ID remains visible on each process, and the Word documents themselves still show
+`PM-M-IN-01` (to be corrected at their next revision). A controlled **Change ID** function (Document Controller / Administrator, reason mandatory, change-log entry,
+diagram codes and links follow) is available on every process page for the remaining 49 provisional-ID findings. 27 automated tests pass. *Not done:* no bulk ID change
+screen; old IDs are not redirected, so bookmarks to `…/PM-M-IN-01.2` no longer resolve.
 
 | Item | Status |
 |---|---|
-| One flow file per process from the master canvas, master legend inside each, dormakaba style | **Done, tested** (26 automated tests; all 72 files open in draw.io and were rendered by it) |
+| One flow file per process from the master canvas, master legend inside each, dormakaba style | **Done, tested** (27 automated tests; all 72 files open in draw.io and were rendered by it) |
 | Flow linked to the document (activities/roles/SAP re-read on save) | **Done, tested** via API; the browser test opened flows but did not draw inside draw.io |
 | Flow *correctness* for the business | **Not verified** – only structural checks (see `FLOWS.md`); 20 flows have steps not connected to the start |
 | Mapping of flows to processes | **Partly inferred** – recorded in `canvas_mapping.json`; uncertain ones are findings (e.g. QA/QC "modified March 12, 2025" → KSA) |

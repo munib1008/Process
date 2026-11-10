@@ -40,3 +40,8 @@ node tools/render_flow_previews.js                 # real draw.io renders (needs
 python tools/optimize_previews.py                  # 29 MB -> 7 MB
 ```
 A canvas uploaded through **Import & Sources** without a mapping file is still split by its titles (provisional IDs, no role legend).
+
+## ID decisions recorded with the flows
+A flow entry in `canvas_mapping.json` may carry `id_corrections`: `{"chart": "<chart ID in the documents>", "name": "<process name>", "to": "<new ID>", "reason": "…"}`.
+They are written into the flow file, applied after import and re-checked at every start (idempotent; skipped when the target ID exists or the process is not found
+exactly once). Current entries: the project phases Planning / Execution / Monitoring and Control / Closing → `PM-M-PL-01`, `PM-M-EX-01`, `PM-M-MC-01`, `PM-M-CL-01`.

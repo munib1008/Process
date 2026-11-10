@@ -510,6 +510,46 @@ def test_departments_legend_templates_and_caching(server, admin, users):
 
 
 # ------------------------------------------------------------------ sign-in recovery
+def test_process_id_change_is_controlled_and_follows_everywhere(users, tmp_path):
+    from mea_hub import importer
+    path = str(tmp_path / "phases.docx")
+    make_docx(path, [("Alpha Phase Process", "ZZ-M-AA-01", "First phase of the test project.", ["Planner"], None),
+                     ("Beta Phase Process", "ZZ-M-AA-01", "Second phase, a different process with the same chart ID.", ["Planner"], None)], title="Project Test Document")
+    importer.import_paths([path], "tester")
+    assert db.one("SELECT 1 FROM processes WHERE process_id='ZZ-M-AA-01.2'")
+    ctl, viewer = users["controller"], users["viewer"]
+    assert viewer.call("POST", "/api/process/ZZ-M-AA-01.2/rename", {"new_id": "ZZ-M-BB-01", "reason": "x"})[0] == 403
+    assert ctl.call("POST", "/api/process/ZZ-M-AA-01.2/rename", {"new_id": "ZZ-M-AA-01", "reason": "x"})[0] == 400      # already in use
+    assert ctl.call("POST", "/api/process/ZZ-M-AA-01.2/rename", {"new_id": "ZZ-M-BB-01", "reason": ""})[0] == 400       # reason is mandatory
+    s, d = ctl.call("POST", "/api/process/ZZ-M-AA-01.2/rename", {"new_id": "zz-m-bb-01", "reason": "Permanent ID issued by Document Controller"})
+    assert s == 200 and d["process_id"] == "ZZ-M-BB-01"
+    assert ctl.call("GET", "/api/process/ZZ-M-AA-01.2")[0] == 404
+    s, p = ctl.call("GET", "/api/process/ZZ-M-BB-01")
+    assert s == 200 and p["process"]["chart_id"] == "ZZ-M-AA-01"                    # what the source said is kept
+    row = db.one("SELECT id FROM processes WHERE process_id='ZZ-M-BB-01'")
+    f = db.one("SELECT status,decision FROM findings WHERE process_id=? AND title LIKE 'Chart ID ZZ-M-AA-01 is used%'", (row["id"],))
+    assert f["status"] == "resolved" and "ZZ-M-AA-01.2 -> ZZ-M-BB-01" in f["decision"]
+    assert not db.q("SELECT 1 FROM findings WHERE process_id=? AND status='open' AND title LIKE '%ZZ-M-AA-01.2%'", (row["id"],))
+    assert not db.q("SELECT 1 FROM diagrams WHERE process_id=? AND code LIKE 'DG-ZZ-M-AA-01%'", (row["id"],))
+    assert db.one("SELECT 1 FROM audit WHERE action='process_id_changed' AND entity_id='ZZ-M-BB-01'")
+    assert any(r["process_id"] == "ZZ-M-BB-01" for r in ctl.call("GET", "/api/search?q=Beta+Phase")[1]["results"])
+    # the first process keeps its ID and its open findings are untouched by the neighbour's rename
+    assert db.one("SELECT 1 FROM processes WHERE process_id='ZZ-M-AA-01' AND name='Alpha Phase Process'")
+    # a decision shipped with the flows is applied once and is idempotent
+    cor = [dict(chart="ZZ-M-AA-01", name="Alpha Phase Process", to="ZZ-M-CC-01", reason="decision recorded with the flows")]
+    assert svc.apply_id_corrections(cor) == [("ZZ-M-AA-01", "ZZ-M-CC-01")]
+    assert svc.apply_id_corrections(cor) == []
+    # importing the same document again finds both processes under their new IDs (no new provisional IDs)
+    before = db.one("SELECT COUNT(*) n FROM processes WHERE kind='sop'")["n"]
+    path2 = str(tmp_path / "phases_v2.docx")
+    make_docx(path2, [("Alpha Phase Process", "ZZ-M-AA-01", "First phase of the test project.", ["Planner"], None),
+                      ("Beta Phase Process", "ZZ-M-AA-01", "Second phase, a different process with the same chart ID.", ["Planner"], None)], title="Project Test Document v2")
+    res = importer.import_paths([path2], "tester")
+    assert not res["skipped"]
+    assert db.one("SELECT COUNT(*) n FROM processes WHERE kind='sop'")["n"] == before
+    assert not db.one("SELECT 1 FROM processes WHERE process_id LIKE 'ZZ-M-AA-01%'")
+
+
 def test_one_time_password_file_and_admin_reset(server, admin):
     import conftest
     path = os.path.join(conftest._tmp, svc.ADMIN_FILE)

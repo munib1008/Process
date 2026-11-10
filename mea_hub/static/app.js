@@ -192,6 +192,11 @@ async function processPage(pid, versionId, editing) {
     if (ov && ["under_review", "pending_approval", "approved"].includes(ov.status) && (perms.review || perms.edit)) bar.append(act("Withdraw to draft", async () => { await POST("/api/process/" + pid + "/withdraw", {}); await reload(); }));
     if (!isLatest && perms.edit && !ov) bar.append(act("Restore this version (new draft)", async () => { if (await confirmBox("Create a new draft containing the content of version " + v.version + "? History is preserved.", "Create draft")) { await POST("/api/process/" + pid + "/restore", {version_id: v.id}); toast("New draft created from v" + v.version); await reload(true); } }));
   }
+  if (!editing && perms.rename_id) bar.append(h("button", {class: "btn", title: "Issue a new (permanent) process ID", onclick: async () => {
+    const nid = await promptBox("Change process ID", "New process ID (currently " + pid + ")", {required: true, value: pid}); if (nid === null) return;
+    const why = await promptBox("Change process ID", "Reason (recorded in the change log)", {multiline: true, required: true}); if (why === null) return;
+    await guard(async () => { const r = await POST("/api/process/" + encodeURIComponent(pid) + "/rename", {new_id: nid, reason: why}); await reloadTree(); toast("Process ID changed to " + r.process_id); location.hash = "#/process/" + encodeURIComponent(r.process_id); });
+  }}, "Change ID"));
   bar.append(h("button", {class: "btn", onclick: () => doExport({scope: "process", ids: [pid], fmt: "docx", version_id: versionId || undefined})}, "DOCX"), h("button", {class: "btn", onclick: () => doExport({scope: "process", ids: [pid], fmt: "pdf", version_id: versionId || undefined})}, "PDF"));
 
   const head = h("div", {class: "phead"}, h("div", null, h("div", {class: "kicker"}, (p.department || "") + " · Master Handbook"), h("h1", null, p.name), h("div", {class: "pid"}, p.process_id + " · Version " + v.version + " · " + (p.department || "") + (p.countries ? " · " + p.countries : "") + (p.chart_id && p.chart_id !== p.process_id ? " · source chart ID " + p.chart_id : ""))),

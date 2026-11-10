@@ -419,7 +419,8 @@ def tagged_candidate(parsed, pname, pxml):
                 dept=a.get("meaDept") or "E2E", dept_basis="mapping", objective="", scope=fr["summary"], responsible=fr["responsible"], kpis=[], escalation=[], sap=fr["sap"],
                 activities=fr["activities"], evidence="", notes="", sections=([dict(title=flowread.FLOW_NOTES_TITLE, html=fr["notes_html"])] if fr["notes_html"] else []),
                 images=[], inline_images=[], heading=a.get("meaCanvasTitle") or pname, countries="", category=a.get("meaCategory") or "", native=True, flow=True,
-                diagram_xml=pxml, node_meta=fr["node_meta"], extra_findings=extra, ref_slot="FLW", preview=parsed.get("preview"))
+                diagram_xml=pxml, node_meta=fr["node_meta"], extra_findings=extra, ref_slot="FLW", preview=parsed.get("preview"),
+                id_corrections=db.jloads(a.get("meaIdCorrections"), []) if a.get("meaIdCorrections") else [])
 
 
 def build_drawio_plan(parsed: dict) -> dict:
@@ -711,6 +712,10 @@ def import_paths(paths: list[str], user: str = "system") -> dict:
             summary["sources"].append(load_source(d, user))
         generate_cross_findings()
         svc.infer_all_relationships()
+        for d in todo:                                       # ID decisions shipped with the flows (e.g. per the approved canvas)
+            for cand in d["plan"]["candidates"]:
+                if cand.get("id_corrections"):
+                    summary.setdefault("id_changes", []).extend(svc.apply_id_corrections(cand["id_corrections"], d["filename"]))
         svc.link_ref_nodes()
         _auto_links()
     return summary

@@ -311,7 +311,37 @@
    "dept": "PRJ",
    "kind": "department",
    "attach": true,
-   "note": "The approved canvas lists the five project phases with their own IDs: PM-M-IN-01 Initiation, PM-M-PL-01 Planning, PM-M-EX-01 Execution, PM-M-MC-01 Monitoring and Control, PM-M-CL-01 Closing. The Word documents reuse PM-M-IN-01 for all five (provisional IDs PM-M-IN-01.2 to .5 in this tool). Recommendation: Document Controller re-issues the provisional IDs to the canvas IDs. The canvas draws no separate flow per phase, so those five processes keep their pictures."
+   "note": "The approved canvas lists the five project phases with their own IDs (PM-M-IN-01 Initiation, PM-M-PL-01 Planning, PM-M-EX-01 Execution, PM-M-MC-01 Monitoring and Control, PM-M-CL-01 Closing); the Word documents reuse PM-M-IN-01 for all five. The phase IDs were changed to the canvas IDs by decision. The canvas draws no separate flow per phase, so those five processes keep their pictures.",
+   "id_corrections": [
+    {
+     "chart": "PM-M-IN-01",
+     "name": "Project Planning Process",
+     "to": "PM-M-PL-01",
+     "reason": "Owner decision of 2026-11-10: project phase IDs follow the approved master canvas instead of the reused PM-M-IN-01; the Word documents still show PM-M-IN-01 and are to be corrected at their next revision",
+     "close_source_findings": true
+    },
+    {
+     "chart": "PM-M-IN-01",
+     "name": "Project Execution Process",
+     "to": "PM-M-EX-01",
+     "reason": "Owner decision of 2026-11-10: project phase IDs follow the approved master canvas instead of the reused PM-M-IN-01; the Word documents still show PM-M-IN-01 and are to be corrected at their next revision",
+     "close_source_findings": true
+    },
+    {
+     "chart": "PM-M-IN-01",
+     "name": "Project Monitoring and Control Process",
+     "to": "PM-M-MC-01",
+     "reason": "Owner decision of 2026-11-10: project phase IDs follow the approved master canvas instead of the reused PM-M-IN-01; the Word documents still show PM-M-IN-01 and are to be corrected at their next revision",
+     "close_source_findings": true
+    },
+    {
+     "chart": "PM-M-IN-01",
+     "name": "Project Closing Process",
+     "to": "PM-M-CL-01",
+     "reason": "Owner decision of 2026-11-10: project phase IDs follow the approved master canvas instead of the reused PM-M-IN-01; the Word documents still show PM-M-IN-01 and are to be corrected at their next revision",
+     "close_source_findings": true
+    }
+   ]
   },
   {
    "title": "Project Management Complete E2E Flow",

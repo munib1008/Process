@@ -210,6 +210,7 @@ def can(user, action, proc=None) -> bool:
         "manage_findings": {"controller", "dept_owner"},
         "manage_relationships": {"controller", "dept_owner", "editor"},
         "assign_owner": {"controller", "dept_owner"},
+        "rename_id": {"controller"},
         "comment": {"controller", "dept_owner", "editor", "reviewer", "approver"},
         "import": {"controller"},
         "export_draft": {"controller", "dept_owner", "editor", "reviewer", "approver"},
@@ -1132,3 +1133,72 @@ def add_department(user, code, name):
 def master_legend():
     """Role/colour legend (from the imported master canvas) used for new flows."""
     return jloads(cfg("master_legend", ""), None) or dict(roles=[])
+
+
+# ------------------------------------------------------------------ controlled change of a process ID
+def rename_process(user, old_id, new_id, reason=""):
+    """Issue a new (permanent) process ID. Versions, diagrams, relationships and comments follow automatically;
+    the change log moves with the process, diagram codes and links from other flows are updated, and the
+    'provisional ID' findings are closed with the decision. The source chart ID stays as the source stated it."""
+    proc = get_process(old_id)
+    need(user, "rename_id", proc)
+    new_id = (new_id or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]{2,40}", new_id):
+        raise Invalid("Process ID may contain A-Z, 0-9, '.', '_', '-' (3-41 characters).")
+    if new_id == old_id:
+        raise Invalid("The new ID is the same as the current one.")
+    if one("SELECT 1 FROM processes WHERE process_id=?", (new_id,)):
+        raise Invalid(f"Process ID {new_id} is already in use.")
+    if not (reason or "").strip():
+        raise Invalid("A reason is required for changing a process ID.")
+    c = db.db()
+    with tx():
+        c.execute("UPDATE processes SET process_id=? WHERE id=?", (new_id, proc["id"]))
+        for d in q("SELECT id,code FROM diagrams WHERE process_id=?", (proc["id"],)):
+            base = f"DG-{old_id}"
+            if d["code"] == base or d["code"].startswith(base + "-"):
+                code = f"DG-{new_id}" + d["code"][len(base):]
+                n = 1
+                while one("SELECT 1 FROM diagrams WHERE code=? AND id<>?", (code, d["id"])):
+                    n += 1
+                    code = f"DG-{new_id}-{n}"
+                c.execute("UPDATE diagrams SET code=? WHERE id=?", (code, d["id"]))
+        c.execute("UPDATE audit SET entity_id=? WHERE entity='process' AND entity_id=?", (new_id, old_id))
+        for r in q("SELECT id,meta FROM diagram_nodes WHERE meta LIKE ?", (f'%"{old_id}"%',)):      # links from other flows
+            meta = jloads(r["meta"], {})
+            if meta.get("process_ref") == old_id:            # 'related' keeps the text written in the shape
+                meta["process_ref"] = new_id
+                c.execute("UPDATE diagram_nodes SET meta=? WHERE id=?", (json.dumps(meta), r["id"]))
+        decision = f"Process ID changed {old_id} -> {new_id}: {reason.strip()}"
+        c.execute("UPDATE findings SET status='resolved', decision=?, resolved_by=? WHERE process_id=? AND status='open' AND (title=? OR title LIKE ?)",
+                  (decision, user["username"], proc["id"], f"Provisional ID {old_id}", f"%provisional ID {old_id} assigned%"))
+        token = re.compile(rf"(?<![\w.-]){re.escape(old_id)}(?![\w-]|\.\d)")       # the ID as a whole word, not as part of a longer ID
+        for f in q("SELECT id,title,detail FROM findings WHERE process_id=? AND status='open'", (proc["id"],)):
+            t, dtl = token.sub(new_id, f["title"]), token.sub(new_id, f["detail"])
+            if (t, dtl) != (f["title"], f["detail"]):
+                c.execute("UPDATE findings SET title=?, detail=? WHERE id=?", (t, dtl, f["id"]))
+        audit(user, "process_id_changed", "process", new_id, f"{old_id} -> {new_id}: {reason.strip()[:300]}")
+        reindex(proc["id"])
+        link_ref_nodes()
+        infer_all_relationships()
+    return get_process(new_id)
+
+
+def apply_id_corrections(corrections, source=""):
+    """Decisions recorded with the imported flows, e.g. 'the process with chart ID X named Y gets ID Z'. Idempotent."""
+    done = []
+    system = dict(username="system", display_name="system", role="admin", department_id=None)
+    for cor in corrections or []:
+        to = (cor.get("to") or "").strip().upper()
+        if not to or one("SELECT 1 FROM processes WHERE process_id=?", (to,)):
+            continue
+        rows = q("SELECT process_id FROM processes WHERE chart_id=? AND LOWER(name)=LOWER(?) AND process_id<>?", (cor.get("chart"), cor.get("name", ""), to))
+        if len(rows) != 1:
+            continue
+        reason = cor.get("reason") or "ID correction recorded with the imported flows"
+        rename_process(system, rows[0]["process_id"], to, reason + (f" ({source})" if source else ""))
+        if cor.get("close_source_findings"):
+            db.db().execute("UPDATE findings SET status='resolved', decision=?, resolved_by='system' WHERE status='open' AND process_id IS NULL AND title LIKE ?",
+                            (reason, f"Chart ID {cor.get('chart')} reused%"))
+        done.append((rows[0]["process_id"], to))
+    return done

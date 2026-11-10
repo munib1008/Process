@@ -380,6 +380,13 @@ def r_dept_add(c):
     svc.add_department(c.user, d.get("code"), d.get("name"))
 
 
+@route("POST", "/api/process/([^/]+)/rename")
+def r_rename(c, pid):
+    d = c.json()
+    p = svc.rename_process(c.user, pid, d.get("new_id"), d.get("reason", ""))
+    return dict(process_id=p["process_id"])
+
+
 @route("PUT", "/api/process/([^/]+)/department")
 def r_dept(c, pid):
     svc.reassign_department(pid, c.user, int(c.json().get("department_id", 0)))

@@ -431,6 +431,9 @@ def build_all(canvas_xml: str, mapping: dict):
         fx = extract(canvas_xml, cand["unit_ids"])
         meta = dict(meaKind=spec.get("kind", "sop"), meaAttach="1" if spec.get("attach") else "0", meaProvisional="1" if spec.get("provisional") else "0",
                     meaCanvasTitle=spec.get("title") or spec.get("hint"), meaNote=spec.get("note", ""), meaCategory=spec.get("category", ""))
+        if spec.get("id_corrections"):
+            import json as _json
+            meta["meaIdCorrections"] = _json.dumps(spec["id_corrections"], ensure_ascii=False)
         built.append(dict(spec=spec, shapes=cand["n"], xml=revamp(fx, spec["name"], spec["id"], spec.get("dept", "E2E"), legend, meta)))
     rest = [f for f in flows + leftovers if id(f) not in used]
     frag = None

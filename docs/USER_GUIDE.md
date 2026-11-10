@@ -50,3 +50,8 @@ Process → **Audit & comments**: choose type (comment, question, observation, i
 Each item shows the version it was raised on, can be replied to, moved to *in progress*, **resolved with a mandatory note**, closed or reopened.
 **Audit & Review** (left menu) is the register across all processes with filters and an Excel export; ⚑ marks items raised on an older version.
 The History tab shows the version comment (change summary) of every revision and how many audit comments it has.
+
+## Change a process ID (Document Controller / Administrator)
+Open the process and choose **Change ID**. Enter the new ID and the reason (mandatory). The versions, flowchart, relationships, comments and change log stay with the
+process; the diagram code (`DG-<ID>`) and links from other flows follow; the open "provisional ID" finding is closed with your reason. The chart ID stated in the source
+document is kept for traceability. An ID that is already in use is refused. The old ID is not kept as an alias, so inform users who bookmarked it.

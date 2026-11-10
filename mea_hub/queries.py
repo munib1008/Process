@@ -94,7 +94,7 @@ def process_detail(user, pid_text, version_id=None):
     perms = dict(
         edit=svc.can(user, "edit", p), review=svc.can(user, "review", p), approve=svc.can(user, "approve", p), publish=svc.can(user, "publish", p),
         accept_import=svc.can(user, "accept_import", p), comment=svc.can(user, "comment", p), manage_relationships=svc.can(user, "manage_relationships", p),
-        manage_findings=svc.can(user, "manage_findings", p), export_draft=svc.can(user, "export_draft", p))
+        manage_findings=svc.can(user, "manage_findings", p), export_draft=svc.can(user, "export_draft", p), rename_id=svc.can(user, "rename_id", p))
     return dict(process=p, version=v, versions=versions, diagram=diagram, relationships=rels, mappings=maps, comments=comments, findings=findings,
                 open_version=dict(id=ov["id"], status=ov["status"], version=ov["version"], author=ov["author"]) if ov else None,
                 published_version=pv["version"] if pv else None, perms=perms, status_label=svc.STATUS_LABEL[v["status"]],
@@ -247,9 +247,9 @@ def recommendation(f):
     if k == "duplicate":
         return "Keep the primary definition; owner compares wording if similarity is below 90%." if "differs" in f["detail"] else "Accept: content is essentially identical – keep one controlled definition."
     if t.startswith("Provisional ID"):
-        return "Accept the provisional ID until the Document Controller issues the permanent ID."
+        return "Accept the provisional ID until the Document Controller issues the permanent ID (process page > Change ID)."
     if t.startswith("Chart ID") and "provisional" in t:
-        return "Document Controller issues a permanent unique ID; keep both processes until then."
+        return "Document Controller issues a permanent unique ID (process page > Change ID); keep both processes until then."
     if t.startswith("Source document not supplied"):
         return "Obtain and upload the document (or its flowcharts)."
     if "No 'Responsible'" in t:
