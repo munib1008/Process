@@ -34,6 +34,7 @@ jobs:
           Copy-Item dist/bin/MEA_Process_Hub.exe dist/MEA_Process_Hub/
           Copy-Item drawio_webapp dist/MEA_Process_Hub/drawio_webapp -Recurse
           Copy-Item README.md dist/MEA_Process_Hub/
+          Set-Content -Encoding ascii "dist/MEA_Process_Hub/Reset admin password.bat" "@echo off`r`n""%~dp0MEA_Process_Hub.exe"" --reset-admin`r`npause"
           Copy-Item docs dist/MEA_Process_Hub/docs -Recurse
       - name: Smoke-test the EXE (first-start import, login, library, DOCX + PDF export)
         shell: pwsh

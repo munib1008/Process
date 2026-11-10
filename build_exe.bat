@@ -15,6 +15,7 @@ if exist dist\MEA_Process_Hub rmdir /s /q dist\MEA_Process_Hub
 mkdir dist\MEA_Process_Hub
 copy dist\bin\MEA_Process_Hub.exe dist\MEA_Process_Hub\ >nul
 copy README.md dist\MEA_Process_Hub\ >nul
+(echo @echo off& echo "%%~dp0MEA_Process_Hub.exe" --reset-admin& echo pause)> "dist\MEA_Process_Hub\Reset admin password.bat"
 xcopy docs dist\MEA_Process_Hub\docs\ /e /i /q >nul
 mkdir dist\MEA_Process_Hub\source_documents
 if exist source_documents xcopy source_documents dist\MEA_Process_Hub\source_documents\ /e /i /q >nul

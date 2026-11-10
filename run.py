@@ -29,10 +29,20 @@ def main():
     ap.add_argument("--import", dest="imports", nargs="*", help=".docx / .drawio files to import")
     ap.add_argument("--demo-users", action="store_true", help="create demo_<role> users (password ChangeMe!123) for evaluation")
     ap.add_argument("--backup", action="store_true")
+    ap.add_argument("--reset-admin", action="store_true", help="give the 'admin' user a new one-time password and exit")
     ap.add_argument("--reconcile-report", metavar="FILE", help="write the source reconciliation report (markdown) and exit")
     args = ap.parse_args()
 
     config.ensure_dirs()
+    if args.reset_admin:
+        pw, path = svc.reset_admin()
+        print("=" * 66)
+        print(" Admin password reset.")
+        print(f"   username: admin   password: {pw}")
+        print(f"   (also saved in {path}; you must change it at first login)")
+        print(" Start MEA_Process_Hub.exe (or refresh the browser) and sign in.")
+        print("=" * 66)
+        return
     first = svc.bootstrap(demo_users=args.demo_users)
     if args.backup:
         print("Backup written:", queries.make_backup())
@@ -60,6 +70,9 @@ def main():
     if first:
         print(f"\n FIRST RUN  ->  username: admin   password: {first[0]}")
         print(f" (also saved in {first[1]}; you must change it at first login)")
+    elif os.path.isfile(os.path.join(config.DATA_DIR, svc.ADMIN_FILE)):
+        print(f"\n Sign in as 'admin' with the one-time password in {os.path.join(config.DATA_DIR, svc.ADMIN_FILE)}")
+    print(" Forgot the admin password? Close this window and run 'Reset admin password.bat'.")
     if args.host not in ("127.0.0.1", "localhost"):
         print(" WARNING: listening on the network. Use only on a trusted LAN; there is no TLS.")
     print(" Press Ctrl+C (or close this window) to stop.")

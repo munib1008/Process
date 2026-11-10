@@ -353,6 +353,26 @@ def test_value_stream_suggestions_and_inbox(users, tmp_path):
     assert not any(i["process_id"] == "TST-I-001" for i in users["editor"].call("GET", "/api/inbox")[1]["rows"])
 
 
+# ------------------------------------------------------------------ sign-in recovery
+def test_one_time_password_file_and_admin_reset(server, admin):
+    import conftest
+    path = os.path.join(conftest._tmp, svc.ADMIN_FILE)
+    pw = svc.one_time_password()
+    assert len(pw) == 12 and not set(pw) & set("0O1lI-_")                      # no look-alike characters
+    new_pw, f = svc.reset_admin()
+    assert os.path.isfile(f) and new_pw in open(f).read()
+    c = Client(server)
+    s, d = c.call("POST", "/api/login", {"username": " Admin ", "password": "  " + new_pw + " "}, csrf=False)   # copy-paste spaces + case
+    assert s == 200 and d["user"]["must_change"]
+    c.csrf = d["csrf"]
+    assert c.call("GET", "/api/library")[0] == 403                             # must change first
+    assert c.call("POST", "/api/password", {"old": new_pw, "new": "Str0ng!Admin#1"})[0] == 200
+    assert not os.path.exists(path), "stale one-time password file must be removed after the change"
+    assert Client(server).call("POST", "/api/login", {"username": "admin", "password": new_pw}, csrf=False)[0] == 403
+    assert admin.call("GET", "/api/library")[0] == 401                         # reset ended the old admin sessions
+    admin.login("admin", "Str0ng!Admin#1")
+
+
 # ------------------------------------------------------------------ backup / restore (keep last)
 def test_backup_and_restore(server, admin, users):
     before = admin.call("GET", "/api/library")[1]["processes"]

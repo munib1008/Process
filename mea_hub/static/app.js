@@ -25,7 +25,8 @@ function loginView() {
         h("p", {style: "margin:16px 0 0;font-weight:bold"}, "Classification: " + (S.cfg.classification || "Internal")))),
     h("div", {class: "form"}, h("div", {class: "kicker"}, S.cfg.org || "dormakaba MEA"), h("h1", null, "Sign in"), err,
       h("label", null, "Username"), u, h("label", null, "Password"), h("input", {type: "password", style: "display:none"}), p,
-      h("div", {style: "margin-top:16px"}, h("button", {class: "btn pri", onclick: go}, "Sign in"))),
+      h("div", {style: "margin-top:16px"}, h("button", {class: "btn pri", onclick: go}, "Sign in")),
+      h("p", {class: "muted", style: "font-size:12px;margin-top:18px"}, "First start: user ", h("b", null, "admin"), " with the one-time password shown in the console window (also in ", h("code", null, "data\\FIRST_RUN_ADMIN_PASSWORD.txt"), "). Forgot it? Run ", h("b", null, "Reset admin password.bat"), " next to the EXE.")),
     h("div", {class: "band"}, h("span", null, "Process & Document Management"), h("span", null, S.cfg.region || "Region MEA"))));
 }
 function passwordView(forced) {

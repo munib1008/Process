@@ -80,17 +80,52 @@ def bootstrap(demo_users=False):
     seed_departments()
     msg = None
     if not one("SELECT 1 FROM users LIMIT 1"):
-        pw = secrets.token_urlsafe(9)
+        pw = one_time_password()
         create_user("admin", "Administrator", pw, "admin", None, must_change=True)
-        path = os.path.join(config.DATA_DIR, "FIRST_RUN_ADMIN_PASSWORD.txt")
-        with open(path, "w") as f:
-            f.write(f"username: admin\npassword: {pw}\n(You are asked to change it after first login. Delete this file afterwards.)\n")
-        msg = (pw, path)
+        msg = (pw, write_admin_file(pw))
     if demo_users:
         for r in ROLES:
             if r != "admin" and not one("SELECT 1 FROM users WHERE username=?", (f"demo_{r}",)):
                 create_user(f"demo_{r}", f"Demo {r.replace('_', ' ').title()}", "ChangeMe!123", r, None)
     return msg
+
+
+ADMIN_FILE = "FIRST_RUN_ADMIN_PASSWORD.txt"
+_PW_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"   # no 0/O, 1/l/I, no - or _
+
+
+def one_time_password(n=12):
+    return "".join(secrets.choice(_PW_ALPHABET) for _ in range(n))
+
+
+def write_admin_file(pw):
+    path = os.path.join(config.DATA_DIR, ADMIN_FILE)
+    with open(path, "w") as f:
+        f.write(f"username: admin\npassword: {pw}\n\nOne-time password: you must change it at first login, then this file is deleted automatically.\n"
+                "Locked out later? Run 'Reset admin password.bat' (or MEA_Process_Hub.exe --reset-admin).\n")
+    return path
+
+
+def remove_admin_file():
+    try:
+        os.remove(os.path.join(config.DATA_DIR, ADMIN_FILE))
+    except OSError:
+        pass
+
+
+def reset_admin():
+    """Offline recovery: give 'admin' a new one-time password, re-activate it, end its sessions."""
+    db.init()
+    seed_departments()
+    pw = one_time_password()
+    u = one("SELECT id FROM users WHERE username='admin'")
+    if u:
+        db.db().execute("UPDATE users SET pw_hash=?, must_change=1, active=1, role='admin' WHERE id=?", (hash_password(pw), u["id"]))
+        db.db().execute("DELETE FROM sessions WHERE user_id=?", (u["id"],))
+    else:
+        create_user("admin", "Administrator", pw, "admin", None, must_change=True)
+    audit("system", "admin_password_reset", "user", "admin", "offline reset from the command line")
+    return pw, write_admin_file(pw)
 
 
 # ------------------------------------------------------------------ users & sessions
@@ -111,7 +146,10 @@ def create_user(username, display_name, password, role, department_id=None, must
 
 def login(username, password):
     u = one("SELECT * FROM users WHERE username=? AND active=1", ((username or "").strip().lower(),))
-    if not u or not verify_password(password or "", u["pw_hash"]):
+    pw = password or ""
+    if u and not verify_password(pw, u["pw_hash"]) and pw != pw.strip():
+        pw = pw.strip()                                   # tolerate spaces picked up when copying from the console
+    if not u or not verify_password(pw, u["pw_hash"]):
         audit(username, "login_failed")
         return None
     tok, csrf = new_token(), new_token()
@@ -142,12 +180,16 @@ def logout(token):
 
 def change_password(user, old, new):
     u = one("SELECT * FROM users WHERE id=?", (user["id"],))
-    if not verify_password(old or "", u["pw_hash"]):
+    if not verify_password(old or "", u["pw_hash"]) and not verify_password((old or "").strip(), u["pw_hash"]):
         raise Invalid("Current password is incorrect.")
     if len(new or "") < 8:
         raise Invalid("New password must be at least 8 characters.")
+    if new != new.strip():
+        raise Invalid("The new password must not start or end with a space.")
     db.db().execute("UPDATE users SET pw_hash=?, must_change=0 WHERE id=?", (hash_password(new), u["id"]))
     audit(user, "password_changed", "user", u["id"])
+    if u["username"] == "admin":
+        remove_admin_file()                               # the one-time password in the file is no longer valid
 
 
 # ------------------------------------------------------------------ permissions
