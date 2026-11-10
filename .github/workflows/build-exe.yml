@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+    branches: ["claude/**"]
   pull_request:
     paths: ["mea_hub/**", "build/**", "run.py", "requirements*.txt", "tests/**"]
 jobs:
@@ -34,16 +35,45 @@ jobs:
           Copy-Item drawio_webapp dist/MEA_Process_Hub/drawio_webapp -Recurse
           Copy-Item README.md dist/MEA_Process_Hub/
           Copy-Item docs dist/MEA_Process_Hub/docs -Recurse
-      - name: Smoke-test the EXE
+      - name: Smoke-test the EXE (first-start import, login, library, DOCX + PDF export)
         shell: pwsh
         run: |
-          $env:MEA_HUB_DATA = "$PWD/smoke_data"
-          $p = Start-Process dist/MEA_Process_Hub/MEA_Process_Hub.exe -ArgumentList "--no-browser","--port","8799" -PassThru
-          Start-Sleep 15
-          $r = Invoke-WebRequest http://127.0.0.1:8799/api/config -UseBasicParsing
-          if ($r.StatusCode -ne 200) { throw "EXE did not serve /api/config" }
-          Stop-Process $p
+          $data = "$PWD/smoke_data"
+          $env:MEA_HUB_DATA = $data
+          $base = "http://127.0.0.1:8799"
+          $p = Start-Process dist/MEA_Process_Hub/MEA_Process_Hub.exe -ArgumentList "--no-browser","--port","8799" -PassThru `
+                 -RedirectStandardOutput smoke.log -RedirectStandardError smoke.err
+          try {
+            $ok = $false
+            for ($i = 0; $i -lt 120; $i++) {
+              Start-Sleep 2
+              try { if ((Invoke-WebRequest "$base/api/config" -UseBasicParsing).StatusCode -eq 200) { $ok = $true; break } } catch {}
+            }
+            if (-not $ok) { throw "EXE did not start within 240 s" }
+            $pw = ((Get-Content "$data/FIRST_RUN_ADMIN_PASSWORD.txt" | Where-Object { $_ -like 'password:*' }) -replace '^password:\s*', '').Trim()
+            $login = Invoke-RestMethod "$base/api/login" -Method Post -ContentType 'application/json' -SessionVariable sess `
+                       -Body (@{ username = 'admin'; password = $pw } | ConvertTo-Json)
+            $h = @{ 'X-CSRF-Token' = $login.csrf }
+            Invoke-RestMethod "$base/api/password" -Method Post -WebSession $sess -Headers $h -ContentType 'application/json' `
+              -Body (@{ old = $pw; new = 'Smoke#Test2026' } | ConvertTo-Json) | Out-Null
+            $lib = Invoke-RestMethod "$base/api/library" -WebSession $sess
+            Write-Host "Processes in library: $($lib.processes.Count)"
+            if ($lib.processes.Count -lt 40) { throw "Expected the source documents to be imported (got $($lib.processes.Count) processes)" }
+            foreach ($fmt in 'docx', 'pdf') {
+              $e = Invoke-RestMethod "$base/api/exports" -Method Post -WebSession $sess -Headers $h -ContentType 'application/json' `
+                     -Body (@{ scope = 'handbook'; fmt = $fmt } | ConvertTo-Json)
+              Write-Host "Handbook $fmt export: $($e.export.status), $($e.export.size) bytes"
+              if ($e.export.status -ne 'done' -or $e.export.size -lt 100000) { throw "$fmt export failed" }
+            }
+          } catch {
+            Write-Host "---- EXE output ----"; Get-Content smoke.log, smoke.err -ErrorAction SilentlyContinue
+            if (Test-Path "$data/error.log") { Write-Host "---- error.log ----"; Get-Content "$data/error.log" }
+            throw
+          } finally {
+            Stop-Process $p -ErrorAction SilentlyContinue
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: MEA_Process_Hub_win64
           path: dist/MEA_Process_Hub
+          retention-days: 30
