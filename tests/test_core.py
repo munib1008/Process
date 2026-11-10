@@ -550,6 +550,31 @@ def test_process_id_change_is_controlled_and_follows_everywhere(users, tmp_path)
     assert not db.one("SELECT 1 FROM processes WHERE process_id LIKE 'ZZ-M-AA-01%'")
 
 
+def test_hosted_mode_secure_cookie_and_login_throttle(server, users):
+    import urllib.request
+    def login(user, pw, proto=None):
+        h = {"Content-Type": "application/json"}
+        if proto:
+            h["X-Forwarded-Proto"] = proto
+        req = urllib.request.Request(server + "/api/login", data=json.dumps({"username": user, "password": pw}).encode(), headers=h, method="POST")
+        try:
+            r = urllib.request.urlopen(req)
+            return r.status, r.headers.get("Set-Cookie") or "", ""
+        except urllib.error.HTTPError as e:
+            return e.code, "", json.loads(e.read())["error"]
+    s, cookie, _ = login("demo_viewer", "ChangeMe!123", "https")            # behind an HTTPS proxy the session cookie is Secure
+    assert s == 200 and cookie.endswith("; Secure") and "HttpOnly" in cookie
+    s, cookie, _ = login("demo_viewer", "ChangeMe!123")
+    assert s == 200 and "Secure" not in cookie
+    for _ in range(svc.LOGIN_MAX_FAILURES):
+        assert login("demo_reviewer", "wrong")[0] == 403
+    s, _, err = login("demo_reviewer", "ChangeMe!123")                        # even the right password waits now
+    assert s == 403 and "Too many failed sign-ins" in err
+    assert login("demo_viewer", "ChangeMe!123")[0] == 200                     # other users are not affected
+    db.db().execute("DELETE FROM audit WHERE username='demo_reviewer' AND action='login_failed'")
+    assert login("demo_reviewer", "ChangeMe!123")[0] == 200
+
+
 def test_one_time_password_file_and_admin_reset(server, admin):
     import conftest
     path = os.path.join(conftest._tmp, svc.ADMIN_FILE)

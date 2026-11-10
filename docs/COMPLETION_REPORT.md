@@ -13,12 +13,17 @@ Planning `PM-M-PL-01`, Execution `PM-M-EX-01`, Monitoring and Control `PM-M-MC-0
 `source_documents/_canvas/canvas_mapping.json` (`id_corrections`), so a new installation imports with these IDs and an existing data folder is corrected at the next start.
 The six related conflict findings are closed with the decision; the source chart ID remains visible on each process, and the Word documents themselves still show
 `PM-M-IN-01` (to be corrected at their next revision). A controlled **Change ID** function (Document Controller / Administrator, reason mandatory, change-log entry,
-diagram codes and links follow) is available on every process page for the remaining 49 provisional-ID findings. 27 automated tests pass. *Not done:* no bulk ID change
+diagram codes and links follow) is available on every process page for the remaining 49 provisional-ID findings. 28 automated tests pass. *Not done:* no bulk ID change
 screen; old IDs are not redirected, so bookmarks to `…/PM-M-IN-01.2` no longer resolve.
+
+**Review hosting from GitHub (2026-11-10).** `.devcontainer` + `tools/codespace_*.sh` start the app in GitHub Codespaces with an HTTPS address (`docs/HOSTING.md`).
+Verified here: set-up and start scripts on a clean copy (import of all 82 files, address and one-time password printed), access through a forwarded host name,
+`Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
+automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
 | Item | Status |
 |---|---|
-| One flow file per process from the master canvas, master legend inside each, dormakaba style | **Done, tested** (27 automated tests; all 72 files open in draw.io and were rendered by it) |
+| One flow file per process from the master canvas, master legend inside each, dormakaba style | **Done, tested** (28 automated tests; all 72 files open in draw.io and were rendered by it) |
 | Flow linked to the document (activities/roles/SAP re-read on save) | **Done, tested** via API; the browser test opened flows but did not draw inside draw.io |
 | Flow *correctness* for the business | **Not verified** – only structural checks (see `FLOWS.md`); 20 flows have steps not connected to the start |
 | Mapping of flows to processes | **Partly inferred** – recorded in `canvas_mapping.json`; uncertain ones are findings (e.g. QA/QC "modified March 12, 2025" → KSA) |

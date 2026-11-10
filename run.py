@@ -24,8 +24,8 @@ def main():
         except Exception:
             pass
     ap = argparse.ArgumentParser(description="MEA Process Hub")
-    ap.add_argument("--host", default="127.0.0.1", help="bind address (default 127.0.0.1 = this PC only)")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--host", default=os.environ.get("MEA_HUB_HOST", "127.0.0.1"), help="bind address (default 127.0.0.1 = this PC only; env MEA_HUB_HOST)")
+    ap.add_argument("--port", type=int, default=int(os.environ.get("MEA_HUB_PORT") or os.environ.get("PORT") or 8765), help="env MEA_HUB_PORT or PORT")
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--import", dest="imports", nargs="*", help=".docx / .drawio files to import")
     ap.add_argument("--demo-users", action="store_true", help="create demo_<role> users (password ChangeMe!123) for evaluation")
@@ -84,10 +84,10 @@ def main():
         print(f"\n Sign in as 'admin' with the one-time password in {os.path.join(config.DATA_DIR, svc.ADMIN_FILE)}")
     print(" Forgot the admin password? Close this window and run 'Reset admin password.bat'.")
     if args.host not in ("127.0.0.1", "localhost"):
-        print(" WARNING: listening on the network. Use only on a trusted LAN; there is no TLS.")
+        print(" WARNING: listening on the network. Use only on a trusted LAN or behind an HTTPS proxy; the app itself has no TLS.")
     print(" Press Ctrl+C (or close this window) to stop.")
     print("=" * 66)
-    if not args.no_browser:
+    if not args.no_browser and args.host in ("127.0.0.1", "localhost"):
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
         srv.serve_forever()

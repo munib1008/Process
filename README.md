@@ -64,7 +64,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 27 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 28 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)
@@ -74,3 +74,6 @@ stack is a single-process Python app: stdlib HTTP server, **SQLite** (WAL), vani
 SQLite serialises writers – ideal for one PC or a small team on a LAN, not for hundreds of concurrent editors. The data model
 (processes, versions, diagrams, mappings, findings, audit, exports) is relational and would port to PostgreSQL.
 The editor is `contenteditable` (not Tiptap) to avoid a JS build chain.
+
+## Run it from GitHub for a review (no installation)
+Open the repository in **GitHub Codespaces** – the app installs, imports the source documents and starts by itself. Steps, sharing and limits: [docs/HOSTING.md](docs/HOSTING.md).

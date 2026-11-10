@@ -144,13 +144,28 @@ def create_user(username, display_name, password, role, department_id=None, must
     return cur.lastrowid
 
 
+LOGIN_MAX_FAILURES, LOGIN_WINDOW_MIN = 8, 15
+
+
+def login_blocked(uname: str) -> bool:
+    """Too many failed sign-ins for this user name in the last minutes (counted since the last success or admin reset)."""
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=LOGIN_WINDOW_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    last_ok = one("SELECT MAX(ts) t FROM audit WHERE (username=? AND action='login') OR (action='admin_password_reset' AND entity_id=?)", (uname, uname))
+    since = max(since, (last_ok or {}).get("t") or "")
+    n = one("SELECT COUNT(*) n FROM audit WHERE username=? AND action='login_failed' AND ts>=?", (uname, since))["n"]
+    return n >= LOGIN_MAX_FAILURES
+
+
 def login(username, password):
-    u = one("SELECT * FROM users WHERE username=? AND active=1", ((username or "").strip().lower(),))
+    uname = (username or "").strip().lower()[:64]
+    if login_blocked(uname):
+        raise Forbidden(f"Too many failed sign-ins for this user. Wait {LOGIN_WINDOW_MIN} minutes and try again.")
+    u = one("SELECT * FROM users WHERE username=? AND active=1", (uname,))
     pw = password or ""
     if u and not verify_password(pw, u["pw_hash"]) and pw != pw.strip():
         pw = pw.strip()                                   # tolerate spaces picked up when copying from the console
     if not u or not verify_password(pw, u["pw_hash"]):
-        audit(username, "login_failed")
+        audit(uname, "login_failed")
         return None
     tok, csrf = new_token(), new_token()
     exp = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=config.SESSION_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ")

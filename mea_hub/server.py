@@ -191,7 +191,11 @@ class Handler(BaseHTTPRequestHandler):
                         return self.send_bytes(200, res[0], res[1], res[2] if len(res) > 2 else None, cache=res[3] if len(res) > 3 else "no-store",
                                                etag=res[4] if len(res) > 4 else None)
                     if isinstance(res, dict) and "_set_cookie" in res:
-                        extra = {"Set-Cookie": res.pop("_set_cookie")}
+                        cookie = res.pop("_set_cookie")
+                        https = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower() == "https"
+                        if https or os.environ.get("MEA_HUB_SECURE_COOKIE") == "1":      # hosted behind an HTTPS proxy
+                            cookie += "; Secure"
+                        extra = {"Set-Cookie": cookie}
                         return self.send_json(res, 200, extra)
                     return self.send_json(res)
                 except svc.Forbidden as e:

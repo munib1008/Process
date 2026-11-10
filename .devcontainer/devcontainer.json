@@ -1,0 +1,14 @@
+{
+  "name": "MEA Process Hub",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "bash tools/codespace_setup.sh",
+  "postStartCommand": "bash tools/codespace_start.sh",
+  "forwardPorts": [8765],
+  "portsAttributes": {
+    "8765": { "label": "MEA Process Hub", "onAutoForward": "notify" }
+  },
+  "containerEnv": {
+    "MEA_HUB_HOST": "0.0.0.0",
+    "MEA_HUB_PORT": "8765"
+  }
+}
