@@ -10,7 +10,7 @@ import re
 import zipfile
 from html.parser import HTMLParser
 
-from . import config, db, drawio, service as svc
+from . import brand, config, db, drawio, service as svc
 from .db import jloads, one, q
 from .security import strip_tags
 
@@ -83,7 +83,8 @@ def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=Tru
     unapproved = sum(1 for i in items if i["status"] not in ("published", "superseded"))
     title = {"handbook": "MEA Integrated Process Handbook", "department": f"{grouped[0]['name']} – Process Manual" if grouped else "Department Manual",
              "process": f"{items[0]['process_id']} – {items[0]['name']}" if items else "Process", "selected": "Selected Processes"}[scope]
-    snap = dict(org=svc.cfg("org_name", "dormakaba MEA"), footer=svc.cfg("export_footer", ""), title=title, scope=scope, generated_by=user["username"],
+    snap = dict(org=svc.cfg("org_name", "dormakaba MEA"), footer=svc.cfg("export_footer", ""), classification=svc.cfg("classification", "Internal"),
+                region=svc.cfg("region_label", brand.REGION), title=title, scope=scope, generated_by=user["username"],
                 generated_at=svc.now(), departments=grouped, count=len(items), unapproved=unapproved,
                 versions={i["process_id"]: i["version_id"] for i in items}, user_display=user["display_name"])
     snap["hash"] = hashlib.sha256(json.dumps(
@@ -203,13 +204,45 @@ def build_docx(snap) -> bytes:
     sec.left_margin = sec.right_margin = Cm(2)
     sec.top_margin, sec.bottom_margin = Cm(2.2), Cm(2)
     st = doc.styles
-    st["Normal"].font.name = "Calibri"
-    st["Normal"].font.size = Pt(10.5)
-    for name, size in (("Heading 1", 18), ("Heading 2", 14), ("Heading 3", 12)):
-        st[name].font.name = "Calibri"
+    def set_font(style, name="Arial"):
+        style.font.name = name
+        rpr = style.element.get_or_add_rPr()
+        rf = rpr.find(qn("w:rFonts"))
+        if rf is None:
+            rf = OxmlElement("w:rFonts"); rpr.append(rf)
+        for a in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
+            rf.set(qn(a), name)
+        for a in ("w:asciiTheme", "w:hAnsiTheme", "w:eastAsiaTheme", "w:cstheme"):
+            if rf.get(qn(a)) is not None:
+                del rf.attrib[qn(a)]
+
+    def fix_widths(tbl, widths):
+        """Fixed layout + explicit grid so Word/LibreOffice honour the column widths."""
+        tblPr = tbl._tbl.tblPr
+        for tag in ("w:tblW", "w:tblLayout"):
+            old = tblPr.find(qn(tag))
+            if old is not None:
+                tblPr.remove(old)
+        tw = OxmlElement("w:tblW"); tw.set(qn("w:w"), str(int(sum(w.twips for w in widths)))); tw.set(qn("w:type"), "dxa"); tblPr.append(tw)
+        lay = OxmlElement("w:tblLayout"); lay.set(qn("w:type"), "fixed"); tblPr.append(lay)
+        for gc, w in zip(tbl._tbl.tblGrid.findall(qn("w:gridCol")), widths):
+            gc.set(qn("w:w"), str(int(w.twips)))
+        for row in tbl.rows:
+            for c_, w in zip(row.cells, widths):
+                c_.width = w
+    B_RGB, R_RGB, INK_RGB = RGBColor(*brand.rgb(brand.BLUE)), RGBColor(*brand.rgb(brand.RED)), RGBColor(*brand.rgb(brand.INK))
+    set_font(st["Normal"])
+    st["Normal"].font.size = Pt(10)
+    st["Normal"].font.color.rgb = INK_RGB
+    for lst in ("List Bullet",):
+        set_font(st[lst])
+    for name, size, col, bold_ in (("Heading 1", 22, B_RGB, False), ("Heading 2", 16, B_RGB, False), ("Heading 3", 11, INK_RGB, True)):
+        set_font(st[name])
         st[name].font.size = Pt(size)
-        st[name].font.color.rgb = RGBColor(0x1F, 0x4E, 0x79)
-    BLUE = "1F4E79"
+        st[name].font.color.rgb = col
+        st[name].font.bold = bold_
+    BLUE = brand.BLUE.lstrip("#")
+    GREY = brand.GREY.lstrip("#")
 
     def field(par, instr):
         for t, txt in (("begin", None), ("instr", instr), ("separate", None), ("text", "1"), ("end", None)):
@@ -267,7 +300,7 @@ def build_docx(snap) -> bytes:
             cells = t.add_row().cells
             cells[0].text = ""
             r = cells[0].paragraphs[0].add_run(k); r.bold = True; r.font.size = Pt(9.5)
-            shade(cells[0], "DEEAF6")
+            shade(cells[0], GREY)
             cells[1].text = ""
             cells[1].paragraphs[0].add_run(str(v or "—")).font.size = Pt(9.5)
             cells[0].width, cells[1].width = Cm(4.2), Cm(12.8)
@@ -305,23 +338,60 @@ def build_docx(snap) -> bytes:
                             if c["head"]:
                                 for rr in par.runs: rr.bold = True
                         if c["head"]:
-                            shade(cell, "DEEAF6")
+                            shade(cell, GREY)
                         ci += c["span"]
                     if ri == 0:
                         repeat_header(t.rows[0])
                 doc.add_paragraph()
 
-    # ----- cover
-    for _ in range(5): doc.add_paragraph()
-    p = doc.add_paragraph(); r = p.add_run(snap["org"]); r.font.size = Pt(16); r.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
-    p = doc.add_paragraph(); r = p.add_run(snap["title"]); r.font.size = Pt(30); r.bold = True; r.font.color.rgb = RGBColor(0x1F, 0x4E, 0x79)
-    p = doc.add_paragraph(); r = p.add_run(f"Generated {snap['generated_at'][:10]} · snapshot {snap['hash']}"); r.font.size = Pt(11)
+    # ----- cover (layout of the dormakaba collateral cover: blue panel, grey title band in red, logo bottom right)
+    from docx.enum.table import WD_ROW_HEIGHT_RULE, WD_CELL_VERTICAL_ALIGNMENT
+    sec.different_first_page_header_footer = True
+    cov = doc.add_table(rows=2, cols=2)
+    cov.autofit = False
+    widths = (Cm(10.6), Cm(6.4))
+    for row, h_ in zip(cov.rows, (Cm(13.5), Cm(8.5))):
+        row.height, row.height_rule = h_, WD_ROW_HEIGHT_RULE.EXACTLY
+        for k, c_ in enumerate(row.cells):
+            c_.width = widths[k]
+    fix_widths(cov, widths)
+    top = cov.rows[0].cells[0].merge(cov.rows[0].cells[1])
+    shade(top, BLUE)
+    top.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.BOTTOM
+    lines = [snap["org"], "Integrated Process Handbook", f"{snap['count']} processes · scope: {snap['scope']}"]
+    lines += [g_["name"] for g_ in snap["departments"][:7]]
+    if len(snap["departments"]) > 7:
+        lines.append(f"+ {len(snap['departments']) - 7} more departments")
+    first = True
+    for ln in lines + ["", f"Classification: {snap['classification']}"]:
+        par = top.paragraphs[0] if first else top.add_paragraph()
+        first = False
+        par.paragraph_format.left_indent = Cm(10.4)
+        par.paragraph_format.space_after = Pt(1)
+        rn = par.add_run(ln); rn.font.size = Pt(10); rn.font.color.rgb = RGBColor(255, 255, 255)
+        rn.bold = ln.startswith("Classification")
+    title_cell, logo_cell = cov.rows[1].cells
+    shade(title_cell, GREY)
+    title_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    tp = title_cell.paragraphs[0]
+    tp.paragraph_format.left_indent = Cm(0.6)
+    rn = tp.add_run(f"Process Handbook {snap['generated_at'][:4]}"); rn.font.size = Pt(22); rn.font.color.rgb = R_RGB
+    tp2 = title_cell.add_paragraph(); tp2.paragraph_format.left_indent = Cm(0.6)
+    rn = tp2.add_run(snap["title"]); rn.font.size = Pt(22); rn.font.color.rgb = R_RGB
+    tp3 = title_cell.add_paragraph(); tp3.paragraph_format.left_indent = Cm(0.6)
+    rn = tp3.add_run(f"Generated {snap['generated_at'][:10]} · snapshot {snap['hash']}"); rn.font.size = Pt(8.5); rn.font.color.rgb = RGBColor(*brand.rgb(brand.MUTE))
     if snap["unapproved"]:
-        p = doc.add_paragraph(); r = p.add_run(f"UNCONTROLLED DRAFT – {snap['unapproved']} of {snap['count']} included processes are not yet approved/published. "
-                                                "Status is shown on every process."); r.bold = True; r.font.color.rgb = RGBColor(0xC0, 0, 0)
+        tp4 = title_cell.add_paragraph(); tp4.paragraph_format.left_indent = Cm(0.6)
+        rn = tp4.add_run(f"UNCONTROLLED DRAFT – {snap['unapproved']} of {snap['count']} processes not yet approved"); rn.bold = True; rn.font.size = Pt(9); rn.font.color.rgb = R_RGB
+    logo_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.BOTTOM
+    lp = logo_cell.paragraphs[0]; lp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    if os.path.isfile(brand.LOGO):
+        lp.add_run().add_picture(brand.LOGO, width=Cm(5.2))
     doc.add_page_break()
     def plain_h(text):
-        p_ = doc.add_paragraph(); r_ = p_.add_run(text); r_.bold = True; r_.font.size = Pt(18); r_.font.color.rgb = RGBColor(0x1F, 0x4E, 0x79)
+        k_ = doc.add_paragraph(); kr = k_.add_run(snap["title"]); kr.font.size = Pt(10); kr.font.color.rgb = R_RGB
+        k_.paragraph_format.space_after = Pt(0)
+        p_ = doc.add_paragraph(); r_ = p_.add_run(text); r_.font.size = Pt(22); r_.font.color.rgb = B_RGB
         return p_
     plain_h("Document control")
     kv_table([("Document", snap["title"]), ("Scope", snap["scope"]), ("Processes included", snap["count"]), ("Generated by", snap["user_display"]),
@@ -359,6 +429,8 @@ def build_docx(snap) -> bytes:
         doc.add_paragraph(g["name"], style="Heading 1")
         for pr in g["processes"]:
             c = pr["content"]
+            kk = doc.add_paragraph(); kr_ = kk.add_run(g["name"]); kr_.font.size = Pt(9.5); kr_.font.color.rgb = R_RGB
+            kk.paragraph_format.space_after = Pt(0); kk.paragraph_format.keep_with_next = True; kk.paragraph_format.space_before = Pt(14)
             doc.add_paragraph(f"{pr['process_id']} – {pr['name']}", style="Heading 2")
             kv_table([("Process ID", pr["process_id"]), ("Source chart ID", pr["chart_id"]), ("Type", pr["kind"]), ("Department", g["name"]),
                       ("Owner", pr["owner"]), ("Reviewer", pr["reviewer"]), ("Countries / region", pr["countries"]),
@@ -403,16 +475,25 @@ def build_docx(snap) -> bytes:
     doc.add_page_break()
     doc.add_paragraph("Appendix A – Revision history (included processes)", style="Heading 1")
     table(["Process", "Version", "Status", "Author", "Change summary"], history)
-    # header / footer
+    # header / footer (cover page has none, like the collateral layout)
     s0 = doc.sections[0]
     hp = s0.header.paragraphs[0]
-    hp.text = f"{snap['org']} – {snap['title']}" + ("   |   UNCONTROLLED DRAFT" if snap["unapproved"] else "")
-    hp.runs[0].font.size = Pt(8.5)
-    fp = s0.footer.paragraphs[0]
-    fr = fp.add_run(f"{snap['footer']}   |   snapshot {snap['hash']}   |   Page "); fr.font.size = Pt(8)
-    field(fp, "PAGE")
-    fp.add_run(" of ").font.size = Pt(8)
-    field(fp, "NUMPAGES")
+    hr = hp.add_run(f"{snap['org']} – {snap['title']}"); hr.font.size = Pt(9); hr.font.color.rgb = R_RGB
+    if snap["unapproved"]:
+        hr2 = hp.add_run("   |   UNCONTROLLED DRAFT"); hr2.font.size = Pt(9); hr2.bold = True; hr2.font.color.rgb = R_RGB
+    ft = s0.footer.add_table(rows=1, cols=4, width=Cm(17))
+    fix_widths(ft, (Cm(1.6), Cm(8.4), Cm(3.0), Cm(4.0)))
+    c0, c1, c2, c3 = ft.rows[0].cells
+    p0 = c0.paragraphs[0]; field(p0, "PAGE")
+    for r_ in p0.runs: r_.font.size = Pt(8)
+    r_ = c1.paragraphs[0].add_run(f"{snap['title']}"); r_.font.size = Pt(8)
+    r_ = c1.add_paragraph().add_run(f"Classification: {snap['classification']} · {snap['footer']} · snapshot {snap['hash']}"); r_.font.size = Pt(6.5); r_.font.color.rgb = RGBColor(*brand.rgb(brand.MUTE))
+    r_ = c2.paragraphs[0].add_run(snap["region"]); r_.font.size = Pt(8)
+    lp = c3.paragraphs[0]; lp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    if os.path.isfile(brand.LOGO):
+        lp.add_run().add_picture(brand.LOGO, width=Cm(3.2))
+    if s0.footer.paragraphs and not s0.footer.paragraphs[0].text:
+        pass
     bio = io.BytesIO()
     doc.save(bio)
     return bio.getvalue()
@@ -431,24 +512,15 @@ def build_pdf(snap) -> bytes:
     from reportlab.platypus.tableofcontents import TableOfContents
     import reportlab
 
-    fdir = os.path.join(os.path.dirname(reportlab.__file__), "fonts")
-    base, bold, ital = "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
-    try:
-        pdfmetrics.registerFont(TTFont("Vera", os.path.join(fdir, "Vera.ttf")))
-        pdfmetrics.registerFont(TTFont("Vera-B", os.path.join(fdir, "VeraBd.ttf")))
-        pdfmetrics.registerFont(TTFont("Vera-I", os.path.join(fdir, "VeraIt.ttf")))
-        pdfmetrics.registerFont(TTFont("Vera-BI", os.path.join(fdir, "VeraBI.ttf")))
-        pdfmetrics.registerFontFamily("Vera", normal="Vera", bold="Vera-B", italic="Vera-I", boldItalic="Vera-BI")
-        base, bold, ital = "Vera", "Vera-B", "Vera-I"
-    except Exception:
-        pass
+    base, bold, ital = brand.pdf_font_family()
     ss = getSampleStyleSheet()
-    BLUE = colors.HexColor("#1F4E79")
-    sN = ParagraphStyle("N", parent=ss["Normal"], fontName=base, fontSize=9, leading=12)
+    BLUE, RED, GREYC, INKC, MUTEC = (colors.HexColor(x) for x in (brand.BLUE, brand.RED, brand.GREY, brand.INK, brand.MUTE))
+    sN = ParagraphStyle("N", parent=ss["Normal"], fontName=base, fontSize=9, leading=12, textColor=INKC)
     sSmall = ParagraphStyle("S", parent=sN, fontSize=7.5, leading=9, textColor=colors.HexColor("#555555"))
-    sH1 = ParagraphStyle("H1", parent=sN, fontName=bold, fontSize=17, leading=21, textColor=BLUE, spaceBefore=6, spaceAfter=8)
-    sH2 = ParagraphStyle("H2", parent=sN, fontName=bold, fontSize=13, leading=16, textColor=BLUE, spaceBefore=10, spaceAfter=5)
-    sH3 = ParagraphStyle("H3", parent=sN, fontName=bold, fontSize=10, leading=13, textColor=BLUE, spaceBefore=7, spaceAfter=3)
+    sH1 = ParagraphStyle("H1", parent=sN, fontName=base, fontSize=22, leading=26, textColor=BLUE, spaceBefore=4, spaceAfter=10)
+    sH2 = ParagraphStyle("H2", parent=sN, fontName=base, fontSize=15, leading=19, textColor=BLUE, spaceBefore=2, spaceAfter=6)
+    sH3 = ParagraphStyle("H3", parent=sN, fontName=bold, fontSize=10, leading=13, textColor=INKC, spaceBefore=8, spaceAfter=3)
+    sKick = ParagraphStyle("Kick", parent=sN, fontSize=9.5, leading=12, textColor=RED, spaceBefore=12, spaceAfter=0)
     sLi = ParagraphStyle("Li", parent=sN, leftIndent=14, bulletIndent=4)
     sH1n = ParagraphStyle("H1n", parent=sH1)
     sCell = ParagraphStyle("C", parent=sN, fontSize=8, leading=10)
@@ -475,13 +547,48 @@ def build_pdf(snap) -> bytes:
                 self.canv.bookmarkPage(key)
                 self.notify("TOCEntry", (0 if f.style.name == "H1" else 1, f.getPlainText(), self.page, key))
 
+    W_, H_ = A4
+
+    def cover(canv, d):
+        canv.saveState()
+        canv.setFillColor(BLUE); canv.rect(0, H_ * 0.335, W_, H_ * 0.665, stroke=0, fill=1)
+        canv.setFillColor(GREYC); canv.rect(0, 0, W_ * 0.663, H_ * 0.335, stroke=0, fill=1)
+        lines = [snap["org"], "Integrated Process Handbook", f"{snap['count']} processes · scope: {snap['scope']}"] + [g_["name"] for g_ in snap["departments"][:8]]
+        y = H_ * 0.335 + 60 + 14 * (len(lines) + 1)
+        canv.setFillColor(colors.white)
+        for ln in lines:
+            canv.setFont(base, 10); canv.drawString(W_ * 0.70, y, ln[:52]); y -= 14
+        canv.setFont(bold, 10); canv.drawString(W_ * 0.70, y - 14, f"Classification: {snap['classification']}")
+        canv.setFillColor(RED); canv.setFont(base, 24)
+        canv.drawString(1.3 * cm, H_ * 0.335 - 2.6 * cm, f"Process Handbook {snap['generated_at'][:4]}")
+        words, line, yy = snap["title"].split(), "", H_ * 0.335 - 3.7 * cm
+        for w_ in words:
+            if canv.stringWidth(line + " " + w_, base, 24) > W_ * 0.6:
+                canv.drawString(1.3 * cm, yy, line); yy -= 1.0 * cm; line = w_
+            else:
+                line = (line + " " + w_).strip()
+        canv.drawString(1.3 * cm, yy, line)
+        canv.setFillColor(MUTEC); canv.setFont(base, 8)
+        canv.drawString(1.3 * cm, 1.8 * cm, f"Generated {snap['generated_at'][:10]} · snapshot {snap['hash']}")
+        if snap["unapproved"]:
+            canv.setFillColor(RED); canv.setFont(bold, 9)
+            canv.drawString(1.3 * cm, 1.2 * cm, f"UNCONTROLLED DRAFT – {snap['unapproved']} of {snap['count']} processes not yet approved")
+        if os.path.isfile(brand.LOGO):
+            canv.drawImage(brand.LOGO, W_ - 2 * cm - 5.6 * cm, 1.3 * cm, width=5.6 * cm, height=5.6 * cm * 208 / 1949, mask="auto")
+        canv.restoreState()
+
     def head_foot(canv, d):
         canv.saveState()
-        canv.setFont(base, 7.5)
-        canv.setFillColor(colors.HexColor("#555555"))
-        canv.drawString(2 * cm, 28.9 * cm, f"{snap['org']} – {snap['title']}" + ("  |  UNCONTROLLED DRAFT" if snap["unapproved"] else ""))
-        canv.drawString(2 * cm, 1.2 * cm, f"{snap['footer']} | snapshot {snap['hash']}")
-        canv.drawRightString(19 * cm, 1.2 * cm, f"Page {d.page}")
+        canv.setFont(base, 9); canv.setFillColor(RED)
+        canv.drawString(2 * cm, H_ - 1.3 * cm, f"{snap['org']} – {snap['title']}"[:95] + ("  |  UNCONTROLLED DRAFT" if snap["unapproved"] else ""))
+        canv.setFillColor(INKC); canv.setFont(base, 8)
+        canv.drawString(2 * cm, 1.15 * cm, str(d.page))
+        canv.drawString(3.6 * cm, 1.15 * cm, snap["title"][:60])
+        canv.drawString(W_ - 2 * cm - 3.3 * cm - 2.6 * cm, 1.15 * cm, snap["region"])
+        canv.setFillColor(MUTEC); canv.setFont(base, 6.5)
+        canv.drawString(3.6 * cm, 0.75 * cm, f"Classification: {snap['classification']} · {snap['footer']} · snapshot {snap['hash']}"[:130])
+        if os.path.isfile(brand.LOGO):
+            canv.drawImage(brand.LOGO, W_ - 2 * cm - 3.3 * cm, 1.0 * cm, width=3.3 * cm, height=3.3 * cm * 208 / 1949, mask="auto")
         canv.restoreState()
 
     def tbl(headers, rows, widths):
@@ -494,7 +601,7 @@ def build_pdf(snap) -> bytes:
     def kv(pairs):
         data = [[Paragraph(f"<b>{esc(k)}</b>", sCell), Paragraph(esc(str(v or "—")), sCell)] for k, v in pairs]
         t = Table(data, colWidths=[4 * cm, 13 * cm])
-        t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#999999")), ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#DEEAF6")), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#999999")), ("BACKGROUND", (0, 0), (0, -1), GREYC), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
         return t
 
     def fit_image(data, maxw=17 * cm, maxh=19 * cm):
@@ -536,18 +643,14 @@ def build_pdf(snap) -> bytes:
                 out += [t, Spacer(1, 6)]
         return out
 
-    story = [Spacer(1, 5 * cm), Paragraph(esc(snap["org"]), ParagraphStyle("o", parent=sN, fontSize=15, textColor=colors.HexColor("#555555"))),
-             Paragraph(esc(snap["title"]), ParagraphStyle("t", parent=sN, fontName=bold, fontSize=28, leading=33, textColor=BLUE, spaceBefore=10)),
-             Spacer(1, 8), Paragraph(f"Generated {snap['generated_at'][:10]} · snapshot {snap['hash']}", sN)]
-    if snap["unapproved"]:
-        story.append(Paragraph(f"<font color='#C00000'><b>UNCONTROLLED DRAFT – {snap['unapproved']} of {snap['count']} included processes are not yet approved/published.</b></font>", sN))
-    story += [PageBreak(), Paragraph("Document control", sH1n),
+    sKickTop = ParagraphStyle("KickTop", parent=sKick, spaceBefore=0)
+    story = [Spacer(1, 1), PageBreak(), Paragraph(esc(snap["title"]), sKickTop), Paragraph("Document control", sH1n),
               kv([("Document", snap["title"]), ("Scope", snap["scope"]), ("Processes included", snap["count"]), ("Generated by", snap["user_display"]),
                   ("Generated at (UTC)", snap["generated_at"]), ("Snapshot hash", snap["hash"]),
                   ("Control status", "Contains unapproved content" if snap["unapproved"] else "All content published / approved")]),
               Spacer(1, 14), Paragraph("Contents", sH1n)]
     toc = TableOfContents()
-    toc.levelStyles = [ParagraphStyle("t1", parent=sN, fontName=bold, leftIndent=0, spaceBefore=4),
+    toc.levelStyles = [ParagraphStyle("t1", parent=sN, fontName=bold, textColor=BLUE, leftIndent=0, spaceBefore=4),
                        ParagraphStyle("t2", parent=sN, leftIndent=14)]
     story += [toc, PageBreak()]
     history = []
@@ -555,6 +658,7 @@ def build_pdf(snap) -> bytes:
         story.append(Paragraph(esc(g["name"]), sH1))
         for pr in g["processes"]:
             c = pr["content"]
+            story.append(Paragraph(esc(g["name"]), sKick))
             story.append(Paragraph(esc(f"{pr['process_id']} – {pr['name']}"), sH2))
             story.append(kv([("Process ID", pr["process_id"]), ("Source chart ID", pr["chart_id"]), ("Type", pr["kind"]), ("Owner", pr["owner"]), ("Reviewer", pr["reviewer"]),
                              ("Countries / region", pr["countries"]), ("Version / status", f"{pr['version']} · {pr['status_label']}"),
@@ -594,17 +698,25 @@ def build_pdf(snap) -> bytes:
     story += [PageBreak(), Paragraph("Appendix A – Revision history (included processes)", sH1), tbl(["Process", "Version", "Status", "Author", "Change summary"], history, [3.5 * cm, 1.8 * cm, 3 * cm, 2.7 * cm, 6 * cm])]
     bio = io.BytesIO()
     d = Doc(bio, pagesize=A4, leftMargin=2 * cm, rightMargin=2 * cm, topMargin=2.2 * cm, bottomMargin=2 * cm, title=snap["title"], author=snap["generated_by"])
-    d.multiBuild(story, onFirstPage=head_foot, onLaterPages=head_foot)
+    d.multiBuild(story, onFirstPage=cover, onLaterPages=head_foot)
     return bio.getvalue()
 
 
 # ------------------------------------------------------------------ HTML / ZIP
 def build_html(snap) -> bytes:
     e = htmllib.escape
-    out = [f"<!doctype html><html><head><meta charset=utf-8><title>{e(snap['title'])}</title><style>body{{font-family:Segoe UI,Arial;max-width:980px;margin:2em auto;line-height:1.45}}"
-           "table{border-collapse:collapse;margin:.6em 0}td,th{border:1px solid #999;padding:4px 8px;vertical-align:top}th{background:#1F4E79;color:#fff}h1,h2,h3{color:#1F4E79}"
-           ".warn{color:#c00;font-weight:bold}img{max-width:100%}</style></head><body>",
-           f"<h1>{e(snap['org'])} – {e(snap['title'])}</h1><p>Generated {e(snap['generated_at'])} · snapshot {snap['hash']}</p>"]
+    logo = ""
+    if os.path.isfile(brand.LOGO):
+        with open(brand.LOGO, "rb") as fh:
+            logo = f"<img class=logo alt=dormakaba src='data:image/png;base64,{base64.b64encode(fh.read()).decode()}'>"
+    out = [f"<!doctype html><html><head><meta charset=utf-8><title>{e(snap['title'])}</title><style>body{{font-family:Arial,'Liberation Sans',Helvetica,sans-serif;color:{brand.INK};max-width:980px;margin:2em auto;line-height:1.45}}"
+           f"table{{border-collapse:collapse;margin:.6em 0}}td,th{{border:1px solid {brand.LINE};padding:4px 8px;vertical-align:top}}th{{background:{brand.BLUE};color:#fff}}h1,h2{{color:{brand.BLUE};font-weight:normal}}h3{{color:{brand.INK}}}"
+           f".kick{{color:{brand.RED};font-size:13px;margin:1.6em 0 0}}.warn{{color:{brand.RED};font-weight:bold}}img{{max-width:100%}}.logo{{height:24px;max-width:none}}"
+           f".cover{{background:{brand.BLUE};color:#fff;padding:28px 32px}}.band{{background:{brand.GREY};color:{brand.RED};font-size:26px;padding:22px 32px;display:flex;justify-content:space-between;align-items:flex-end}}"
+           f".band .logo{{background:#fff;padding:8px 10px}}</style></head><body>",
+           f"<div class=cover>{e(snap['org'])}<br>Integrated Process Handbook<br>{snap['count']} processes<br><br><b>Classification: {e(snap['classification'])}</b></div>"
+           f"<div class=band><div>Process Handbook {snap['generated_at'][:4]}<br>{e(snap['title'])}</div>{logo}</div>"
+           f"<p style='color:{brand.MUTE};font-size:12px'>Generated {e(snap['generated_at'])} · snapshot {snap['hash']} · {e(snap['region'])}</p>"]
     if snap["unapproved"]:
         out.append(f"<p class=warn>UNCONTROLLED DRAFT – {snap['unapproved']} of {snap['count']} processes are not approved.</p>")
     out.append("<h2>Contents</h2><ul>")
@@ -615,7 +727,7 @@ def build_html(snap) -> bytes:
         out.append(f"<h1>{e(g['name'])}</h1>")
         for p in g["processes"]:
             c = p["content"]
-            out.append(f"<h2 id='{e(p['process_id'])}'>{e(p['process_id'])} – {e(p['name'])}</h2><p><b>{e(p['status_label'])}</b> · v{e(p['version'])} · owner: {e(p['owner'] or '—')}</p>")
+            out.append(f"<p class=kick>{e(g['name'])}</p><h2 style='margin-top:0' id='{e(p['process_id'])}'>{e(p['process_id'])} – {e(p['name'])}</h2><p><b>{e(p['status_label'])}</b> · v{e(p['version'])} · owner: {e(p['owner'] or '—')}</p>")
             for label, key in (("Objective", "objective"), ("Scope", "scope"), ("Trigger", "trigger"), ("Inputs", "inputs"), ("Outputs", "outputs")):
                 if c.get(key):
                     out.append(f"<h3>{label}</h3><p>{e(c[key])}</p>")

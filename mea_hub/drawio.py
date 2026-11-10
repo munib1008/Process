@@ -87,9 +87,9 @@ def reference_diagram(title: str, chart_id: str, png_b64: str, w: int, h: int, n
 TEMPLATES = {
     "blank": ("Blank process", []),
     "department_workflow": ("Department workflow", ["Start|ellipse", "Activity 1|rect", "Decision?|rhombus", "Activity 2|rect", "End|ellipse"]),
-    "approval_workflow": ("Approval workflow", ["Request|ellipse", "Prepare|rect", "Review?|rhombus", "Approve|rect", "Rejected / Rework|rect", "Done|ellipse"]),
-    "sap_process_flow": ("SAP process flow", ["Trigger|ellipse", "SAP transaction (e.g. ME51N)|rect", "Check|rhombus", "Post / Release|rect", "End|ellipse"]),
-    "exception_handling": ("Exception handling", ["Exception raised|ellipse", "Assess|rect", "Escalate?|rhombus", "Escalate to manager|rect", "Resolve & record|rect", "Closed|ellipse"]),
+    "approval_workflow": ("Approval workflow", ["Start|ellipse", "Prepare and submit request|rect", "Complete and correct?|rhombus", "Approve request|rect", "End|ellipse"]),
+    "sap_process_flow": ("SAP process flow", ["Start|ellipse", "SAP transaction (e.g. ME51N)|rect", "Check result?|rhombus", "Post / release|rect", "End|ellipse"]),
+    "exception_handling": ("Exception handling", ["Start|ellipse", "Exception raised: assess|rect", "Escalate?|rhombus", "Escalate to manager|rect", "Resolve and record|rect", "End|ellipse"]),
     "cross_functional_swimlane": ("Cross-functional swimlane", ["Start|ellipse", "Dept A activity|rect", "Dept B activity|rect", "Decision?|rhombus", "End|ellipse"]),
 }
 for _k, _t in (("enterprise_e2e", "Enterprise E2E workflow"), ("raci_workflow", "RACI-related workflow"),
@@ -99,28 +99,56 @@ for _k, _t in (("enterprise_e2e", "Enterprise E2E workflow"), ("raci_workflow", 
     TEMPLATES[_k] = (_t, ["Start|ellipse", "Step 1|rect", "Step 2|rect", "Decision?|rhombus", "Step 3|rect", "End|ellipse"])
 
 
+# dormakaba process-map style (as used in the supplied BMS diagrams)
+BRAND_STYLES = {
+    "rect": "rounded=1;arcSize=20;whiteSpace=wrap;html=1;fontSize=14;strokeWidth=1.5;fillColor=#FFFFFF;strokeColor=#003594;fontColor=#484848;",
+    "start": "ellipse;whiteSpace=wrap;html=1;fontSize=16;strokeWidth=2;fillColor=#FFFFFF;strokeColor=#009900;fontColor=#484848;fontStyle=1;",
+    "end": "ellipse;whiteSpace=wrap;html=1;fontSize=16;strokeWidth=3;fillColor=#FFFFFF;strokeColor=#000000;fontColor=#484848;",
+    "rhombus": "rhombus;whiteSpace=wrap;html=1;fontSize=13;strokeWidth=1.5;fillColor=#e4002b;strokeColor=#484848;fontColor=#FFFFFF;fontStyle=1;",
+    "edge": "edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;html=1;strokeColor=#484848;strokeWidth=2;endArrow=classic;fontColor=#484848;",
+    "container": "swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontSize=16;fontStyle=1;fontColor=#484848;strokeColor=#666666;startSize=30;",
+    "lane": "swimlane;horizontal=0;whiteSpace=wrap;html=1;strokeColor=#003594;fillColor=#003594;fontColor=#FFFFFF;fontStyle=1;startSize=34;fontSize=14;",
+}
+SWIMLANE_TEMPLATES = {"cross_functional_swimlane": ["Department A", "Department B", "Department C"],
+                      "approval_workflow": ["Requestor", "Reviewer", "Approver"],
+                      "enterprise_e2e": ["Sales", "Planning", "Procurement", "Logistics", "Finance"]}
+
+
 def template_xml(key: str, title: str, swimlanes: bool = False) -> str:
     name, steps = TEMPLATES.get(key, TEMPLATES["blank"])
+    st = BRAND_STYLES
     cells = ['<mxCell id="0"/>', '<mxCell id="1" parent="0"/>']
-    styles = {"rect": "rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;",
-              "ellipse": "ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;",
-              "rhombus": "rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;"}
-    x = 40
-    prev = None
-    for i, s in enumerate(steps):
-        label, shape = s.split("|")
-        w, h = (120, 60) if shape != "rhombus" else (130, 80)
-        cid = f"n{i+1}"
-        cells.append(f'<mxCell id="{cid}" value="{esc_attr(label)}" style="{styles[shape]}" vertex="1" parent="1">'
-                     f'<mxGeometry x="{x}" y="{120 - (h-60)//2}" width="{w}" height="{h}" as="geometry"/></mxCell>')
+    lanes = SWIMLANE_TEMPLATES.get(key) if steps else None
+    lane_h, x0, width = 160, 70, 0
+    if lanes:
+        width = 120 + 190 * len(steps)
+        cells.append(f'<mxCell id="box" value="Process Map – {esc_attr(title or name)}" style="{st["container"]}" vertex="1" parent="1">'
+                     f'<mxGeometry x="40" y="40" width="{width}" height="{30 + lane_h * len(lanes)}" as="geometry"/></mxCell>')
+        for k, ln in enumerate(lanes):
+            cells.append(f'<mxCell id="lane{k}" value="{esc_attr(ln)}" style="{st["lane"]}" vertex="1" parent="box">'
+                         f'<mxGeometry y="{30 + k * lane_h}" width="{width}" height="{lane_h}" as="geometry"/></mxCell>')
+    x, prev = x0, None
+    for i, s_ in enumerate(steps):
+        label, shape = s_.split("|")
+        if shape == "ellipse":
+            shape = "start" if i == 0 else "end"
+        w, h = {"rhombus": (120, 110), "start": (70, 70), "end": (70, 70)}.get(shape, (150, 70))
+        cid = f"n{i + 1}"
+        if lanes:
+            k = min(len(lanes) - 1, i * len(lanes) // max(1, len(steps)))
+            parent, y = f"lane{k}", (lane_h - h) / 2
+        else:
+            parent, y = "1", 120 - (h - 70) / 2
+        cells.append(f'<mxCell id="{cid}" value="{esc_attr(label)}" style="{st[shape]}" vertex="1" parent="{parent}">'
+                     f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>')
         if prev:
-            cells.append(f'<mxCell id="e{i}" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" '
-                         f'source="{prev}" target="{cid}"><mxGeometry relative="1" as="geometry"/></mxCell>')
+            lbl = ' value="Yes"' if steps[i - 1].endswith("|rhombus") else ""
+            cells.append(f'<mxCell id="e{i}"{lbl} style="{st["edge"]}" edge="1" parent="1" source="{prev}" target="{cid}"><mxGeometry relative="1" as="geometry"/></mxCell>')
         prev = cid
-        x += w + 50
+        x += w + (70 if lanes else 50)
     return (f'<mxfile host="MEA Process Hub"><diagram id="d1" name="{esc_attr(title[:60] or name)}"><mxGraphModel dx="1000" dy="700" '
             f'grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" '
-            f'pageWidth="1169" pageHeight="827"><root>{"".join(cells)}</root></mxGraphModel></diagram></mxfile>')
+            f'pageWidth="1654" pageHeight="1169"><root>{"".join(cells)}</root></mxGraphModel></diagram></mxfile>')
 
 
 def nodes(xml: str):

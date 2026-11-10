@@ -224,14 +224,27 @@ def test_published_diagram_revision_stays_with_published_version(users):
 
 
 # ------------------------------------------------------------------ exports
+def all_text(doc):
+    parts = [p.text for p in doc.paragraphs]
+    for tbl in doc.tables:
+        parts += [c.text for r in tbl.rows for c in r.cells]
+    for sec in doc.sections:
+        for part in (sec.header, sec.footer, sec.first_page_header, sec.first_page_footer):
+            parts += [p.text for p in part.paragraphs]
+            for tbl in part.tables:
+                parts += [c.text for r in tbl.rows for c in r.cells]
+    return "\n".join(parts)
+
+
 def test_exports(admin, users):
     from docx import Document
     s, d = users["editor"].call("POST", "/api/exports", {"scope": "process", "ids": ["WL-M-IB-01"], "fmt": "docx"})
     assert s == 200, d
     s, data = users["editor"].call("GET", f"/api/exports/{d['export']['id']}/download", raw=True)
     doc = Document(io.BytesIO(data))
-    text = "\n".join(p.text for p in doc.paragraphs)
-    assert "Material Inbound Process" in text and "UNCONTROLLED DRAFT" in text                          # unapproved is labelled
+    text = all_text(doc)
+    assert "Material Inbound Process" in text and "UNCONTROLLED DRAFT" in text                          # unapproved is labelled (cover + header)
+    assert "Classification: Internal" in text and "Region MEA" in text                                 # dormakaba document identity
     assert len(doc.tables) >= 2 and any(len(p._p.xpath(".//w:drawing")) for p in doc.paragraphs)           # real tables + flowchart picture
     import hashlib
     assert hashlib.sha256(data).hexdigest() == d["export"]["sha256"]
@@ -248,7 +261,7 @@ def test_exports(admin, users):
     s, v = users["viewer"].call("POST", "/api/exports", {"scope": "process", "ids": ["TST-W-001"], "fmt": "docx"})
     assert s == 200
     doc = Document(io.BytesIO(users["viewer"].call("GET", f"/api/exports/{v['export']['id']}/download", raw=True)[1]))
-    assert "UNCONTROLLED" not in "\n".join(p.text for p in doc.paragraphs)
+    assert "UNCONTROLLED" not in all_text(doc)
     # exports of other users are not downloadable by a viewer
     assert users["viewer"].call("GET", f"/api/exports/{d['export']['id']}/download")[0] == 403
     # snapshot hash is reproducible when nothing changed

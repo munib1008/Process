@@ -69,7 +69,8 @@ def seed_departments():
     for i, (code, name) in enumerate(DEPARTMENTS):
         c.execute("INSERT OR IGNORE INTO departments(code,name,sort) VALUES(?,?,?)", (code, name, i))
     for k, v in (("org_name", "dormakaba MEA"), ("doc_ref_format", "MEA-PH-{n}"), ("allow_self_approval", "0"),
-                 ("default_review_months", "12"), ("export_footer", "Controlled document – printed copies are uncontrolled")):
+                 ("default_review_months", "12"), ("export_footer", "Controlled document – printed copies are uncontrolled"),
+                 ("classification", "Internal"), ("region_label", "Region MEA")):
         c.execute("INSERT OR IGNORE INTO config(key,value) VALUES(?,?)", (k, v))
 
 

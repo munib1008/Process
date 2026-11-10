@@ -222,7 +222,7 @@ def r_password(c):
 @route("GET", "/api/config", auth=False)
 def r_config(c):
     return dict(drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
-                org=svc.cfg("org_name"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
+                org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
                 templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, node_meta_keys=svc.NODE_META_KEYS, version="1.0.0")
 
 
@@ -688,7 +688,7 @@ def r_settings(c):
     svc.need(c.user, "admin")
     d = c.json()
     with db.tx():
-        for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer"):
+        for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer", "classification", "region_label"):
             if k in d:
                 svc.set_cfg(k, str(d[k])[:300])
         svc.audit(c.user, "settings_changed", "config", None, json.dumps(d)[:500])
@@ -697,7 +697,7 @@ def r_settings(c):
 @route("GET", "/api/settings")
 def r_settings_get(c):
     svc.need(c.user, "admin")
-    return {k: svc.cfg(k) for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer")}
+    return {k: svc.cfg(k) for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer", "classification", "region_label")}
 
 
 @route("GET", "/api/audit")

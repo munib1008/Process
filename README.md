@@ -1,3 +1,5 @@
+<img src="mea_hub/static/brand/dormakaba_logo.png" alt="dormakaba" height="28">
+
 # MEA Process Hub
 
 Local enterprise **process & document management** for dormakaba MEA. The application, not Word, is the source of
@@ -31,6 +33,8 @@ Options: `MEA_Process_Hub.exe --port 9000 --no-browser --demo-users` (one evalua
 | Export Center | DOCX (real Word text/tables, cover, document control, TOC, headers/footers, page numbers, flowchart preview, source references, revision appendix), PDF (A4, TOC with page numbers, repeating table headers), HTML, ZIP of editable `.drawio` + previews, Excel **process register**. Every export is built from one consistent snapshot, hashed and logged. |
 | Ownership & data loading | Bulk-assign owners/reviewers per department; round-trip Excel register (Ownership, RACI, KPI sheets → loaded into *draft* revisions); "My tasks" inbox (reviews, approvals, publishing, overdue); decision workbench (recommended action per finding, bulk decisions with rationale); suggested handover links derived from the Level 1 value stream (flagged *suggested*, removable). |
 | Admin | Users, 7 roles with server-side checks on every endpoint, CSRF protection, backup / restore, audit log. |
+
+The UI and all exports use the dormakaba corporate identity – see `docs/BRANDING.md`.
 
 Read `docs/COMPLETION_REPORT.md` for the honest status of every requirement (including what is **not** built yet) and
 `docs/SOURCE_RECONCILIATION_REPORT.md` for what the importer found in the supplied documents.

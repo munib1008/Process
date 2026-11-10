@@ -17,11 +17,16 @@ function render() {
   GET("/api/tree").then((t) => { S.tree = t.departments; app.append(layout()); route(); }).catch((e) => toast(e.message, true));
 }
 function loginView() {
-  const u = h("input", {type: "text", autocomplete: "username", autofocus: true}), p = h("input", {type: "password", autocomplete: "current-password"}), err = h("div", {class: "banner bad", style: "display:none"});
+  const u = h("input", {type: "text", autocomplete: "username", autofocus: true}), p = h("input", {type: "password", autocomplete: "current-password", onkeydown: (e) => { if (e.key === "Enter") go(); }}), err = h("div", {class: "banner bad", style: "display:none"});
   const go = async () => { try { const r = await api("POST", "/api/login", {username: u.value, password: p.value}); S.user = r.user; S.csrf = r.csrf; location.hash = "#/dashboard"; render(); } catch (e) { err.style.display = ""; err.textContent = e.message; } };
-  return h("div", {class: "login"}, h("div", {class: "card"}, h("h1", null, "MEA Process Hub"), h("div", {class: "sub"}, (S.cfg.org || "") + " · process & document management"), err,
-    h("label", null, "Username"), u, h("label", null, "Password"), h("input", {type: "password", style: "display:none"}), p,
-    h("div", {style: "margin-top:14px"}, h("button", {class: "btn pri", onclick: go}, "Sign in"))));
+  return h("div", {class: "login"}, h("div", {class: "loginbox"},
+    h("div", {class: "panel"}, h("img", {src: "/brand/dormakaba_logo_white.png", alt: "dormakaba"}),
+      h("div", null, h("div", {class: "title"}, "MEA Process Hub"), h("ul", {style: "margin-top:14px"}, ["Master Process Handbook", "Process Library & Flow Studio", "Governance & Approvals", "Word / PDF Export Center"].map((x) => h("li", null, x))),
+        h("p", {style: "margin:16px 0 0;font-weight:bold"}, "Classification: " + (S.cfg.classification || "Internal")))),
+    h("div", {class: "form"}, h("div", {class: "kicker"}, S.cfg.org || "dormakaba MEA"), h("h1", null, "Sign in"), err,
+      h("label", null, "Username"), u, h("label", null, "Password"), h("input", {type: "password", style: "display:none"}), p,
+      h("div", {style: "margin-top:16px"}, h("button", {class: "btn pri", onclick: go}, "Sign in"))),
+    h("div", {class: "band"}, h("span", null, "Process & Document Management"), h("span", null, S.cfg.region || "Region MEA"))));
 }
 function passwordView(forced) {
   const o = h("input", {type: "password"}), n = h("input", {type: "password"});
@@ -32,7 +37,7 @@ function passwordView(forced) {
 function layout() {
   const q = h("input", {type: "text", placeholder: "Search processes, IDs, SAP transactions, diagram labels…", "aria-label": "Search", onkeydown: (e) => { if (e.key === "Enter" && q.value.trim()) location.hash = "#/search/" + encodeURIComponent(q.value.trim()); }});
   return h("div", {class: "layout"},
-    h("div", {class: "top"}, h("a", {class: "brand", href: "#/dashboard"}, h("span", {class: "logo"}, svgIcon()), "MEA Process Hub"), h("div", {class: "search"}, q),
+    h("div", {class: "top"}, h("a", {class: "brand", href: "#/dashboard", "aria-label": "dormakaba MEA Process Hub"}, h("img", {class: "logo-c", src: "/brand/dormakaba_logo.png", alt: "dormakaba"}), h("img", {class: "logo-w", src: "/brand/dormakaba_logo_white.png", alt: ""}), h("span", {class: "prod"}, "MEA Process Hub")), h("div", {class: "search"}, q),
       h("div", {class: "userbox"}, h("span", null, S.user.display_name, " · ", h("span", {class: "chip"}, S.user.role)), h("button", {class: "btn sm", onclick: () => passwordModal()}, "Password"),
         h("button", {class: "btn sm", onclick: async () => { await POST("/api/logout"); S.user = null; render(); }}, "Sign out"))),
     h("nav", {class: "nav", "aria-label": "Primary"}, NAV.filter((n) => n[0] !== "#/admin" || can("admin")).map(([href, label, ic]) => h("a", {href, "data-nav": href}, ic, h("span", null, label)))),
@@ -53,7 +58,12 @@ async function route() {
     const V = {dashboard: viewDashboard, handbook: viewHandbook, process: viewHandbook, library: viewLibrary, flow: viewFlow, departments: viewDepartments, governance: viewGovernance,
       reports: viewReports, import: viewImport, export: viewExport, admin: viewAdmin, search: viewSearch, new: viewNew};
     const node = await (V[top] || viewDashboard)(...parts.slice(1));
-    if (node) clear(main).append(node);
+    if (node) {
+      const h1 = node.querySelector && node.querySelector("h1");
+      const navItem = NAV.find((n) => n[0] === "#/" + (top === "process" ? "handbook" : top));
+      if (h1 && !node.querySelector(".kicker")) h1.before(h("div", {class: "kicker"}, (S.cfg.org || "dormakaba MEA") + " · " + (navItem ? navItem[1] : "Process Hub")));
+      clear(main).append(node);
+    }
   } catch (e) { clear(main).append(h("div", {class: "banner bad"}, e.message)); }
   main.scrollTop = 0;
 }
@@ -142,7 +152,7 @@ async function processPage(pid, versionId, editing) {
   }
   bar.append(h("button", {class: "btn", onclick: () => doExport({scope: "process", ids: [pid], fmt: "docx", version_id: versionId || undefined})}, "DOCX"), h("button", {class: "btn", onclick: () => doExport({scope: "process", ids: [pid], fmt: "pdf", version_id: versionId || undefined})}, "PDF"));
 
-  const head = h("div", {class: "phead"}, h("div", null, h("h1", null, p.name), h("div", {class: "pid"}, p.process_id + " · Version " + v.version + " · " + (p.department || "") + (p.countries ? " · " + p.countries : "") + (p.chart_id && p.chart_id !== p.process_id ? " · source chart ID " + p.chart_id : ""))),
+  const head = h("div", {class: "phead"}, h("div", null, h("div", {class: "kicker"}, (p.department || "") + " · Master Handbook"), h("h1", null, p.name), h("div", {class: "pid"}, p.process_id + " · Version " + v.version + " · " + (p.department || "") + (p.countries ? " · " + p.countries : "") + (p.chart_id && p.chart_id !== p.process_id ? " · source chart ID " + p.chart_id : ""))),
     h("div", {class: "row"}, chipS(v.status, d.status_label), d.versions.length > 1 ? h("select", {style: "width:auto", "aria-label": "Version", onchange: (e) => { location.hash = "#/process/" + encodeURIComponent(pid) + (e.target.value ? "?v=" + e.target.value : ""); }}, "") : null));
   // version selector handled below via query in hash
   const banners = [];
@@ -158,7 +168,8 @@ async function processPage(pid, versionId, editing) {
   } else {
     body.append(overviewCard(c), flowCard(d, false, reload), tabsView(d, pid, reload));
   }
-  const foot = h("div", {class: "footbar"}, h("span", null, "⛁ Autosave & version control · " + d.versions.length + " revision(s) · owner: " + (p.owner || "not assigned")), h("span", {class: "row"}, "Export:", ...["docx", "pdf"].map((f) => h("button", {class: "btn sm", onclick: () => doExport({scope: "process", ids: [pid], fmt: f})}, f.toUpperCase()))));
+  const foot = h("div", {class: "footbar"}, h("span", null, "⛁ Autosave & version control · " + d.versions.length + " revision(s) · owner: " + (p.owner || "not assigned") + " · Classification: " + (S.cfg.classification || "Internal")),
+    h("span", {class: "brandfoot"}, S.cfg.region || "Region MEA", h("img", {src: "/brand/dormakaba_logo.png", alt: "dormakaba"})), h("span", {class: "row"}, "Export:", ...["docx", "pdf"].map((f) => h("button", {class: "btn sm", onclick: () => doExport({scope: "process", ids: [pid], fmt: f})}, f.toUpperCase()))));
   const page = h("div", {class: "page hb"}, treePanel(pid), h("div", null, head, h("div", {style: "margin:10px 0"}, bar), banners, body, foot));
   if (d.versions.length > 1) { const sel = page.querySelector("select"); d.versions.forEach((x) => sel.append(h("option", {value: x.id, selected: x.id === v.id}, "v" + x.version + " · " + (S.cfg.statuses[x.status] || x.status)))); sel.onchange = (e) => { reloadVersion(pid, e.target.value); }; }
   return page;
@@ -440,9 +451,9 @@ async function viewAdmin(tab) {
       h("div", {class: "card"}, h("h3", null, "Role permissions"), table(["Role", "Can"], [["admin", "Everything"], ["controller", "Import, accept imports, edit, review, publish approved revisions, manage findings, view all"], ["dept_owner", "Edit/submit/review within own department, manage findings, relationships"],
         ["editor", "Edit drafts and diagrams (own department if scoped), submit for review"], ["reviewer", "Review and comment (cannot review own changes)"], ["approver", "Approve / reject pending revisions (separation of duties enforced)"], ["viewer", "Read published content only"]])));
   } else if (tab === "settings") {
-    const s = await GET("/api/settings"), f = {org_name: h("input", {type: "text", value: s.org_name}), export_footer: h("input", {type: "text", value: s.export_footer}), default_review_months: h("input", {type: "number", value: s.default_review_months}),
+    const s = await GET("/api/settings"), f = {org_name: h("input", {type: "text", value: s.org_name}), export_footer: h("input", {type: "text", value: s.export_footer}), classification: h("input", {type: "text", value: s.classification || "Internal"}), region_label: h("input", {type: "text", value: s.region_label || "Region MEA"}), default_review_months: h("input", {type: "number", value: s.default_review_months}),
       allow_self_approval: h("select", null, h("option", {value: "0", selected: s.allow_self_approval !== "1"}, "No – enforce separation of duties (recommended)"), h("option", {value: "1", selected: s.allow_self_approval === "1"}, "Yes – single-user / pilot mode"))};
-    body = h("div", {class: "card"}, h("div", {class: "fields"}, [["Organisation name", f.org_name], ["Export footer text", f.export_footer], ["Default review frequency (months)", f.default_review_months], ["Author may review/approve own revision", f.allow_self_approval]].map(([l, e]) => h("div", null, h("label", null, l), e))),
+    body = h("div", {class: "card"}, h("div", {class: "fields"}, [["Organisation name", f.org_name], ["Export footer text", f.export_footer], ["Classification label (cover, footers)", f.classification], ["Region label (footers)", f.region_label], ["Default review frequency (months)", f.default_review_months], ["Author may review/approve own revision", f.allow_self_approval]].map(([l, e]) => h("div", null, h("label", null, l), e))),
       h("button", {class: "btn pri", style: "margin-top:10px", onclick: () => guard(async () => { const b = {}; Object.entries(f).forEach(([k, e]) => b[k] = e.value); await PUT("/api/settings", b); toast("Saved"); })}, "Save settings"),
       h("p", {class: "muted"}, "draw.io editor: " + (S.cfg.drawio_local ? "self-hosted copy at /drawio/ (offline)" : "online host " + S.cfg.drawio_url + " – run fetch_drawio.py for a local copy.")));
   } else if (tab === "backup") {
