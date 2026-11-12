@@ -445,6 +445,30 @@ def r_restore(c, pid):
     return dict(version=v["version"], status=v["status"])
 
 
+@route("GET", "/api/reviews")
+def r_reviews(c):
+    svc.need(c.user, "view_all")
+    return dict(rows=queries.reviews(c.user))
+
+
+@route("POST", "/api/process/([^/]+)/confirm-review")
+def r_confirm_review(c, pid):
+    return svc.confirm_review(pid, c.user, c.json().get("note", ""))
+
+
+@route("GET", "/api/diagram-versions/(\\d+)/bpmn")
+def r_dv_bpmn(c, dvid):
+    """The flow in BPMN 2.0, the exchange format of process platforms and modelling tools."""
+    svc.need(c.user, "view_all")
+    dv = db.one("SELECT dv.*,d.code,p.process_id AS pid,p.name AS pname FROM diagram_versions dv JOIN diagrams d ON d.id=dv.diagram_id LEFT JOIN processes p ON p.id=d.process_id WHERE dv.id=?", (int(dvid),))
+    if not dv:
+        raise svc.NotFound("Not found")
+    from . import bpmn
+    if dv["validation"] == "requires_validation" or not any(bpmn.summary(dv["xml"])["nodes"].get(k) for k in ("activity", "decision", "ref")):
+        raise svc.Invalid("This flowchart is a picture or has no steps, so there is nothing to export as BPMN.")
+    return file_resp(bpmn.export(dv["xml"], dv["pid"] or dv["code"], dv["pname"] or ""), "application/xml", f"{dv['code']}_rev{dv['ver_no']}.bpmn")
+
+
 @route("GET", "/api/process/([^/]+)/compare")
 def r_compare(c, pid):
     p = svc.get_process(pid)

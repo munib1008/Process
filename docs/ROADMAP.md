@@ -75,9 +75,9 @@ handful of people must *edit* in one shared installation. Do the SharePoint publ
 ### Phase 3 – Depth that users notice (weeks 8–20, order by demand)
 | # | Item | Benefit | Effort (estimate) |
 |---|---|---|---|
-| 1 | **BPMN 2.0 export (and import)** of flows | Keeps the content portable to any process platform; exit route | 8–10 days |
-| 2 | Version comparison: text and flow differences between two revisions | Reviewers see what changed; faster approvals | 6–8 days |
-| 3 | Periodic review cycle: due dates, "reviewed without change", overdue dashboard | Content stays current after the first wave | 4–5 days |
+| 1 | **BPMN 2.0 export (and import)** of flows – *export built in version 1.3.0, all 90 supplied flows parse cleanly in the bpmn.io parser; import not built* | Keeps the content portable to any process platform; exit route | 8–10 days |
+| 2 | Version comparison: text and flow differences between two revisions – *built in version 1.3.0* | Reviewers see what changed; faster approvals | 6–8 days |
+| 3 | Periodic review cycle: due dates, "reviewed without change", overdue dashboard – *built in version 1.3.0* | Content stays current after the first wave | 4–5 days |
 | 4 | Change requests from readers ("this step is wrong") routed to the owner | Readers become a source of corrections | 4–5 days |
 | 5 | Swimlane layout and parallel paths in the flow builder | New flows match how departments draw cross-functional processes | 8–10 days |
 | 6 | Process landscape navigation (level 0 → 1 → 2 drill-down from the value stream) | People find processes by where they sit in the business | 5–6 days |

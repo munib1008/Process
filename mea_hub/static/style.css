@@ -113,3 +113,5 @@ table.syntax td{padding:3px 8px;font-size:12px;vertical-align:top}label.check{di
 .docpicitem{margin-bottom:18px}.docpicitem b{display:block;margin-bottom:6px}
 
 .legendgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 14px}.legendgrid .row{gap:6px;flex-wrap:nowrap}
+
+.difftext{white-space:pre-wrap;line-height:1.6}.difftext ins{background:#dff3e4;color:#14532d;text-decoration:none}.difftext del{background:#fde2e0;color:#8f1d15}.diff ul.add li{color:#14532d}.diff ul.del li{color:#8f1d15;text-decoration:line-through}

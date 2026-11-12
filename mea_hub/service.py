@@ -702,8 +702,130 @@ def compare_versions(a_id, b_id):
     diagram = None
     if dva != dvb:
         diagram = dict(before=dva, after=dvb)
+    fields, tables = [], []
+    labels = dict(objective="Objective", scope="Scope", trigger="Trigger", inputs="Inputs", outputs="Outputs", risks="Risks and controls", evidence="Required evidence",
+                  forms="Forms and templates", notes="Notes", responsible="Responsible", activities="Detailed activities", raci="RACI", sap="SAP references", kpis="KPIs",
+                  escalation="Escalation and SLA")
+    ca, cb = a["content"], b["content"]
+    text = lambda c, k: ", ".join(c.get("responsible", [])) if k == "responsible" else (c.get(k) or "")
+    for k in STR_FIELDS + ["responsible"]:
+        if text(ca, k) != text(cb, k):
+            fields.append(dict(key=k, label=labels[k], parts=_word_diff(text(ca, k), text(cb, k))))
+    sa, sb = {s["title"]: strip_tags(s["html"]) for s in ca.get("sections", [])}, {s["title"]: strip_tags(s["html"]) for s in cb.get("sections", [])}
+    for t in list(dict.fromkeys(list(sa) + list(sb))):
+        if sa.get(t, "") != sb.get(t, ""):
+            fields.append(dict(key="section", label="Section: " + (t or "(untitled)"), parts=_word_diff(sa.get(t, ""), sb.get(t, ""))))
+    for k, cols in TABLE_FIELDS.items():
+        keycol = "activity" if k in ("activities", "raci") else cols[0]
+        watch = [c for c in cols if c not in (keycol, "no")]          # renumbering alone is not a change
+
+        def index(rows):
+            out, seen = {}, {}
+            for r in rows:
+                key = (r.get(keycol) or "").strip()
+                seen[key] = seen.get(key, 0) + 1
+                out[(key, seen[key])] = r
+            return out
+        ia, ib = index(ca.get(k, [])), index(cb.get(k, []))
+        added = [ib[x] for x in ib if x not in ia]
+        removed = [ia[x] for x in ia if x not in ib]
+        changed = [dict(key=x[0], cols=[dict(col=c, before=ia[x].get(c, ""), after=ib[x].get(c, "")) for c in watch if ia[x].get(c, "") != ib[x].get(c, "")])
+                   for x in ia if x in ib and any(ia[x].get(c, "") != ib[x].get(c, "") for c in watch)]
+        if added or removed or changed:
+            tables.append(dict(key=k, label=labels[k], keycol=keycol, cols=cols, added=added, removed=removed, changed=changed))
+    flow = _flow_diff(dva, dvb) if diagram else None
     return dict(a=dict(id=a["id"], version=a["version"], status=a["status"]), b=dict(id=b["id"], version=b["version"], status=b["status"]),
-                changes=rows, diagram=diagram, identical=not rows and not diagram)
+                changes=rows, diagram=diagram, identical=not rows and not diagram, fields=fields, tables=tables, flow=flow)
+
+
+def _word_diff(a, b):
+    """[[op, text]] with op '=' kept, '-' removed, '+' added - word by word."""
+    ta, tb = re.findall(r"\s+|[^\s]+", a), re.findall(r"\s+|[^\s]+", b)
+    out = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ta, tb, autojunk=False).get_opcodes():
+        if op == "equal":
+            out.append(["=", "".join(ta[i1:i2])])
+        else:
+            if i2 > i1:
+                out.append(["-", "".join(ta[i1:i2])])
+            if j2 > j1:
+                out.append(["+", "".join(tb[j1:j2])])
+    return out
+
+
+def _flow_diff(dva, dvb):
+    """What changed between two flowchart revisions: steps added, removed, reworded or given another role; connectors added or removed."""
+    from . import flowread
+    out = dict(before=None, after=None, added=[], removed=[], reworded=[], role_changed=[], connectors_added=[], connectors_removed=[], note="")
+    graphs = []
+    for dvid, slot in ((dva, "before"), (dvb, "after")):
+        row = one("SELECT dv.xml,dv.ver_no,dv.validation FROM diagram_versions dv WHERE dv.id=?", (dvid,)) if dvid else None
+        out[slot] = row["ver_no"] if row else None
+        g = dict(nodes=[], edges=[])
+        if row and row["validation"] != "requires_validation":
+            try:
+                g = flowread.read(row["xml"])["graph"]
+            except Exception:
+                out["note"] = "One of the flowcharts could not be read."
+        elif row:
+            out["note"] = "One of the two revisions is a picture, so its steps cannot be compared."
+        graphs.append(g)
+    kinds = ("start", "end", "activity", "decision", "ref")
+    na, nb = ([n for n in g["nodes"] if n["kind"] in kinds] for g in graphs)
+    show = lambda n: ("Decision: " if n["kind"] == "decision" else "Linked process: " if n["kind"] == "ref" else "") + n["label"]
+    # same wording = same step (also after the flow was drawn anew); what is left over is matched by shape: a reworded step
+    la, lb = {}, {}
+    for n in na:
+        la.setdefault((n["kind"], n["label"]), n)
+    for n in nb:
+        lb.setdefault((n["kind"], n["label"]), n)
+    pairs = [(la[k], lb[k]) for k in la if k in lb]
+    rest_a, rest_b = [n for k, n in la.items() if k not in lb], {n["id"]: n for k, n in lb.items() if k not in la}
+    for n in rest_a:
+        m = rest_b.pop(n["id"], None)
+        if m and m["kind"] == n["kind"]:
+            out["reworded"].append(dict(before=n["label"], after=m["label"]))
+            pairs.append((n, m))
+        else:
+            if m:
+                rest_b[m["id"]] = m
+            out["removed"].append(show(n))
+    out["added"] = [show(n) for n in rest_b.values()]
+    for x, y in pairs:
+        if x["role"] != y["role"]:
+            out["role_changed"].append(dict(step=y["label"], before=x["role"], after=y["role"]))
+
+    def links(g):
+        lab = {n["id"]: n["label"] for n in g["nodes"]}
+        return {(lab.get(e["source"], "?"), lab.get(e["target"], "?"), e["label"]) for e in g["edges"]}
+    la, lb = links(graphs[0]), links(graphs[1])
+    arrow = lambda t: f"{t[0]} → {t[1]}" + (f" ({t[2]})" if t[2] else "")
+    out["connectors_added"], out["connectors_removed"] = sorted(arrow(t) for t in lb - la), sorted(arrow(t) for t in la - lb)
+    out["changed"] = any(out[k] for k in ("added", "removed", "reworded", "role_changed", "connectors_added", "connectors_removed"))
+    return out
+
+
+# ------------------------------------------------------------------ periodic review
+def confirm_review(pid_text, user, note=""):
+    """Periodic review with the result "no change needed": the published version stays, the next review date moves on."""
+    proc = get_process(pid_text)
+    me = {user["username"].lower(), user["display_name"].lower()}
+    if not (can(user, "assign_owner", proc) or (proc.get("owner") or "").lower() in me):
+        raise Forbidden("Only the process owner, the department owner or the Document Controller can confirm a review.")
+    pv = published_version(proc["id"])
+    if not pv:
+        raise Conflict("Only a published process has a periodic review. Publish it first.")
+    ov = open_version(proc["id"])
+    if ov and ov["id"] != pv["id"]:
+        raise Conflict("A revision of this process is in work. Finish it instead of confirming the published version.")
+    months = proc.get("review_months") or int(cfg("default_review_months", "12"))
+    today = dt.date.today()
+    y, m = divmod(today.month - 1 + months, 12)
+    nxt = dt.date(today.year + y, m + 1, min(today.day, 28)).isoformat()
+    with tx():
+        db.db().execute("UPDATE processes SET last_review=?, next_review=? WHERE id=?", (today.isoformat(), nxt, proc["id"]))
+        _log(user, proc["process_id"], "review_confirmed", f"v{pv['version']} reviewed without change; next review {nxt}. {(note or '').strip()[:300]}")
+    return dict(last_review=today.isoformat(), next_review=nxt)
 
 
 # ------------------------------------------------------------------ diagrams

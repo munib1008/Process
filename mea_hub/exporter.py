@@ -884,6 +884,12 @@ def build_zip(snap) -> bytes:
                     continue
                 base = f"diagrams/{d['code']}_rev{d['ver_no']}"
                 z.writestr(base + ".drawio", d["xml"])
+                try:                                         # the same flow in the open exchange format
+                    from . import bpmn
+                    if d["validation"] != "requires_validation" and any(bpmn.summary(d["xml"])["nodes"].get(k) for k in ("activity", "decision", "ref")):
+                        z.writestr(base + ".bpmn", bpmn.export(d["xml"], p["process_id"], p["name"]))
+                except Exception:
+                    pass
                 png = diagram_image(d)
                 if png:
                     z.writestr(base + ".png", png)

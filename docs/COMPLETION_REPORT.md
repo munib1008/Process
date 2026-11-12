@@ -22,6 +22,13 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Phase 3, first three items (2026-11-12, version 1.3.0).** *Done, tested:* (1) **BPMN 2.0 export** (`mea_hub/bpmn.py`): events, tasks with the role as performer,
+gateways with named flows, call activities, annotations, swimlanes as groups, diagram interchange with the layout; button on the process page and `.bpmn` files in the
+Diagrams ZIP. All 90 supplied flows parse without warnings in the bpmn.io parser; two opened in the bpmn.io viewer. (2) **Version comparison**: word-level text changes,
+table rows added / removed / changed, flow steps added / removed / reworded, role changes and connectors – steps are matched by wording first, so a redrawn flow compares
+correctly. (3) **Periodic review**: *Governance ▸ Periodic review* with overdue / due-soon / later, and "Confirm – no change" for the owner, department owner or Document
+Controller, logged, published version untouched. *Not built:* BPMN import. *Not tested:* import of the BPMN files into a commercial process platform.
+
 **Notifications, security review pack, optional code signing (2026-11-12, version 1.2.0).** *Done, tested:* `mea_hub/notify.py` tells people by e-mail when work is
 waiting for them (review, approval, publication, changes requested, review due or overdue, published), once per task, with a weekly or daily summary; optional post to one
 Teams channel; per-person switch on the Dashboard; failures are recorded and retried; state and last messages under *Administration ▸ Notifications*. Automated test against

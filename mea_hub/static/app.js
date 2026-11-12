@@ -270,6 +270,7 @@ function flowCard(d, editing, reload) {
     d.perms.edit ? h("button", {class: "btn sm pri", onclick: () => { location.hash = "#/flow/" + dg.diagram_id; }}, "Edit diagram") : null,
     h("button", {class: "btn sm", onclick: () => diagramHistory(dg)}, "Revision history"),
     h("button", {class: "btn sm", onclick: () => download("/api/diagram-versions/" + dg.id + "/xml")}, "Download .drawio"),
+    dg.validation === "requires_validation" ? null : h("button", {class: "btn sm", title: "BPMN 2.0 – the exchange format read by process platforms and modelling tools", onclick: () => guard(async () => { const u = "/api/diagram-versions/" + dg.id + "/bpmn"; await api("GET", u, undefined, {raw: true}); download(u); })}, "BPMN"),
     h("button", {class: "btn sm", onclick: () => download("/api/diagram-versions/" + dg.id + "/svg")}, "Export SVG"),
     d.perms.edit ? h("button", {class: "btn sm", title: "Write one line per step and get a standard flow with roles and the master legend", onclick: () => flowWizard(p, d.version.content, true)}, dg.validation === "requires_validation" ? "Redraw from steps…" : "New flow from steps…") : null,
     d.perms.edit ? importDrawioBtn(p.process_id, reload, "Replace diagram") : null,
@@ -434,8 +435,20 @@ function tabsView(d, pid, reload) {
 function tblOrGap(spec, rows, gap) { return rows && rows.length ? table(spec.cols.map((c) => c[1]), rows.map((r) => spec.cols.map((c) => r[c[0]]))) : h("p", {class: "muted"}, gap); }
 async function compareModal(pid, a, b) {
   const r = await GET("/api/process/" + encodeURIComponent(pid) + "/compare?a=" + a + "&b=" + b);
-  modal("Compare v" + r.a.version + " → v" + r.b.version, h("div", {class: "diff"}, r.identical ? h("p", null, "No differences.") : null, r.diagram ? h("div", {class: "banner info"}, "Diagram revision changed (version " + r.diagram.before + " → " + r.diagram.after + "). Compare the flow images in the History / Revision dialog.") : null,
-    r.changes.map((x) => h("div", {class: x.op}, (x.op === "add" ? "+ " : "− ") + x.text))), {wide: true});
+  const words = (parts) => h("div", {class: "difftext"}, parts.map(([op, t]) => op === "=" ? t : h(op === "+" ? "ins" : "del", null, t)));
+  const list = (title, items, cls) => items.length ? h("div", null, h("b", null, title + " (" + items.length + ")"), h("ul", {class: cls || ""}, items.map((x) => h("li", null, x)))) : null;
+  const f = r.flow;
+  modal("What changed: v" + r.a.version + " → v" + r.b.version, h("div", {class: "diff"},
+    r.identical ? h("p", null, "No differences.") : h("p", {class: "muted"}, "Removed text is struck through in red, added text is green."),
+    (r.fields || []).map((x) => h("div", null, h("h3", null, x.label), words(x.parts))),
+    (r.tables || []).map((t) => h("div", null, h("h3", null, t.label),
+      list("Added", t.added.map((row) => t.cols.map((c) => row[c]).filter(Boolean).join(" · ")), "add"), list("Removed", t.removed.map((row) => t.cols.map((c) => row[c]).filter(Boolean).join(" · ")), "del"),
+      t.changed.length ? h("div", null, h("b", null, "Changed (" + t.changed.length + ")"), table(["Row", "Column", "Before", "After"], t.changed.flatMap((x) => x.cols.map((c) => [x.key, c.col, c.before || "—", c.after || "—"])))) : null)),
+    f ? h("div", null, h("h3", null, "Flowchart: revision " + (f.before || "—") + " → " + (f.after || "—")), f.note ? h("p", {class: "muted"}, f.note) : null,
+      f.changed ? null : h("p", null, "Steps, roles and connectors are the same; only the drawing (positions, styling) differs."),
+      list("Steps added", f.added, "add"), list("Steps removed", f.removed, "del"), list("Reworded", f.reworded.map((x) => x.before + "  →  " + x.after)),
+      list("Role changed", f.role_changed.map((x) => x.step + ": " + (x.before || "no role") + " → " + (x.after || "no role"))),
+      list("Connectors added", f.connectors_added, "add"), list("Connectors removed", f.connectors_removed, "del")) : null), {wide: true});
 }
 
 // ---------------------------------------------------------------- new process
@@ -502,7 +515,7 @@ async function viewDepartments(code) {
 // ---------------------------------------------------------------- governance
 async function viewGovernance(tab) {
   tab = tab || "approvals";
-  const tabs = [["approvals", "Approvals"], ["raci", "RACI"], ["escalation", "Escalation matrix"], ["kpis", "KPIs"], ["changelog", "Revision history"], ["map", "Process map"], ["ownership", "Ownership & register"]];
+  const tabs = [["approvals", "Approvals"], ["raci", "RACI"], ["escalation", "Escalation matrix"], ["kpis", "KPIs"], ["reviews", "Periodic review"], ["changelog", "Revision history"], ["map", "Process map"], ["ownership", "Ownership & register"]];
   const bar = h("div", {class: "tabs"}, tabs.map(([k, l]) => h("a", {class: "tab" + (k === tab ? " on" : ""), href: "#/governance/" + k}, l)));
   let body;
   if (tab === "approvals") { const r = await GET("/api/approvals"); body = h("div", null, h("div", {class: "banner info"}, "Document approval (publishing a procedure) is separate from business-transaction approval (an actual sales order, PR, master-data change). This module controls the former."),
@@ -523,6 +536,17 @@ async function viewGovernance(tab) {
   else if (tab === "kpis") { const r = await GET("/api/kpis"); body = h("div", null, can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", style: "margin-bottom:10px", onclick: () => quickAdd("kpis")}, "+ Add / edit KPIs for a process") : null,
     r.rows.length ? table(["Process", "Department", "KPI", "Definition", "Target"], r.rows.map((x) => [pLink(x.process_id), x.department, x.name, x.definition, x.target])) : h("p", null, "No KPIs defined yet.")); }
   else if (tab === "changelog") { const r = await GET("/api/changelog"); body = table(["When", "Who", "Action", "Entity", "Detail"], r.rows.map((x) => [fmtDate(x.ts), x.username, x.action, x.entity_id, x.detail])); }
+  else if (tab === "reviews") {
+    const r = (await GET("/api/reviews")).rows, n = (st) => r.filter((x) => x.state === st).length;
+    const tile = (v, l, cls) => h("div", {class: "card kpi " + (cls || "")}, h("div", {class: "n"}, v), h("div", {class: "l"}, l));
+    const chip = (x) => x.state === "overdue" ? h("span", {class: "chip bad"}, "overdue " + (-x.days) + " d") : x.state === "soon" ? h("span", {class: "chip warn"}, "due in " + x.days + " d") : x.state === "ok" ? h("span", {class: "chip ok"}, "in " + x.days + " d") : h("span", {class: "chip"}, "no date");
+    body = h("div", null, h("div", {class: "banner info"}, "A published process is reviewed at its review date. Either confirm that nothing changed – the next date moves on and the confirmation is logged – or open the process and revise it through the normal workflow."),
+      h("div", {class: "grid g4"}, tile(n("overdue"), "Overdue", n("overdue") ? "bad" : ""), tile(n("soon"), "Due within 30 days", n("soon") ? "warn" : ""), tile(n("ok"), "Later"), tile(r.length, "Published processes")),
+      r.length ? table(["Process", "Department", "Owner", "Version", "Last review", "Next review", "State", ""], r.map((x) => [pLink(x.process_id, x.process_id + " – " + x.name), x.department, x.owner || "—", "v" + x.version, x.last_review || "—", x.next_review || "—", chip(x),
+        x.in_revision ? h("span", {class: "muted"}, "revision in work") : x.can_confirm ? h("button", {class: "btn sm", onclick: async () => { const note = await promptBox("Confirm review of " + x.process_id, "Reviewed, no change needed. Optional remark (logged with your name):", {multiline: true}); if (note === null) return;
+          await guard(async () => { const d = await POST("/api/process/" + encodeURIComponent(x.process_id) + "/confirm-review", {note}); toast("Review confirmed. Next review " + d.next_review); route(); }); }}, "Confirm – no change") : ""]))
+        : h("p", {class: "muted"}, "No process is published yet. Review dates start when a process is published."));
+  }
   else if (tab === "ownership") body = await ownershipView();
   else body = await mapView();
   return h("div", {class: "page"}, h("h1", null, "Governance"), bar, body);

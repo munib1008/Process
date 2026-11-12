@@ -316,6 +316,25 @@ def sources_register():
     return out
 
 
+def reviews(user):
+    """Periodic review of published processes: when it is due and who may confirm it."""
+    import datetime as dt
+    today = dt.date.today()
+    me = {user["username"].lower(), user["display_name"].lower()}
+    out = []
+    for p in q("SELECT p.*,d.name AS department FROM processes p LEFT JOIN departments d ON d.id=p.department_id ORDER BY p.next_review IS NULL, p.next_review, p.process_id"):
+        pv = svc.published_version(p["id"])
+        if not pv:
+            continue
+        days = (dt.date.fromisoformat(p["next_review"]) - today).days if p["next_review"] else None
+        state = "none" if days is None else "overdue" if days < 0 else "soon" if days <= 30 else "ok"
+        ov = svc.open_version(p["id"])
+        out.append(dict(process_id=p["process_id"], name=p["name"], department=p["department"], owner=p["owner"], version=pv["version"], last_review=p["last_review"],
+                        next_review=p["next_review"], days=days, state=state, in_revision=bool(ov and ov["id"] != pv["id"]),
+                        can_confirm=svc.can(user, "assign_owner", p) or (p["owner"] or "").lower() in me))
+    return out
+
+
 def users_list():
     return q("SELECT u.id,u.username,u.display_name,u.role,u.department_id,u.active,u.created_at,u.auth,u.last_login,u.email,u.notify,d.name AS department FROM users u LEFT JOIN departments d ON d.id=u.department_id ORDER BY u.id")
 

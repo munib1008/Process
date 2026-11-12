@@ -1279,6 +1279,97 @@ def test_notifications_by_mail_and_teams(server, admin, users, monkeypatch, tmp_
     assert json.loads(__import__("urllib.request").request.urlopen(server + "/api/config").read())["notifications"] is True
 
 
+def test_bpmn_export_comparison_and_periodic_review(admin, users):
+    """Phase 3: flows leave the tool in BPMN 2.0, two versions can be compared step by step, published processes are reviewed on schedule."""
+    from lxml import etree
+    from mea_hub import bpmn, flowbuild
+    ed, rev, apr, ctl, viewer = (users[k] for k in ("editor", "reviewer", "approver", "controller", "viewer"))
+    svc.set_cfg("master_legend", json.dumps(FLOW_LEGEND))
+    assert ed.call("POST", "/api/process", {"name": "Order to shipment", "department": "LOG", "process_id": "ZZ-M-P3-01"})[0] == 200
+    steps = "Sales: Take order\nLogistics: Stock available?\nNo: Sales: Inform customer\nNo: End\nWarehouse: Pick goods (LT03)\nNote: Check the pick list\nRef: WL-M-OB-01 Dispatch"
+    assert ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-P3-01", "steps": steps})[0] == 200
+    d = ed.call("GET", "/api/process/ZZ-M-P3-01")[1]
+    # ---- BPMN 2.0
+    s, raw = ed.call("GET", f"/api/diagram-versions/{d['diagram']['id']}/bpmn", raw=True)
+    assert s == 200
+    ns = {"b": "http://www.omg.org/spec/BPMN/20100524/MODEL", "di": "http://www.omg.org/spec/BPMN/20100524/DI", "dc": "http://www.omg.org/spec/DD/20100524/DC"}
+    root = etree.fromstring(raw)
+    proc = root.find("b:process", ns)
+    count = lambda tag: len(proc.findall("b:" + tag, ns))
+    assert (count("startEvent"), count("endEvent"), count("task"), count("exclusiveGateway"), count("callActivity"), count("textAnnotation")) == (1, 1, 3, 1, 1, 1)
+    ids = {e.get("id") for e in proc}
+    flows = proc.findall("b:sequenceFlow", ns)
+    assert flows and all(f.get("sourceRef") in ids and f.get("targetRef") in ids for f in flows)             # every connector joins two exported shapes
+    assert {"Yes", "No"} <= {f.get("name") for f in flows}
+    task = [t for t in proc.findall("b:task", ns) if t.get("name") == "Pick goods (LT03)"][0]
+    assert task.find("b:performer/b:resourceRef", ns).text == "Role_Warehouse" and root.find("b:resource[@id='Role_Warehouse']", ns).get("name") == "Warehouse"
+    shapes = root.findall(".//di:BPMNShape", ns)
+    assert len(shapes) == 8 and all(sh.find("dc:Bounds", ns) is not None for sh in shapes) and {sh.get("bpmnElement") for sh in shapes} <= ids
+    assert len(root.findall(".//di:BPMNEdge", ns)) == len(flows) + len(proc.findall("b:association", ns))
+    assert "mea_legend" not in raw.decode() and "Master legend" not in raw.decode()                         # legend and frame are not process content
+    assert viewer.call("GET", f"/api/diagram-versions/{d['diagram']['id']}/bpmn")[0] == 403
+    s, z = ed.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-P3-01"], "fmt": "zip"})
+    names = zipfile.ZipFile(io.BytesIO(ed.call("GET", f"/api/exports/{z['export']['id']}/download", raw=True)[1])).namelist()
+    assert any(n.endswith(".bpmn") for n in names) and any(n.endswith(".drawio") for n in names)
+    # a swimlane diagram: the lane becomes the role and a named group
+    lane = ('<mxfile><diagram name="L"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>'
+            '<mxCell id="l1" value="Finance" style="swimlane;horizontal=0;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="600" height="120" as="geometry"/></mxCell>'
+            '<mxCell id="a" value="Check invoice" style="rounded=0;" vertex="1" parent="l1"><mxGeometry x="60" y="40" width="140" height="40" as="geometry"/></mxCell>'
+            '<mxCell id="b" value="Post invoice (MIRO)" style="rounded=0;" vertex="1" parent="l1"><mxGeometry x="300" y="40" width="140" height="40" as="geometry"/></mxCell>'
+            '<mxCell id="e" edge="1" source="a" target="b" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell></root></mxGraphModel></diagram></mxfile>')
+    lr = etree.fromstring(bpmn.export(lane, "X", "Lane"))
+    assert [t.get("name") for t in lr.findall(".//b:task", ns)] == ["Check invoice", "Post invoice (MIRO)"] and lr.find(".//b:categoryValue", ns).get("value") == "Finance"
+    assert all(t.find("b:performer/b:resourceRef", ns).text == "Role_Finance" for t in lr.findall(".//b:task", ns))
+    # ---- comparison of two versions
+    c = d["version"]["content"]
+    assert ed.call("PUT", "/api/process/ZZ-M-P3-01/draft", {"content": dict(c, objective="Ship customer orders on time"), "base_updated_at": None})[0] == 200
+    assert ed.call("POST", "/api/process/ZZ-M-P3-01/submit", {"change_summary": "first"})[0] == 200
+    assert rev.call("POST", "/api/process/ZZ-M-P3-01/review", {"decision": "approve_review"})[0] == 200
+    assert apr.call("POST", "/api/process/ZZ-M-P3-01/approve", {"decision": "approve"})[0] == 200
+    assert ctl.call("POST", "/api/process/ZZ-M-P3-01/publish")[0] == 200
+    v1 = ed.call("GET", "/api/process/ZZ-M-P3-01")[1]["version"]["id"]
+    steps2 = steps.replace("Sales: Take order", "Logistics: Take order").replace("Pick goods (LT03)", "Pick and pack goods (LT03)") + "\nLogistics: Ship order (VL01N)"
+    assert ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-P3-01", "steps": steps2})[0] == 200
+    d2 = ed.call("GET", "/api/process/ZZ-M-P3-01")[1]
+    assert ed.call("PUT", "/api/process/ZZ-M-P3-01/draft", {"content": dict(d2["version"]["content"], objective="Ship customer orders on time and in full"), "base_updated_at": None})[0] == 200
+    v2 = ed.call("GET", "/api/process/ZZ-M-P3-01")[1]["version"]["id"]
+    s, cmp_ = ed.call("GET", f"/api/process/ZZ-M-P3-01/compare?a={v1}&b={v2}")
+    assert s == 200 and not cmp_["identical"]
+    obj = [f for f in cmp_["fields"] if f["key"] == "objective"][0]
+    assert obj["parts"] == [["=", "Ship customer orders on time"], ["+", " and in full"]]                 # only the added words are marked
+    acts = [t for t in cmp_["tables"] if t["key"] == "activities"][0]
+    assert any(r["activity"] == "Ship order (VL01N)" for r in acts["added"]) and any(r["activity"] == "Pick goods (LT03)" for r in acts["removed"])
+    assert [x["cols"] for x in acts["changed"] if x["key"] == "Take order"] == [[{"col": "role", "before": "Sales", "after": "Logistics"}]]
+    f = cmp_["flow"]
+    assert f["changed"] and f["added"] == ["Ship order (VL01N)"] and f["removed"] == []
+    assert f["reworded"] == [{"before": "Pick goods (LT03)", "after": "Pick and pack goods (LT03)"}]
+    assert any("Ship order (VL01N)" in x for x in f["connectors_added"])
+    assert {"step": "Take order", "before": "Sales", "after": "Logistics"} in f["role_changed"]
+    same = ed.call("GET", f"/api/process/ZZ-M-P3-01/compare?a={v1}&b={v1}")[1]
+    assert same["identical"] and same["fields"] == [] and same["tables"] == [] and same["flow"] is None
+    # ---- periodic review
+    rows = {r["process_id"]: r for r in ctl.call("GET", "/api/reviews")[1]["rows"]}
+    assert rows["ZZ-M-P3-01"]["in_revision"] and rows["ZZ-M-P3-01"]["state"] in ("ok", "soon")
+    assert ctl.call("POST", "/api/process/ZZ-M-P3-01/confirm-review", {"note": "x"})[0] == 409            # a revision is in work: finish that instead
+    assert ed.call("POST", "/api/process", {"name": "Reviewed process", "department": "LOG", "process_id": "ZZ-M-P3-02"})[0] == 200
+    assert ctl.call("POST", "/api/process/ZZ-M-P3-02/confirm-review", {})[0] == 409                         # not published: nothing to review
+    assert ed.call("PUT", "/api/process/ZZ-M-P3-02/draft", {"content": {"objective": "x"}, "base_updated_at": None})[0] == 200
+    assert ed.call("POST", "/api/process/ZZ-M-P3-02/submit", {"change_summary": "first"})[0] == 200
+    assert rev.call("POST", "/api/process/ZZ-M-P3-02/review", {"decision": "approve_review"})[0] == 200
+    assert apr.call("POST", "/api/process/ZZ-M-P3-02/approve", {"decision": "approve"})[0] == 200
+    assert ctl.call("POST", "/api/process/ZZ-M-P3-02/publish")[0] == 200
+    db.db().execute("UPDATE processes SET next_review='2020-01-01', review_months=6 WHERE process_id='ZZ-M-P3-02'")
+    row = {r["process_id"]: r for r in ctl.call("GET", "/api/reviews")[1]["rows"]}["ZZ-M-P3-02"]
+    assert row["state"] == "overdue" and row["can_confirm"] and row["days"] < 0
+    assert rev.call("POST", "/api/process/ZZ-M-P3-02/confirm-review", {})[0] == 403                         # not the owner, not a controller
+    s, r = ctl.call("POST", "/api/process/ZZ-M-P3-02/confirm-review", {"note": "Checked with the warehouse team"})
+    import datetime as dt
+    assert s == 200 and r["last_review"] == dt.date.today().isoformat() and r["next_review"] > (dt.date.today() + dt.timedelta(days=150)).isoformat()
+    row = {r_["process_id"]: r_ for r_ in ctl.call("GET", "/api/reviews")[1]["rows"]}["ZZ-M-P3-02"]
+    assert row["state"] == "ok" and ed.call("GET", "/api/process/ZZ-M-P3-02")[1]["version"]["status"] == "published"      # the published version is untouched
+    assert db.one("SELECT 1 FROM audit WHERE action='review_confirmed' AND entity_id='ZZ-M-P3-02' AND detail LIKE '%warehouse team%'")
+
+
 def test_teams_tab_package_and_pages(server, admin, users, monkeypatch, tmp_path):
     """The Teams app package points Teams at the hosted tool; the server lets the Teams hosts frame it only when asked to."""
     import importlib.util

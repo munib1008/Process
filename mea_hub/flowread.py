@@ -188,10 +188,60 @@ def read(xml: str) -> dict:
     if no_role:
         checks.append(dict(code="no_role", text=f"{len(no_role)} activity step(s) have no responsible role (outline colour from the master legend): " + names(no_role) + "."))
     return dict(activities=activities, sap=[dict(transaction=k, purpose=v) for k, v in sap.items()], responsible=roles, notes_html=notes_html,
-                node_meta=node_meta, summary=summary, shapes=len(steps), has_start=bool(starts), unreached=unreached, checks=checks)
-
-
+                node_meta=node_meta, summary=summary, shapes=len(steps), has_start=bool(starts), unreached=unreached, checks=checks,
+                graph=_graph(B, K, skip, containers, child_of, top, role, sc["edges"]))
 FLOW_NOTES_TITLE = "Checklists and notes from the flowchart"
+
+
+
+def _graph(B, K, skip, containers, child_of, top, role, edges):
+    """The flow as typed nodes and connectors with their positions (used for exchange formats such as BPMN).
+    A container whose inner shapes carry connectors (a swimlane) is a "group" and its shapes are steps with the lane as
+    role; a container with plain rows inside (e.g. "Parallel Tasks") stays one step."""
+    wired = {i for e in edges for i in (e["source"], e["target"]) if i in child_of}
+    lanes = {child_of[i] for i in wired}
+    changed = True
+    while changed:                                           # a pool that holds lanes is a group as well
+        changed = False
+        for i in list(lanes):
+            if i in child_of and child_of[i] not in lanes:
+                lanes.add(child_of[i])
+                changed = True
+
+    def own(i):                                              # the node a shape belongs to: itself inside a lane, else its closed container
+        return i if child_of.get(i) in lanes or i not in child_of else child_of[i]
+    nodes, has_in, has_out = {}, set(), set()
+    for i, b in B.items():
+        if i in skip or K[i] == "other" or own(i) != i:
+            continue
+        label = b["label"]
+        if i in lanes:
+            if label:
+                nodes[i] = dict(id=i, kind="group", label=label, role="", x=b["x"], y=b["y"], w=b["w"], h=b["h"])
+            continue
+        if i in containers:
+            kids = sorted((B[c] for c, p in child_of.items() if p == i and B[c]["label"] and K[c] not in ("note", "text")), key=lambda x: (x["y"], x["x"]))
+            label = (label + ": " if label and kids else label) + "; ".join(x["label"] for x in kids)
+        if not label:
+            continue
+        r = role(b) if K[i] in ("activity", "decision", "container") else ""
+        if not r and child_of.get(i) in lanes and K[i] in ("activity", "decision"):
+            r = B[child_of[i]]["label"]                     # the swimlane names the role
+        nodes[i] = dict(id=i, kind=K[i], label=label, role=r, x=b["x"], y=b["y"], w=b["w"], h=b["h"])
+    links = []
+    for e in edges:
+        a, c = own(e["source"]) if e["source"] else None, own(e["target"]) if e["target"] else None
+        if a in nodes and c in nodes and a != c:
+            links.append(dict(id=e["id"], source=a, target=c, label=_clean(e["label"]), points=list(e["points"])))
+            if nodes[a]["kind"] != "note" and nodes[c]["kind"] != "note":
+                has_out.add(a)
+                has_in.add(c)
+    for n in nodes.values():
+        if n["kind"] == "terminator":                        # an untagged terminator is a start or an end by its connectors
+            n["kind"] = "start" if n["id"] not in has_in else "end"
+        elif n["kind"] == "container":                       # connected: one step; unconnected: a frame drawn around other steps
+            n["kind"] = "activity" if n["id"] in has_in or n["id"] in has_out else "group"
+    return dict(nodes=list(nodes.values()), edges=links)
 
 
 def apply_to_content(content: dict, fr: dict) -> dict:

@@ -66,6 +66,25 @@ Native draw.io files outside `flows/` (`PMM-M-PR-01…`, `WL-M-VS-01…`, `SC-M-
 by draw.io (`<file>.png`, further pages `<file>.p2.png`). A file that is dedicated to one process and named after its ID takes precedence over a page with the same
 ID inside a collection file – `SC-M-VS-01_Level1_Value_Stream.drawio` (41 shapes) therefore replaces the older Level-1 page (37 shapes), which is kept as a duplicate mapping.
 
+## BPMN 2.0 export
+Every native flow can leave the tool in BPMN 2.0, the exchange format of process platforms and modelling tools (*BPMN* button on the
+process page; the *Diagrams ZIP* export contains a `.bpmn` next to each `.drawio`). `mea_hub/bpmn.py`:
+
+| In the flow | In BPMN |
+|---|---|
+| Start / end | `startEvent` / `endEvent` |
+| Activity | `task`; the role as `performer` (a `resource` per role) and in the documentation |
+| Decision | `exclusiveGateway`; *Yes* / *No* as names of the sequence flows |
+| Linked process | `callActivity` (the linked ID stays in the name) |
+| Note, loose text | `textAnnotation`, associated with its step |
+| Swimlane, frame around steps | `group` with the lane name; the lane also becomes the role of the steps inside |
+| Positions | BPMN diagram interchange; the layout is enlarged evenly (factor 1.5) because BPMN tools write larger text |
+
+Not carried over: styling, master legend, title frame, export areas. Roles are performers, **not lanes**, because the flows mark roles by
+colour, not by position – a receiving tool shows them in the task properties. BPMN **import** is not built yet.
+All 90 flows of the supplied set were exported and parsed without warnings by the bpmn.io parser (1,066 tasks, 214 gateways,
+1,485 sequence flows, every reference resolved); two were opened in the bpmn.io viewer. Not tested: import into SAP Signavio, ARIS or other platforms.
+
 ## Document pictures (flow only, export areas)
 `mea_hub/flowpic.py` cuts the document picture out of the sheet picture that draw.io rendered – nothing is redrawn, so the document cannot differ from the flow.
 * No export area: the region inside the frame, below the title bar and clear of the master legend, with white margins trimmed.

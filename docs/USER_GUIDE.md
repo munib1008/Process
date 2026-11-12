@@ -109,6 +109,23 @@ Open a draft, choose **Edit draft**, complete it and send it for review like any
 (PO, SO, PGI, GRN, invoice …) without naming SAP – whether those steps are done in SAP is for the owners to confirm.
 On the first start of a new installation both kinds of drafts are created automatically.
 
+## Compare two versions
+*History* tab of a process ▸ **Compare with shown**. The dialog lists what changed between the two versions:
+* text fields word by word (removed words struck through in red, added words green);
+* table rows added, removed and changed (activities, RACI, SAP references, KPIs, escalation);
+* the flowchart: steps added, removed or reworded, role changes, connectors added or removed. If only the drawing moved, it says so.
+
+## Periodic review
+A published process gets a review date (default every 12 months; set per process under *Governance ▸ Ownership*).
+**Governance ▸ Periodic review** lists all published processes with their date: overdue, due within 30 days, later.
+* Nothing changed: **Confirm – no change**. The published version stays, the next date moves on, and the confirmation is logged with your name and remark.
+  Allowed for the process owner, the department owner and the Document Controller.
+* Something changed: open the process and revise it through the normal workflow; publishing sets the next date.
+Owners are reminded 30 days before and when the date has passed (Dashboard, and by e-mail if notifications are switched on).
+
+## Exchange with other tools (BPMN)
+**BPMN** on the process page downloads the flow in BPMN 2.0 for process platforms and modelling tools. What is and is not carried over: `docs/FLOWS.md`.
+
 ## Change a process ID (Document Controller / Administrator)
 The former ID keeps working: links, bookmarks and the search by the old ID lead to the process under its new ID.
 
