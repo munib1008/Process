@@ -11,7 +11,7 @@ Your documents never leave the machine unless you choose the online draw.io fall
 
 ## Quick start (Windows)
 
-1. Get `MEA_Process_Hub_win64.zip` (see *Building the EXE*) and unzip it anywhere.
+1. Download `MEA_Process_Hub_win64_<version>.zip` from the repository's **Releases** page (or build it, see *Building the EXE*) and unzip it anywhere.
 2. The repository's `source_documents/` folder (supplied `.docx` / `.drawio` files and the 72 per-process flows) is shipped inside the package and **imported automatically on the first start**, so the tool opens already populated. To add more later, drop files into **Import & Sources** (or into `source_documents` before a first start).
 3. Double-click `MEA_Process_Hub.exe`. A console window opens and your browser goes to `http://127.0.0.1:8765/`.
 4. First start prints a **one-time admin password** (also saved to `data\FIRST_RUN_ADMIN_PASSWORD.txt`). Sign in as `admin`; you must change it immediately.
@@ -53,7 +53,7 @@ Read `docs/COMPLETION_REPORT.md` for the honest status of every requirement (inc
 
 A Windows `.exe` can only be produced on Windows. Two ways:
 
-* **GitHub Actions (no Windows PC needed):** *Actions → Build Windows EXE → Run workflow*. Download the `MEA_Process_Hub_win64` artifact.
+* **GitHub Actions (no Windows PC needed):** *Actions → Build Windows EXE → Run workflow*. Download the `MEA_Process_Hub_win64` artifact. To publish the package as a **GitHub Release** with a permanent download link, enter a release tag (for example `v1.0.1`) in the *Run workflow* dialog, or push a `v*` tag.
 * **Locally on Windows:** install Python 3.11+ (and git), then run `build_exe.bat`. Result: `dist\MEA_Process_Hub\MEA_Process_Hub.exe` and a ZIP.
 
 PyInstaller executables are sometimes flagged by antivirus; code-sign the EXE or ask IT to allow-list it. The same spec was built and
