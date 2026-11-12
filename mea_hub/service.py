@@ -417,6 +417,8 @@ def new_process(user, data: dict) -> dict:
     else:
         for k in ("objective", "scope", "trigger", "inputs", "outputs"):
             content[k] = str(data.get(k, ""))[:20000]
+        if data.get("template"):
+            content["flow_sync"] = True                      # a new process: the activity table follows its flow from the first save
     pr = create_process_record(pid_text, None, name, dept["code"], kind, content, "draft", "authored", user,
                                countries=data.get("countries", ""), category=data.get("category", ""), owner=data.get("owner", ""))
     if copy_from:
@@ -425,7 +427,9 @@ def new_process(user, data: dict) -> dict:
             dv = one("SELECT dv.*,d.title FROM diagram_versions dv JOIN diagrams d ON d.id=dv.diagram_id WHERE dv.id=?", (sv["diagram_version_id"],))
             create_diagram(pr["id"], pid_text, name, dv["xml"], "copied", dv["preview_asset_id"], f"Copied from {copy_from}", user)
     elif data.get("template"):
-        create_diagram(pr["id"], pid_text, name, drawio.template_xml(data["template"], name), "template", None, f"Template {data['template']}", user)
+        from . import flowbuild
+        xml, _ = flowbuild.build(name, pid_text, dept["code"], flowbuild.template_steps(data["template"]), master_legend())
+        create_diagram(pr["id"], pid_text, name, xml, "template", None, f"Template {data['template']}", user)
     reindex(pr["id"])
     return get_process(pid_text)
 
@@ -769,7 +773,7 @@ def save_diagram(did, user, xml, png_b64, base_ver, note=""):
         if proc:
             ensure_draft(proc, user)
         dv = _add_dv(did, xml, "editor", asset, note or "Edited in Flow Studio", user["username"])
-        synced = False
+        synced, checks = False, None
         if proc:
             v = open_version(proc["id"])
             content = v["content"]
@@ -777,6 +781,7 @@ def save_diagram(did, user, xml, png_b64, base_ver, note=""):
                 try:
                     from . import flowread, importer
                     fr = flowread.read(xml) if flowread.is_tagged(xml) else importer.flow_plan(xml)
+                    checks = (fr or {}).get("checks")
                     if fr and fr["activities"]:
                         content = flowread.apply_to_content(content, fr)
                         for node_id, meta in fr.get("node_meta", {}).items():
@@ -793,7 +798,9 @@ def save_diagram(did, user, xml, png_b64, base_ver, note=""):
         new_exp = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=config.LOCK_MINUTES)).strftime("%Y-%m-%dT%H:%M:%SZ")
         db.db().execute("UPDATE diagrams SET lock_user=?, lock_expires=? WHERE id=?", (user["username"], new_exp, did))
         audit(user, "diagram_saved", "diagram", d["code"], f"revision {latest['ver_no'] + 1 if latest else 1}")
-    return dict(ver_no=(latest["ver_no"] + 1 if latest else 1), changed=True, synced=synced)
+    if checks is None:
+        checks = flow_checks(dv)
+    return dict(ver_no=(latest["ver_no"] + 1 if latest else 1), changed=True, synced=synced, checks=checks)
 
 
 def diagram_versions(did):
@@ -1148,6 +1155,67 @@ def add_department(user, code, name):
 def master_legend():
     """Role/colour legend (from the imported master canvas) used for new flows."""
     return jloads(cfg("master_legend", ""), None) or dict(roles=[])
+
+
+# ------------------------------------------------------------------ new flows from text, flow check
+_CHECKS = {}
+
+
+def flow_checks(dvid):
+    """Structural review points of a native, tagged flow (None for pictures and untagged diagrams). Cached per revision."""
+    if dvid in _CHECKS:
+        return _CHECKS[dvid]
+    row = one("SELECT xml,validation FROM diagram_versions WHERE id=?", (dvid,))
+    res = None
+    if row and row["validation"] != "requires_validation":
+        from . import flowread
+        if flowread.is_tagged(row["xml"]):
+            try:
+                res = flowread.read(row["xml"])["checks"]
+            except Exception:
+                res = None
+    if len(_CHECKS) > 400:
+        _CHECKS.clear()
+    _CHECKS[dvid] = res
+    return res
+
+
+def build_flow(user, text, title="", pid_text=None, link=True):
+    """Create a standard flow from one line per step. For a process: becomes its flowchart (a new revision when one
+    exists) and, when linked, the activity table / roles / SAP references follow the flow from now on."""
+    from . import flowbuild, flowread
+    proc = get_process(pid_text) if pid_text else None
+    need(user, "edit", proc)
+    dept = one("SELECT code FROM departments WHERE id=?", (proc["department_id"],)) if proc and proc.get("department_id") else None
+    name = (proc["name"] if proc else (title or "Untitled flow")).strip()[:120]
+    try:
+        xml, warnings = flowbuild.build(name, proc["process_id"] if proc else "", dept["code"] if dept else "", text, master_legend())
+    except ValueError as e:
+        raise Invalid(str(e))
+    xml = drawio.normalize(xml)
+    fr = flowread.read(xml)
+    with tx():
+        if not proc:
+            did, dv = create_diagram(None, None, name, xml, "built", None, "Built from steps", user, kind="library")
+            return dict(diagram_id=did, warnings=warnings, checks=fr["checks"], steps=len(fr["activities"]))
+        ensure_draft(proc, user)
+        v = open_version(proc["id"])
+        if v.get("diagram_version_id"):
+            did = one("SELECT diagram_id FROM diagram_versions WHERE id=?", (v["diagram_version_id"],))["diagram_id"]
+            dv = _add_dv(did, xml, "built", None, "Rebuilt from steps", user["username"])
+        else:
+            did, dv = create_diagram(proc["id"], proc["process_id"], name, xml, "built", None, "Built from steps", user)
+        content = v["content"]
+        if link:
+            content = flowread.apply_to_content(content, fr)
+        db.db().execute("UPDATE process_versions SET diagram_version_id=?, content=?, updated_at=? WHERE id=?", (dv, json.dumps(content), now(), v["id"]))
+        db.db().execute("UPDATE diagram_nodes SET meta='{}' WHERE diagram_version_id=?", (dv,))      # shape IDs are new: nothing is carried over
+        for node_id, meta in fr["node_meta"].items():
+            db.db().execute("UPDATE diagram_nodes SET meta=? WHERE diagram_version_id=? AND node_id=?", (json.dumps(meta), dv, node_id))
+        link_ref_nodes(dv)
+        reindex(proc["id"])
+        audit(user, "flow_built", "process", proc["process_id"], f"{len(fr['activities'])} steps from text" + ("; linked to the document" if link else ""))
+    return dict(diagram_id=did, warnings=warnings, checks=fr["checks"], steps=len(fr["activities"]))
 
 
 # ------------------------------------------------------------------ controlled change of a process ID

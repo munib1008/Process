@@ -10,7 +10,7 @@ async function openFlowStudio(diagramId, root, exitTo) {
   const title = info.process ? info.process.process_id + " – " + info.process.name : info.diagram.title;
   const status = h("span", {class: "muted"}, "Opening editor…");
   const banner = h("div");
-  const nodesBox = h("div"), revBox = h("div");
+  const nodesBox = h("div"), revBox = h("div"), checkBox = h("div");
 
   let lock = null, readOnly = false;
   try { lock = await POST("/api/diagrams/" + diagramId + "/lock"); } catch (e) { readOnly = true; banner.append(h("div", {class: "banner bad"}, e.message + " The diagram is opened read-only.")); }
@@ -20,6 +20,9 @@ async function openFlowStudio(diagramId, root, exitTo) {
   const origin = base.origin;
   const params = new URLSearchParams({embed: "1", proto: "json", spin: "1", saveAndExit: "0", noSaveBtn: "0", noExitBtn: "1", ui: "kennedy", libraries: "1"});
   if (S.cfg.drawio_local) params.set("offline", "1");
+  let shapeLib = [];                                                                 // dormakaba shapes incl. one tagged activity per role of the master legend
+  try { shapeLib = (await GET("/api/flow-library")).entries; } catch (e) { /* the editor works without the library */ }
+  if (shapeLib.length) { params.set("configure", "1"); params.set("libs", "dormakaba"); }
   const iframe = h("iframe", {src: base.href.split("?")[0] + "?" + params, title: "draw.io editor", allow: "clipboard-write"});
   const post = (o) => iframe.contentWindow && iframe.contentWindow.postMessage(JSON.stringify(o), origin);
 
@@ -41,6 +44,8 @@ async function openFlowStudio(diagramId, root, exitTo) {
       baseVer = r.ver_no; dirty = false;
       status.textContent = (r.changed ? "Saved as revision " : "No change – revision ") + r.ver_no + " at " + new Date().toLocaleTimeString();
       post({action: "status", message: "Saved (revision " + r.ver_no + ")", modified: false});
+      if (r.checks) clear(checkBox).append(flowCheckBox(r.checks));
+      if (r.synced) status.textContent += " · document updated";
       await refreshSide();
     } catch (e) {
       status.textContent = "Save failed";
@@ -52,7 +57,11 @@ async function openFlowStudio(diagramId, root, exitTo) {
     if (ev.origin !== origin || ev.source !== iframe.contentWindow) return;           // never trust arbitrary postMessage
     let msg; try { msg = typeof ev.data === "string" ? JSON.parse(ev.data) : null; } catch (e) { return; }
     if (!msg || typeof msg.event !== "string") return;
-    if (msg.event === "init") { post({action: "load", xml: info.latest.xml, autosave: readOnly ? 0 : 1, title}); ready = true; status.textContent = readOnly ? "Read-only" : "Loaded revision " + baseVer; }
+    if (msg.event === "configure") {
+      post({action: "configure", config: {libraries: [{title: {main: "dormakaba"}, entries: [{id: "dormakaba", title: {main: "dormakaba MEA"}, desc: {main: "Standard process shapes and one activity per role of the master legend"},
+        libs: [{title: {main: "dormakaba MEA"}, data: shapeLib, expand: true}]}]}]}});
+    }
+    else if (msg.event === "init") { post({action: "load", xml: info.latest.xml, autosave: readOnly ? 0 : 1, title}); ready = true; status.textContent = readOnly ? "Read-only" : "Loaded revision " + baseVer; }
     else if (msg.event === "autosave" && msg.xml) { dirty = true; status.textContent = "Unsaved changes…"; clearTimeout(onMessage.t); onMessage.t = setTimeout(() => persist(msg.xml), 2500); }
     else if (msg.event === "save" && msg.xml) { clearTimeout(onMessage.t); persist(msg.xml); }
     else if (msg.event === "export") { const w = exportWaiters.shift(); if (w) w(msg.data || null); }
@@ -75,6 +84,7 @@ async function openFlowStudio(diagramId, root, exitTo) {
   async function refreshSide() {
     const d = await GET("/api/diagrams/" + diagramId);
     latestDv = d.latest.id;
+    if (d.latest.checks && !checkBox.firstChild) checkBox.append(flowCheckBox(d.latest.checks));
     clear(nodesBox).append(h("h3", null, "Business metadata for shapes"),
       h("p", {class: "muted"}, "Stored separately from geometry, keyed by stable shape IDs. Link a shape to a process to make it navigable."),
       d.nodes.length ? d.nodes.map((n) => nodeForm(n)) : h("p", {class: "muted"}, "Save the diagram once to list its shapes."));
@@ -93,10 +103,11 @@ async function openFlowStudio(diagramId, root, exitTo) {
       })}, "Save metadata"));
     return det;
   }
-  const side = h("div", {class: "side"}, h("div", {class: "card"}, status, banner), revBox, nodesBox);
+  const side = h("div", {class: "side"}, h("div", {class: "card"}, status, banner), checkBox, revBox, nodesBox);
   root.append(h("div", {class: "page"}, h("div", {class: "row spread"}, h("div", null, h("h1", null, "Flow Studio"), h("div", {class: "sub"}, title + " · " + info.diagram.code)),
       h("div", {class: "row"}, h("button", {class: "btn", onclick: () => api("GET", "/api/diagram-versions/" + latestDv + "/xml", undefined, {raw: true}).then(() => download("/api/diagram-versions/" + latestDv + "/xml"))}, "Download .drawio"),
         h("button", {class: "btn", onclick: () => download("/api/diagram-versions/" + latestDv + "/svg")}, "Export SVG"),
+        h("button", {class: "btn", title: "The dormakaba shapes as a library file for draw.io Desktop (File > Open Library)", onclick: () => download("/api/flow-library.xml")}, "Shape library"),
         h("button", {class: "btn pri", onclick: leave}, "Close editor"))),
     S.cfg.drawio_local ? null : h("div", {class: "banner warn"}, "Using the online draw.io host (", origin, "). Diagram content is exchanged with that host. For fully local use run fetch_drawio.py (see Admin Guide)."),
     h("div", {class: "flowpage"}, iframe, side)));

@@ -45,3 +45,14 @@ A canvas uploaded through **Import & Sources** without a mapping file is still s
 A flow entry in `canvas_mapping.json` may carry `id_corrections`: `{"chart": "<chart ID in the documents>", "name": "<process name>", "to": "<new ID>", "reason": "…"}`.
 They are written into the flow file, applied after import and re-checked at every start (idempotent; skipped when the target ID exists or the process is not found
 exactly once). Current entries: the project phases Planning / Execution / Monitoring and Control / Closing → `PM-M-PL-01`, `PM-M-EX-01`, `PM-M-MC-01`, `PM-M-CL-01`.
+
+## New flows (text-to-flow, shape library, flow check)
+- `mea_hub/flowbuild.py` builds a flow from one line per step (`build`), offers the activity table or a template as starting text and produces the Flow Studio shape library
+  (`library_entries`, one tagged activity per role of the master legend). Built flows use the same tags (`meaKind`, `meaRole`), frame and legend as the flows cut from the canvas,
+  so `flowread` reads them the same way. Templates (`New process`, Flow Studio) go through the same builder.
+- `flowread.read` additionally returns `checks` (no_start, no_end, unreached, dead_end, one_branch, unlabelled, no_role). When a tagged shape is recoloured to another legend colour,
+  the colour wins over the old `meaRole` tag; roles that share a colour keep their tag.
+- API: `POST /api/flows/build {process_id|title, steps, link}`, `GET /api/flows/steps?process_id=…|template=…`, `GET /api/flow-library`, `GET /api/flow-library.xml`.
+- The library reaches the embedded editor through draw.io's `configure` message (inline data); URL libraries are not used because draw.io ignores them in offline mode.
+- Flow check on the 72 imported flows today: 15 without any point; dead_end in 37 flows, no_role 33, unreached 20, unlabelled 18, one_branch 7, no_end 2, no_start 1.
+  These are review points for the process owners, not errors of the import.

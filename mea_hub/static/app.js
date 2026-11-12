@@ -235,8 +235,7 @@ function flowCard(d, editing, reload) {
   const card = h("div", {class: "flow"}, h("div", {class: "row spread"}, h("b", null, "Process Flow"), h("span", {class: "muted"}, dg ? dg.code + " · revision " + dg.ver_no + (dg.locked_by ? " · locked by " + dg.locked_by : "") : "")));
   if (!dg) {
     card.append(h("p", {class: "muted"}, "No flowchart for this version."));
-    if (d.perms.edit) { const sel = h("select", {style: "width:auto"}, Object.entries(S.cfg.templates).map(([k, n]) => h("option", {value: k}, n)));
-      card.append(h("div", {class: "row"}, sel, h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await POST("/api/diagrams", {process_id: p.process_id, title: p.name, template: sel.value}); location.hash = "#/flow/" + r.diagram_id; })}, "Create from template"), importDrawioBtn(p.process_id, reload))); }
+    if (d.perms.edit) card.append(h("div", {class: "row"}, h("button", {class: "btn pri", onclick: () => flowWizard(p, d.version.content, false)}, "New flow from steps…"), importDrawioBtn(p.process_id, reload)));
     return card;
   }
   const img = h("img", {src: previewUrl(dg), alt: "Flowchart " + p.process_id, onclick: () => modal("Process Flow – " + p.process_id, h("img", {class: "big", src: previewUrl(dg), alt: ""}), {wide: true})});
@@ -248,11 +247,54 @@ function flowCard(d, editing, reload) {
     h("button", {class: "btn sm", onclick: () => diagramHistory(dg)}, "Revision history"),
     h("button", {class: "btn sm", onclick: () => download("/api/diagram-versions/" + dg.id + "/xml")}, "Download .drawio"),
     h("button", {class: "btn sm", onclick: () => download("/api/diagram-versions/" + dg.id + "/svg")}, "Export SVG"),
+    d.perms.edit ? h("button", {class: "btn sm", title: "Write one line per step and get a standard flow with roles and the master legend", onclick: () => flowWizard(p, d.version.content, true)}, dg.validation === "requires_validation" ? "Redraw from steps…" : "New flow from steps…") : null,
     d.perms.edit ? importDrawioBtn(p.process_id, reload, "Replace diagram") : null,
     links.length ? h("select", {style: "width:auto", onchange: (e) => e.target.value && (location.hash = "#/process/" + e.target.value)}, h("option", {value: ""}, "Open related process…"), links.map((n) => h("option", {value: n.meta.process_ref}, n.meta.process_ref + " ← " + (n.label || n.node_id)))) : null);
   card.append(bar);
+  if (dg.checks) card.append(flowCheckBox(dg.checks));
   if (dg.validation === "requires_validation") card.append(h("p", {class: "muted", style: "font-size:12px"}, "Original picture preserved as locked layer. Use Edit diagram to redraw shapes/connectors."));
   return card;
+}
+function flowCheckBox(checks) {
+  if (!checks.length) return h("div", {class: "flowcheck ok"}, "Flow check: no open points (start, end, connections, decision branches and roles are complete).");
+  return h("details", {class: "flowcheck"}, h("summary", null, "Flow check: " + checks.length + " point" + (checks.length > 1 ? "s" : "") + " to review"),
+    h("ul", null, checks.map((c) => h("li", null, c.text))), h("p", {class: "muted"}, "Shown for information – nothing is corrected automatically. Fix the points in Flow Studio."));
+}
+/* Text-to-flow: one line per step -> standard dormakaba flow (roles from the master legend, frame, legend), linked to the document. */
+async function flowWizard(p, content, hasDiagram) {
+  const example = "Sales: Receive customer purchase order\nCustomer Service: Create sales order (VA01)\nNote: Check incoterms on the purchase order\nCredit Controller: Credit limit sufficient?\nNo: Credit Controller: Block the order and inform Sales\nNo: End\nRef: WL-M-OB-01 Outbound delivery\nLogistics: Create delivery (VL01N)";
+  const ta = h("textarea", {class: "mono", style: "min-height:260px", spellcheck: "false", placeholder: example});
+  const title = p ? null : h("input", {type: "text", placeholder: "Title of the flow"});
+  const link = h("input", {type: "checkbox", checked: true});
+  const out = h("div");
+  const roleSel = h("select", {style: "width:auto", "aria-label": "Insert role", onchange: () => { if (!roleSel.value) return; const v = ta.value; ta.value = v + (v && !v.endsWith("\n") ? "\n" : "") + roleSel.value + ": "; roleSel.value = ""; ta.focus(); }},
+    h("option", {value: ""}, "Insert role…"), (S.cfg.flow_roles || []).map((r) => h("option", null, r)));
+  const tplSel = h("select", {style: "width:auto", "aria-label": "Start from template", onchange: () => guard(async () => { if (!tplSel.value) return;
+      if (ta.value.trim() && !(await confirmBox("Replace the text in the box with the template steps?", "Replace"))) { tplSel.value = ""; return; }
+      ta.value = (await GET("/api/flows/steps?template=" + encodeURIComponent(tplSel.value))).steps; tplSel.value = ""; })},
+    h("option", {value: ""}, "Start from template…"), Object.entries(S.cfg.templates).map(([k, n]) => h("option", {value: k}, n)));
+  const hasActs = p && content && (content.activities || []).length;
+  const fromActs = hasActs ? h("button", {class: "btn sm", onclick: () => guard(async () => { ta.value = (await GET("/api/flows/steps?process_id=" + encodeURIComponent(p.process_id))).steps; })}, "Use the activity table (" + content.activities.length + " rows)") : null;
+  const m = modal(p ? "New flow from steps – " + p.process_id : "New flow from steps", h("div", null,
+    h("p", {class: "muted"}, "Write one line per step. The tool draws the standard flow (start, end, role colours, frame and master legend) – you can refine it in Flow Studio afterwards."),
+    h("table", {class: "t syntax"}, h("tbody", null, [["Role: activity", "Activity of a role of the master legend, e.g. “Logistics: Create delivery (VL01N)”. SAP codes are picked up."],
+      ["Text ending with ?", "Decision. The next line is the “Yes” path."], ["No: …  /  Yes: …", "The other answer of the decision above; repeat for more steps on that branch, “No: End” finishes it."],
+      ["Note: …", "Note or checklist attached to the step above."], ["Ref: WL-M-OB-01 …", "Linked process."], ["Start: … / End: …", "Own wording for the start and end shapes (optional)."]]
+      .map(([a, b]) => h("tr", null, h("td", {class: "mono nowrap"}, a), h("td", null, b))))),
+    title ? h("div", null, h("label", null, "Title"), title) : null,
+    h("div", {class: "row", style: "margin:10px 0 6px"}, roleSel, tplSel, fromActs),
+    ta,
+    p ? h("label", {class: "check"}, link, " Link the flow to the document: the activity table, the responsible roles and the SAP references follow the flow from now on (they are replaced now).") : null,
+    hasDiagram ? h("div", {class: "banner info", style: "margin-top:8px"}, "The current flowchart stays in the revision history; the new flow becomes the next revision of the draft.") : null,
+    out,
+    h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => guard(async () => {
+      const r = await POST("/api/flows/build", {process_id: p ? p.process_id : null, title: title ? title.value : "", steps: ta.value, link: link.checked});
+      const go = () => { m.close(); location.hash = "#/flow/" + r.diagram_id; };
+      if (!r.warnings.length) { toast("Flow created: " + r.steps + " steps"); return go(); }
+      clear(out).append(h("div", {class: "banner warn", style: "margin-top:8px"}, h("b", null, "Flow created (" + r.steps + " steps) with " + r.warnings.length + " remark(s):"), h("ul", null, r.warnings.map((w) => h("li", null, w))),
+        h("button", {class: "btn sm pri", onclick: go}, "Open in Flow Studio")));
+    })}, "Create flow"), h("button", {class: "btn", onclick: () => m.close()}, "Cancel"))), {wide: true});
+  ta.focus();
 }
 function importDrawioBtn(pid, reload, label) {
   const f = h("input", {type: "file", accept: ".drawio,.xml", style: "display:none", onchange: () => guard(async () => {
@@ -394,7 +436,9 @@ async function viewFlow(id) {
   const r = await GET("/api/diagrams");
   const title = h("input", {type: "text", placeholder: "Title for a new library diagram"}), tpl = h("select", {style: "width:auto"}, Object.entries(S.cfg.templates).map(([k, n]) => h("option", {value: k}, n)));
   return h("div", {class: "page"}, h("h1", null, "Flow Studio"), h("div", {class: "sub"}, "Every diagram stores native, editable draw.io XML with a revision history. Editing a process diagram creates a draft revision; published versions never change."),
-    h("div", {class: "card"}, h("h3", null, "New diagram from template"), h("div", {class: "row"}, title, tpl, h("button", {class: "btn pri", disabled: !can("admin", "controller", "dept_owner", "editor"), onclick: () => guard(async () => { const x = await POST("/api/diagrams", {title: title.value || "Untitled", template: tpl.value}); location.hash = "#/flow/" + x.diagram_id; })}, "Create"))),
+    h("div", {class: "card"}, h("h3", null, "New library flow"), h("p", {class: "muted"}, "For the flowchart of a process, open the process and choose “New flow from steps…” – it is then linked to the document."),
+      h("div", {class: "row"}, h("button", {class: "btn pri", disabled: !can("admin", "controller", "dept_owner", "editor"), onclick: () => flowWizard(null, null, false)}, "New flow from steps…"),
+        title, tpl, h("button", {class: "btn", disabled: !can("admin", "controller", "dept_owner", "editor"), onclick: () => guard(async () => { const x = await POST("/api/diagrams", {title: title.value || "Untitled", template: tpl.value}); location.hash = "#/flow/" + x.diagram_id; })}, "Create from template"))),
     table(["Code", "Title", "Process", "Revision", "Validation", "Origin", ""], r.diagrams.map((d) => [d.code, d.title, d.process_id ? pLink(d.process_id) : "library", "#" + d.ver_no, d.validation === "requires_validation" ? h("span", {class: "chip warn"}, "requires validation") : d.validation, d.origin,
       h("a", {class: "btn sm", href: "#/flow/" + d.id}, "Open")])));
 }

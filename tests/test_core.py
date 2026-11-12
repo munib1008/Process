@@ -550,6 +550,98 @@ def test_process_id_change_is_controlled_and_follows_everywhere(users, tmp_path)
     assert not db.one("SELECT 1 FROM processes WHERE process_id LIKE 'ZZ-M-AA-01%'")
 
 
+FLOW_LEGEND = dict(roles=[dict(role="Sales", color="#1E90FF"), dict(role="Logistics", color="#008080"), dict(role="Warehouse", color="#2F4F4F"),
+                     dict(role="Credit Controller", color="#CD5C5C"), dict(role="Operations Manager", color="#808000"), dict(role="Sales Support Manager", color="#808000")])
+STEPS = """Sales: Receive customer order & check it
+Credit Controller: Credit limit sufficient?
+No: Credit Controller: Block the order
+No: End
+Note: Check incoterms
+Logistcs: Plan the transport
+Stock available?
+No: Warehouse: Raise replenishment (ME51N)
+Ref: WL-M-OB-01 Outbound delivery
+Warehouse: Post goods issue (VL02N)
+End: Order shipped"""
+
+
+def test_flow_built_from_text_is_standard_and_reads_back():
+    from mea_hub import flowbuild, flowread
+    xml, warnings = flowbuild.build("Order to shipment", "ZZ-M-OS-01", "LOG", STEPS, FLOW_LEGEND)
+    assert not security.unsafe_xml(xml.encode()) and drawio.normalize(xml)
+    assert len(warnings) == 1 and "Logistcs" in warnings[0] and "Logistics" in warnings[0]          # unknown role is reported, never guessed
+    assert "mea_frame" in xml and "mea_legend" in xml and "Process Map – Order to shipment – ZZ-M-OS-01" in xml
+    fr = flowread.read(xml)
+    acts = {a["activity"]: a for a in fr["activities"]}
+    assert acts["Receive customer order & check it"]["role"] == "Sales"
+    assert acts["Decision: Credit limit sufficient?"]["output"] == "→ No: Block the order; Yes: Logistcs: Plan the transport"
+    assert acts["Block the order"]["output"] == "→ End"                                              # "No: End" closes the branch
+    assert acts["Logistcs: Plan the transport"]["role"] == ""
+    assert acts["Raise replenishment (ME51N)"]["sap"] == "ME51N" and acts["Raise replenishment (ME51N)"]["output"] == ""
+    assert "Linked process: WL-M-OB-01 Outbound delivery" in acts and fr["node_meta"]
+    assert fr["responsible"] == ["Sales", "Credit Controller", "Warehouse"]
+    assert "Check incoterms" in fr["notes_html"] and [x["transaction"] for x in fr["sap"]] == ["ME51N", "VL02N"]
+    codes = {c["code"] for c in fr["checks"]}
+    assert codes == {"dead_end", "no_role"}                  # the open branch and the steps without a role are reported, not repaired
+    assert "Raise replenishment" in next(c["text"] for c in fr["checks"] if c["code"] == "dead_end")
+    # a complete flow has no open points
+    ok, w = flowbuild.build("t", "", "", "Sales: Take order\nLogistics: Ship order", FLOW_LEGEND)
+    assert not w and flowread.read(ok)["checks"] == []
+    with pytest.raises(ValueError):
+        flowbuild.build("t", "", "", "\n# only a comment\n", FLOW_LEGEND)
+    # recolouring a shape in the editor changes its role; two roles sharing a colour keep their tag
+    assert flowread.read(ok.replace("strokeColor=#1E90FF;strokeWidth=2;fontSize=11;", "strokeColor=#008080;strokeWidth=2;fontSize=11;", 1))["activities"][0]["role"] == "Logistics"
+    same, _ = flowbuild.build("t", "", "", "Operations Manager: Approve", FLOW_LEGEND)
+    assert flowread.read(same)["activities"][0]["role"] == "Operations Manager"
+    # the activity table of a process turns back into builder text
+    text = flowbuild.steps_from_activities(fr["activities"])
+    assert "Credit Controller: Credit limit sufficient?" in text and "Ref: WL-M-OB-01 Outbound delivery" in text
+    # shape library: standard shapes + one tagged activity per role (roles are listed once)
+    lib = flowbuild.library_entries(FLOW_LEGEND)
+    assert [e["title"] for e in lib].count("Activity – Sales") == 1 and len(lib) == 9 + 6 and flowbuild.library_xml(FLOW_LEGEND).startswith("<mxlibrary")
+
+
+def test_new_flow_from_steps_is_linked_to_the_document(users):
+    ed, viewer = users["editor"], users["viewer"]
+    svc.set_cfg("master_legend", json.dumps(FLOW_LEGEND))
+    assert ed.call("POST", "/api/process", {"name": "Order to shipment", "department": "LOG", "process_id": "ZZ-M-OS-01"})[0] == 200
+    assert viewer.call("POST", "/api/flows/build", {"process_id": "ZZ-M-OS-01", "steps": STEPS})[0] == 403
+    assert ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-OS-01", "steps": "  "})[0] == 400
+    s, r = ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-OS-01", "steps": STEPS})
+    assert s == 200 and r["steps"] == 8 and len(r["warnings"]) == 1 and {c["code"] for c in r["checks"]} == {"dead_end", "no_role"}
+    d = ed.call("GET", "/api/process/ZZ-M-OS-01")[1]
+    c = d["version"]["content"]
+    assert c["flow_sync"] and len(c["activities"]) == 8 and c["responsible"] == ["Sales", "Credit Controller", "Warehouse"]
+    assert [x["transaction"] for x in c["sap"]] == ["ME51N", "VL02N"] and d["diagram"]["ver_no"] == 1 and len(d["diagram"]["checks"]) == 2
+    assert any(n["meta"].get("role") == "Sales" for n in d["diagram"]["nodes"])
+    # building again keeps the first flow as revision 1
+    s, r2 = ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-OS-01", "steps": "Sales: Take order\nLogistics: Ship order"})
+    assert s == 200 and r2["diagram_id"] == r["diagram_id"] and r2["checks"] == []
+    d = ed.call("GET", "/api/process/ZZ-M-OS-01")[1]
+    assert d["diagram"]["ver_no"] == 2 and [a["activity"] for a in d["version"]["content"]["activities"]] == ["Take order", "Ship order"]
+    assert not any(n["meta"].get("role") == "Credit Controller" for n in d["diagram"]["nodes"])       # nothing carried over from the old shapes
+    # editing in Flow Studio: the save answers with the flow check and the document follows
+    did = r["diagram_id"]
+    info = ed.call("GET", f"/api/diagrams/{did}")[1]
+    assert ed.call("POST", f"/api/diagrams/{did}/lock")[0] == 200
+    xml = info["latest"]["xml"].replace("Ship order", "Ship order (VL01N)")
+    s, sv = ed.call("POST", f"/api/diagrams/{did}/save", {"xml": xml, "png": None, "base_ver": info["latest"]["ver_no"]})
+    assert s == 200 and sv["synced"] and sv["checks"] == []
+    assert ed.call("GET", "/api/process/ZZ-M-OS-01")[1]["version"]["content"]["sap"][0]["transaction"] == "VL01N"
+    # builder helpers and library
+    assert "Take order" in ed.call("GET", "/api/flows/steps?process_id=ZZ-M-OS-01")[1]["steps"]
+    assert ed.call("GET", "/api/flows/steps?template=approval_workflow")[1]["steps"].startswith("Prepare and submit request")
+    assert len(ed.call("GET", "/api/flow-library")[1]["entries"]) == 15
+    s, raw = ed.call("GET", "/api/flow-library.xml", raw=True)
+    assert s == 200 and raw.startswith(b"<mxlibrary")
+    # a library flow (no process) and a process created from a template are standard tagged flows as well
+    s, lib = ed.call("POST", "/api/flows/build", {"title": "Idea", "steps": "Sales: Call customer"})
+    assert s == 200 and "meaKind=activity" in ed.call("GET", f"/api/diagrams/{lib['diagram_id']}")[1]["latest"]["xml"]
+    assert ed.call("POST", "/api/process", {"name": "Template flow", "department": "LOG", "process_id": "ZZ-M-TF-01", "template": "department_workflow"})[0] == 200
+    t = ed.call("GET", "/api/process/ZZ-M-TF-01")[1]
+    assert t["version"]["content"]["flow_sync"] and t["diagram"]["checks"] is not None and "ZZ-M-TF-01" in ed.call("GET", f"/api/diagrams/{t['diagram']['diagram_id']}")[1]["latest"]["xml"]
+
+
 def test_hosted_mode_secure_cookie_and_login_throttle(server, users):
     import urllib.request
     def login(user, pw, proto=None):

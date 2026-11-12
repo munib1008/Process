@@ -51,6 +51,32 @@ Each item shows the version it was raised on, can be replied to, moved to *in pr
 **Audit & Review** (left menu) is the register across all processes with filters and an Excel export; ⚑ marks items raised on an older version.
 The History tab shows the version comment (change summary) of every revision and how many audit comments it has.
 
+## Create a new flow (Editor / Department Owner / Controller)
+Open the process and choose **New flow from steps…** (for a process that still carries a picture: **Redraw from steps…**). Write one line per step:
+
+| Line | Result |
+|---|---|
+| `Logistics: Create delivery (VL01N)` | Activity of a role of the master legend (outline colour = role). SAP codes are picked up. |
+| `Credit limit sufficient?` | Decision. The next line is the **Yes** path. |
+| `No: Credit Controller: Block the order` | The other answer of the decision above. Repeat `No:` for more steps on that branch; `No: End` finishes it. `Yes:` works the same way when the main path is the "No" path. |
+| `Note: Check incoterms on the PO` | Note or checklist attached to the step above. |
+| `Ref: WL-M-OB-01 Outbound delivery` | Linked process (becomes a link when that process exists). |
+| `Start: …` / `End: …` | Own wording for the start and end shapes (optional). |
+
+- **Insert role…** lists the roles of the master legend; a role that is not in the legend is reported and the line is kept as plain text – nothing is guessed.
+- **Start from template…** fills the box with the steps of a template; **Use the activity table** turns the existing activity table of the process into steps.
+- The result is a standard flow: start/end, role colours, titled frame and the master legend. It opens in Flow Studio for refinement.
+- With **Link the flow to the document** ticked, the activity table, the responsible roles and the SAP references are replaced by what the flow says and follow every later save.
+- An existing flowchart is not lost: the new flow becomes the next revision; the old one stays in **Revision history**.
+- A branch that you do not continue in the text is left open on purpose and listed by the flow check.
+
+**In Flow Studio** the shape panel shows **dormakaba MEA**: start, end, decision, linked process, note, Yes/No connectors and one activity shape per role. Drag these instead of the generic
+shapes so that the document can read role and step type. To change the role of a step, change its outline colour to the colour of the role in the legend, or replace it with the role's shape.
+**Shape library** downloads the same shapes for draw.io Desktop (File ▸ Open Library).
+
+**Flow check** (process page and Flow Studio, after every save) lists what a reviewer would raise: no start or end, steps that cannot be reached, steps without a next step,
+decisions with one branch or unlabelled branches, activities without a role. It informs only – nothing is corrected automatically.
+
 ## Change a process ID (Document Controller / Administrator)
 Open the process and choose **Change ID**. Enter the new ID and the reason (mandatory). The versions, flowchart, relationships, comments and change log stay with the
 process; the diagram code (`DG-<ID>`) and links from other flows follow; the open "provisional ID" finding is closed with your reason. The chart ID stated in the source

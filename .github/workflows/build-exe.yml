@@ -36,7 +36,7 @@ jobs:
           Copy-Item README.md dist/MEA_Process_Hub/
           Set-Content -Encoding ascii "dist/MEA_Process_Hub/Reset admin password.bat" "@echo off`r`n""%~dp0MEA_Process_Hub.exe"" --reset-admin`r`npause"
           Copy-Item docs dist/MEA_Process_Hub/docs -Recurse
-      - name: Smoke-test the EXE (first-start import, login, library, DOCX + PDF export)
+      - name: Smoke-test the EXE (first-start import, login, library, DOCX + PDF export, flow builder)
         shell: pwsh
         run: |
           $data = "$PWD/smoke_data"
@@ -66,6 +66,13 @@ jobs:
               Write-Host "Handbook $fmt export: $($e.export.status), $($e.export.size) bytes"
               if ($e.export.status -ne 'done' -or $e.export.size -lt 100000) { throw "$fmt export failed" }
             }
+            $flow = Invoke-RestMethod "$base/api/flows/build" -Method Post -WebSession $sess -Headers $h -ContentType 'application/json' `
+                      -Body (@{ title = 'Smoke flow'; steps = "Logistics: Create delivery (VL01N)`nStock available?`nNo: End`nWarehouse: Post goods issue" } | ConvertTo-Json)
+            Write-Host "Flow built from text: $($flow.steps) steps, $($flow.warnings.Count) remarks"
+            if ($flow.steps -ne 3 -or $flow.warnings.Count -ne 0) { throw "Flow builder failed" }
+            $shapes = Invoke-RestMethod "$base/api/flow-library" -WebSession $sess
+            Write-Host "Shape library: $($shapes.entries.Count) shapes"
+            if ($shapes.entries.Count -lt 20) { throw "Shape library is incomplete" }
           } catch {
             Write-Host "---- EXE output ----"; Get-Content smoke.log, smoke.err -ErrorAction SilentlyContinue
             if (Test-Path "$data/error.log") { Write-Host "---- error.log ----"; Get-Content "$data/error.log" }

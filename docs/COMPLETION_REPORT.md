@@ -13,7 +13,7 @@ Planning `PM-M-PL-01`, Execution `PM-M-EX-01`, Monitoring and Control `PM-M-MC-0
 `source_documents/_canvas/canvas_mapping.json` (`id_corrections`), so a new installation imports with these IDs and an existing data folder is corrected at the next start.
 The six related conflict findings are closed with the decision; the source chart ID remains visible on each process, and the Word documents themselves still show
 `PM-M-IN-01` (to be corrected at their next revision). A controlled **Change ID** function (Document Controller / Administrator, reason mandatory, change-log entry,
-diagram codes and links follow) is available on every process page for the remaining 49 provisional-ID findings. 28 automated tests pass. *Not done:* no bulk ID change
+diagram codes and links follow) is available on every process page for the remaining 49 provisional-ID findings. 30 automated tests pass. *Not done:* no bulk ID change
 screen; old IDs are not redirected, so bookmarks to `…/PM-M-IN-01.2` no longer resolve.
 
 **Review hosting from GitHub (2026-11-10).** `.devcontainer` + `tools/codespace_*.sh` start the app in GitHub Codespaces with an HTTPS address (`docs/HOSTING.md`).
@@ -21,9 +21,17 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Creating new flows (2026-11-12).** *Done, tested:* text-to-flow builder on every process page and in Flow Studio (roles from the master legend, decisions with Yes/No branches,
+notes, linked processes, SAP codes; standard frame and legend; linked to the document; previous flowchart kept as a revision); dormakaba shape library inside the editor (verified in the
+real draw.io: 50 shapes with the 41 legend roles); flow check on the process page and after every save; templates now produce the same standard, readable flows.
+All 72 imported flows read exactly as before (compared before/after). *Limits:* the builder draws one main path with side branches – loops back to an earlier step, parallel paths and
+nested decisions on a branch are completed by hand in Flow Studio; steps appear in the activity table in reading order of the connectors, so a side branch can be numbered between two
+main steps; a role that is not in the master legend cannot be given a colour (the legend itself is not editable in the app yet). *Windows EXE:* the GitHub build of the previous
+commit succeeded including the smoke test (first-start import, sign-in, DOCX and PDF export) – first confirmation of the EXE on Windows.
+
 | Item | Status |
 |---|---|
-| One flow file per process from the master canvas, master legend inside each, dormakaba style | **Done, tested** (28 automated tests; all 72 files open in draw.io and were rendered by it) |
+| One flow file per process from the master canvas, master legend inside each, dormakaba style | **Done, tested** (30 automated tests; all 72 files open in draw.io and were rendered by it) |
 | Flow linked to the document (activities/roles/SAP re-read on save) | **Done, tested** via API; the browser test opened flows but did not draw inside draw.io |
 | Flow *correctness* for the business | **Not verified** – only structural checks (see `FLOWS.md`); 20 flows have steps not connected to the start |
 | Mapping of flows to processes | **Partly inferred** – recorded in `canvas_mapping.json`; uncertain ones are findings (e.g. QA/QC "modified March 12, 2025" → KSA) |

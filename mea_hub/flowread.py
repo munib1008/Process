@@ -24,10 +24,11 @@ def read(xml: str) -> dict:
     B = sc["boxes"]
     for b in B.values():
         b["label"] = _clean(b["label"])
-    legend = {}                                              # colour -> role, from the legend chips inside the diagram
+    legend, legend_colour = {}, {}                           # colour -> role and role -> colour, from the legend chips inside the diagram
     for b in B.values():
         if b["id"].startswith("mea_lg_c") and b["style"].get("strokeColor"):
             legend.setdefault(b["style"]["strokeColor"].lower(), b["label"])
+            legend_colour.setdefault(b["label"], b["style"]["strokeColor"].lower())
 
     def kind(b):
         st = b["style"]
@@ -53,10 +54,12 @@ def read(xml: str) -> dict:
 
     def role(b):
         st = b["style"]
-        if st.get("meaRole"):
-            return st["meaRole"]
         c = (st.get("strokeColor") or "").lower()
-        return legend.get(c, "") if c not in NEUTRAL else ""
+        by_colour = legend.get(c, "") if c not in NEUTRAL else ""
+        tag = st.get("meaRole") or ""
+        if tag:                                              # the outline was recoloured in the editor: the legend colour wins over the old tag
+            return by_colour if by_colour and by_colour != tag and legend_colour.get(tag, c) != c else tag
+        return by_colour
     K = {i: kind(b) for i, b in B.items()}
     skip = {i for i, k in K.items() if k in ("legend", "frame")}
     changed = True
@@ -140,7 +143,7 @@ def read(xml: str) -> dict:
             node_meta[b["id"]] = meta
         for t in note_of.get(b["id"], []):
             note_lines.append((n, t))
-    loose = [B[i]["label"] for i in notes if B[i]["label"] and not any(B[i]["label"] == t for _, t in note_lines)]
+    loose = [B[i]["label"] for i in sorted(notes, key=lambda i: (B[i]["y"], B[i]["x"])) if B[i]["label"] and not any(B[i]["label"] == t for _, t in note_lines)]
     for i, k in K.items():                                   # "Responsible ■ A ■ B" text blocks
         if k == "text" and i not in skip and B[i]["label"].lower().startswith("responsible"):
             for part in re.split(r"[■•]|\s{2,}", B[i]["label"])[1:]:
@@ -158,8 +161,32 @@ def read(xml: str) -> dict:
                    f"{len(acts_only)} activities, {sum(1 for a in activities if a['activity'].startswith('Decision:'))} decision points"
                    + (f", {sum(1 for a in activities if a['activity'].startswith('Linked process:'))} linked processes" if any(a['activity'].startswith('Linked process:') for a in activities) else "")
                    + (f". Roles involved: {', '.join(roles)}." if roles else "."))
+    unreached = sum(1 for b in steps if b["id"] not in seen)
+    # ---- flow check: structural points a reviewer would raise (nothing is corrected automatically)
+    def names(bs):
+        return "; ".join("“" + (b["label"][:60] or "unnamed shape") + "”" for b in bs[:4]) + (f" and {len(bs) - 4} more" if len(bs) > 4 else "")
+    live = [i for i in K if i not in skip]
+    checks = []
+    if not any(K[i] in ("start", "terminator") and in_n.get(i, 0) == 0 and out_e.get(i) for i in live):
+        checks.append(dict(code="no_start", text="No Start shape with an outgoing connector."))
+    if not any(K[i] in ("end", "terminator") and in_n.get(i, 0) > 0 and not out_e.get(i) for i in live):
+        checks.append(dict(code="no_end", text="No End shape is reached by a connector."))
+    if unreached:
+        checks.append(dict(code="unreached", text=f"{unreached} step(s) cannot be reached from Start: " + names([b for b in steps if b["id"] not in seen]) + "."))
+    dead = [b for b in steps if not out_e.get(b["id"]) and b["id"] in seen]
+    if dead:
+        checks.append(dict(code="dead_end", text=f"{len(dead)} step(s) have no next step (connect them to the next step or to End): " + names(dead) + "."))
+    one_way = [b for b in steps if K[b["id"]] == "decision" and len(out_e.get(b["id"], [])) == 1]
+    if one_way:
+        checks.append(dict(code="one_branch", text=f"{len(one_way)} decision(s) have only one outgoing branch: " + names(one_way) + "."))
+    unlabelled = [b for b in steps if K[b["id"]] == "decision" and len(out_e.get(b["id"], [])) > 1 and any(not lb for _, lb in out_e[b["id"]])]
+    if unlabelled:
+        checks.append(dict(code="unlabelled", text=f"{len(unlabelled)} decision(s) have a branch without a label (Yes / No): " + names(unlabelled) + "."))
+    no_role = [b for b in steps if K[b["id"]] == "activity" and not role(b)]
+    if no_role:
+        checks.append(dict(code="no_role", text=f"{len(no_role)} activity step(s) have no responsible role (outline colour from the master legend): " + names(no_role) + "."))
     return dict(activities=activities, sap=[dict(transaction=k, purpose=v) for k, v in sap.items()], responsible=roles, notes_html=notes_html,
-                node_meta=node_meta, summary=summary, shapes=len(steps), has_start=bool(starts), unreached=sum(1 for b in steps if b["id"] not in seen))
+                node_meta=node_meta, summary=summary, shapes=len(steps), has_start=bool(starts), unreached=unreached, checks=checks)
 
 
 FLOW_NOTES_TITLE = "Checklists and notes from the flowchart"

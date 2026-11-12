@@ -264,7 +264,8 @@ def r_config(c):
     return dict(drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
                 templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
-                comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version="1.0.0")
+                comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version="1.0.0",
+                flow_roles=[r["role"] for r in svc.master_legend().get("roles", [])])
 
 
 @route("GET", "/api/departments")
@@ -435,8 +436,13 @@ def r_diagram_new(c):
     if d.get("xml"):
         xml = drawio.normalize(d["xml"])
     else:
-        xml = drawio.template_xml(d.get("template", "blank"), title, legend=svc.master_legend())
+        xml = None
     proc = svc.get_process(pid) if pid else None
+    if xml is None:                                          # templates are standard tagged flows (frame, master legend, readable by the document link)
+        from . import flowbuild
+        dept = db.one("SELECT code FROM departments WHERE id=?", (proc["department_id"],)) if proc and proc.get("department_id") else None
+        xml = drawio.normalize(flowbuild.build(proc["name"] if proc else title, proc["process_id"] if proc else "", dept["code"] if dept else "",
+                                               flowbuild.template_steps(d.get("template", "blank")), svc.master_legend())[0])
     svc.need(c.user, "edit", proc)
     with db.tx():
         if proc:
@@ -451,6 +457,39 @@ def r_diagram_new(c):
         else:
             did, dv = svc.create_diagram(None, None, title, xml, "template" if not d.get("xml") else "imported-drawio", None, "Created", c.user, kind="library")
     return dict(diagram_id=did)
+
+
+@route("POST", "/api/flows/build")
+def r_flow_build(c):
+    d = c.json()
+    return svc.build_flow(c.user, d.get("steps") or "", title=d.get("title") or "", pid_text=d.get("process_id") or None, link=d.get("link", True) is not False)
+
+
+@route("GET", "/api/flows/steps")
+def r_flow_steps(c):
+    """Starting text for the builder: the activity table of a process, or the steps of a template."""
+    from . import flowbuild
+    pid, tpl = c.arg("process_id", ""), c.arg("template", "")
+    if tpl:
+        return dict(steps=flowbuild.template_steps(tpl))
+    proc = svc.get_process(pid)
+    svc.need(c.user, "edit", proc)
+    v = svc.latest_version(proc["id"])
+    content = v["content"] if isinstance(v["content"], dict) else db.jloads(v["content"], {})
+    return dict(steps=flowbuild.steps_from_activities(content.get("activities")))
+
+
+@route("GET", "/api/flow-library")
+def r_flow_library(c):
+    from . import flowbuild
+    return dict(entries=flowbuild.library_entries(svc.master_legend()))
+
+
+@route("GET", "/api/flow-library.xml")
+def r_flow_library_file(c):
+    from . import flowbuild
+    return (flowbuild.library_xml(svc.master_legend()).encode("utf-8"), "application/xml; charset=utf-8",
+            {"Content-Disposition": 'attachment; filename="dormakaba_MEA_shapes.xml"'})
 
 
 def _replace_diagram(did, proc, xml, user):
@@ -468,7 +507,8 @@ def r_diagram(c, did):
     latest = db.one("SELECT * FROM diagram_versions WHERE diagram_id=? ORDER BY ver_no DESC LIMIT 1", (d["id"],))
     p = db.one("SELECT process_id,name FROM processes WHERE id=?", (d["process_id"],)) if d["process_id"] else None
     approx = bool(latest["preview_asset_id"] is None or (db.one("SELECT role FROM assets WHERE id=?", (latest["preview_asset_id"],)) or {}).get("role") == "preview-approx")
-    return dict(diagram=d, latest=dict(id=latest["id"], ver_no=latest["ver_no"], xml=latest["xml"], validation=latest["validation"], preview_asset_id=latest["preview_asset_id"], preview_approx=approx),
+    return dict(diagram=d, latest=dict(id=latest["id"], ver_no=latest["ver_no"], xml=latest["xml"], validation=latest["validation"], preview_asset_id=latest["preview_asset_id"], preview_approx=approx,
+                            checks=svc.flow_checks(latest["id"])),
                 process=p, versions=svc.diagram_versions(d["id"]), nodes=svc.diagram_nodes(latest["id"]))
 
 

@@ -81,6 +81,7 @@ def process_detail(user, pid_text, version_id=None):
             dv["latest_ver"] = latest["ver_no"]
             dv["locked_by"] = dv["lock_user"] if dv["lock_user"] and dv["lock_expires"] and dv["lock_expires"] > svc.now() else None
             dv["nodes"] = svc.diagram_nodes(dv["id"]) if staff else []
+            dv["checks"] = svc.flow_checks(dv["id"]) if staff else None
             diagram = dv
     rels = q("""SELECT r.id,r.rel_type,r.note,r.inferred,'out' AS dir,p.process_id,p.name FROM relationships r JOIN processes p ON p.id=r.to_id WHERE r.from_id=?
                 UNION ALL SELECT r.id,r.rel_type,r.note,r.inferred,'in' AS dir,p.process_id,p.name FROM relationships r JOIN processes p ON p.id=r.from_id WHERE r.to_id=?""", (p["id"], p["id"]))

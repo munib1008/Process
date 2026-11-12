@@ -336,6 +336,12 @@ def revamp(flow_xml: str, name: str, pid: str, dept: str, legend: dict, meta: di
             if role not in used_roles:
                 used_roles.append(role)
         n.set("style", _ss(d, order))
+    finish(root, cells_root, name, pid, dept, legend, used_roles, meta)
+    return etree.tostring(root, encoding="unicode")
+
+
+def finish(root, cells_root, name, pid, dept, legend, used_roles, meta=None):
+    """Wrap the shapes of a flow in the titled frame, add the master legend and the file attributes (in place)."""
     tmp = etree.tostring(root, encoding="unicode")
     sc = drawio.scene(tmp)
     tops = [b for b in sc["boxes"].values() if b["parent"] in ("1", None)]
@@ -353,12 +359,11 @@ def revamp(flow_xml: str, name: str, pid: str, dept: str, legend: dict, meta: di
     for c in legend_cells:
         cells_root.append(c)
     root.set("host", "MEA Process Hub")
-    for k, v in dict(meaProcessId=pid, meaName=name, meaDept=dept or "", **(meta or {})).items():
+    for k, v in dict(meaProcessId=pid or "", meaName=name, meaDept=dept or "", **(meta or {})).items():
         root.set(k, str(v))
     d0 = root.find("diagram")
     d0.set("name", pid or name[:40])
-    d0.set("id", re.sub(r"[^A-Za-z0-9]", "", pid) or "flow")
-    return etree.tostring(root, encoding="unicode")
+    d0.set("id", re.sub(r"[^A-Za-z0-9]", "", pid or "") or "flow")
 
 
 def legend_block(legend: dict, used_roles, x, y):
