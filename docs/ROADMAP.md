@@ -67,10 +67,10 @@ handful of people must *edit* in one shared installation. Do the SharePoint publ
 |---|---|---|---|---|
 | 2a | Internal server behind HTTPS, service account, backup and one restore test | One shared library instead of copies | 2–3 days IT, files are in `deploy/` | High |
 | 2b | **Single sign-on with Microsoft Entra ID (OpenID Connect), app roles mapped to roles** – *built in version 1.1.0 and tested against a stand-in identity provider; to be proven on the tenant (`docs/SSO_ENTRA.md`)* | Removes separate passwords, gives MFA and automatic leaver handling; precondition for IT approval | 8–12 days development + IT app registration | Medium |
-| 2c | IT Security review / penetration test, fix findings | No company data in an unreviewed system | 5–10 days fixing, depends on findings | Low |
-| 2d | Code-signed EXE, or retire the EXE for end users once the server runs | No SmartScreen warnings, no shadow copies of the library | 2 days + certificate | Medium |
+| 2c | IT Security review / penetration test, fix findings – *prepared: `docs/SECURITY_REVIEW_PACK.md` lists controls, their tests and the known gaps; the review itself is IT's* | No company data in an unreviewed system | 5–10 days fixing, depends on findings | Low |
+| 2d | Code-signed EXE, or retire the EXE for end users once the server runs – *the build signs the EXE when a certificate is added as repository secret; not run, no certificate available* | No SmartScreen warnings, no shadow copies of the library | 2 days + certificate | Medium |
 | 2e | Teams tab and SharePoint page in two pilot departments | Put the library where people already work | 1–2 days with the admins | Medium (tenant untested) |
-| 2f | E-mail or Teams notifications: tasks, review due, approval waiting | Without reminders the workflow stalls | 5–7 days (needs a mail relay or Graph permission) | Medium |
+| 2f | E-mail or Teams notifications: tasks, review due, approval waiting – *built in version 1.2.0 (`docs/NOTIFICATIONS.md`), tested against stand-in mail and webhook servers* | Without reminders the workflow stalls | 5–7 days (needs a mail relay or Graph permission) | Medium |
 
 ### Phase 3 – Depth that users notice (weeks 8–20, order by demand)
 | # | Item | Benefit | Effort (estimate) |

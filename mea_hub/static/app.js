@@ -101,6 +101,9 @@ async function viewDashboard() {
   const list = (items, empty, fn) => items.length ? h("ul", {style: "margin:0;padding-left:18px"}, items.slice(0, 8).map(fn), items.length > 8 ? h("li", {class: "muted"}, "… " + (items.length - 8) + " more") : null) : h("p", {class: "muted"}, empty);
   const ip = d.import_progress;
   return h("div", {class: "page"}, h("h1", null, "Enterprise overview"), h("div", {class: "sub"}, "Live from the process database – nothing here is sample data. " + d.sources + " source document(s) imported."),
+    S.cfg.notifications ? h("label", {class: "check", style: "margin:0 0 10px"}, h("input", {type: "checkbox", checked: S.user.notify !== false, onchange: (e) => guard(async () => {
+      const r = await PUT("/api/me/notify", {enabled: e.target.checked}); S.user.notify = r.enabled; toast(r.enabled ? "You will get e-mails about new tasks" : "E-mails about tasks are switched off for you"); })}),
+      " E-mail me when work is waiting for me" + (S.user.email || /@/.test(S.user.username) ? "" : " (no e-mail address is stored for you yet – ask the administrator)")) : null,
     inbox.length ? h("div", {class: "card"}, h("h3", null, "My tasks (" + inbox.length + ")"), table(["Task", "Process", "Detail"], inbox.slice(0, 12).map((x) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(x.process_id)), cells: [h("span", {class: "chip warn"}, x.kind), x.process_id + " – " + x.name, x.detail]})))) : null,
     h("div", {class: "grid g4"}, kpi(d.total, "Registered processes", "#/library"), kpi(d.by_status.published || 0, "Published (approved)", "#/library"),
       kpi(d.pending.length, "In review / approval", "#/governance/approvals", d.pending.length ? "warn" : ""), kpi(d.findings.high, "High-severity open findings", "#/reports/findings", d.findings.high ? "bad" : ""),
@@ -684,10 +687,28 @@ async function viewExport() {
 async function viewAdmin(tab) {
   if (!can("admin")) throw new Error("Administrator access required.");
   tab = tab || "users";
-  const tabs = [["users", "Users & roles"], ["settings", "Settings"], ["backup", "Backup & restore"], ["sso", "Single sign-on"], ["teams", "Teams & SharePoint"], ["audit", "Audit log"]];
+  const tabs = [["users", "Users & roles"], ["settings", "Settings"], ["backup", "Backup & restore"], ["sso", "Single sign-on"], ["notify", "Notifications"], ["teams", "Teams & SharePoint"], ["audit", "Audit log"]];
   const bar = h("div", {class: "tabs"}, tabs.map(([k, l]) => h("a", {class: "tab" + (k === tab ? " on" : ""), href: "#/admin/" + k}, l)));
   let body;
-  if (tab === "sso") {
+  if (tab === "notify") {
+    const n = await GET("/api/admin/notifications");
+    const state = (ok, yes, no) => h("div", {class: "banner " + (ok ? "ok" : "info")}, ok ? yes : no);
+    body = h("div", {class: "grid g2"},
+      h("div", {class: "card"}, h("h3", null, "Messages about waiting work"),
+        h("p", {class: "muted"}, "People are told when a review, an approval or a publication is waiting for them, when changes are requested, when a periodic review is due, and when their revision is published. Each person can switch this off on the Dashboard."),
+        state(n.email.configured, "E-mail is switched on: " + n.email.sender + " through " + n.email.host + ":" + n.email.port + (n.email.starttls ? " (STARTTLS)" : "") + ".", "E-mail is not configured (MEA_HUB_SMTP_HOST and MEA_HUB_MAIL_FROM)."),
+        state(n.teams.configured, "A Teams channel receives a summary of newly waiting items.", "No Teams channel is configured (MEA_HUB_TEAMS_WEBHOOK_FILE)."),
+        n.links ? null : h("div", {class: "banner warn"}, "Messages contain no links because MEA_HUB_PUBLIC_URL is not set."),
+        h("p", null, "Checked every " + n.minutes + " minutes. Summary of all open tasks: " + (n.digest === "off" ? "off" : n.digest + " at " + n.digest_hour + ":00" + (n.digest === "weekly" ? " on Monday" : "")) + "."),
+        h("div", {class: "row"}, h("button", {class: "btn", disabled: !n.email.configured, onclick: () => guard(async () => { const r = await POST("/api/admin/notifications/test", {}); toast("Test message sent to " + r.sent_to); route(); })}, "Send me a test message"),
+          h("button", {class: "btn", onclick: () => guard(async () => { const r = await POST("/api/admin/notifications/run", {}); toast(r.mails + " e-mail(s), " + r.teams + " Teams post(s), " + r.failed + " failed"); route(); })}, "Check now")),
+        n.without_address.length ? h("p", {class: "muted", style: "margin-top:10px"}, n.without_address.length + " active user(s) have no e-mail address and get no messages: " + n.without_address.slice(0, 12).join(", ") + (n.without_address.length > 12 ? " …" : "") + ". Enter addresses under Users & roles.") : null,
+        n.switched_off.length ? h("p", {class: "muted"}, "Switched off by the person: " + n.switched_off.join(", ") + ".") : null,
+        h("p", {class: "muted"}, "Channels are set in the server's start settings; passwords and the webhook address are never shown here. Steps: docs/NOTIFICATIONS.md.")),
+      h("div", {class: "card"}, h("h3", null, "Last messages"), n.recent.length ? table(["When", "To", "Channel", "Subject", "Result"], n.recent.map((x) => [fmtDate(x.created_at), x.username || "channel", x.channel, x.subject,
+        x.status === "sent" ? h("span", {class: "chip ok"}, "sent") : h("span", {class: "chip bad", title: x.error}, "failed")])) : h("p", {class: "muted"}, "Nothing sent yet.")));
+  }
+  else if (tab === "sso") {
     const s = await GET("/api/admin/sso");
     const row = (k, v) => h("tr", null, h("td", {style: "font-weight:600;white-space:nowrap"}, k), h("td", null, v));
     body = h("div", {class: "grid g2"},
@@ -731,7 +752,8 @@ async function viewAdmin(tab) {
       const m = modal("Add user", h("div", null, h("div", {class: "fields"}, [["Username", f2.u], ["Display name", f2.n], ["Temporary password", f2.pw], ["Role", f2.role], ["Department scope", f2.dp]].map(([l, e]) => h("div", null, h("label", null, l), e))),
         h("p", {class: "muted"}, "The user must change the temporary password at first sign-in. Editors and department owners can be limited to one department."),
         h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => guard(async () => { await POST("/api/users", {username: f2.u.value, display_name: f2.n.value, password: f2.pw.value, role: f2.role.value, department_id: f2.dp.value ? +f2.dp.value : null}); m.close(); toast("User " + f2.u.value + " created"); route(); })}, "Create user"), h("button", {class: "btn", onclick: () => m.close()}, "Cancel")))); f2.u.focus(); };
-    body = h("div", null, h("div", {class: "row spread", style: "margin-bottom:10px"}, h("b", null, r.users.length + " user(s)"), h("button", {class: "btn pri", onclick: addUser}, "+ Add user")), table(["User", "Name", "Role", "Dept scope", "Active", ""], r.users.map((x) => [x.username, x.display_name, h("select", {style: "width:auto", onchange: (e) => guard(async () => { await PUT("/api/users/" + x.id, {role: e.target.value}); toast("Role updated"); })}, S.cfg.roles.map((rr) => h("option", {selected: rr === x.role}, rr))), x.department || "all", x.active ? "yes" : "no",
+    body = h("div", null, h("div", {class: "row spread", style: "margin-bottom:10px"}, h("b", null, r.users.length + " user(s)"), h("button", {class: "btn pri", onclick: addUser}, "+ Add user")), table(["User", "Name", "E-mail for messages", "Role", "Dept scope", "Active", ""], r.users.map((x) => [x.username + (x.auth === "entra" ? " (Microsoft)" : ""), x.display_name,
+      h("input", {type: "text", value: x.email || "", placeholder: /@/.test(x.username) ? x.username : "name@company.com", style: "width:210px", onchange: (e) => guard(async () => { await PUT("/api/users/" + x.id, {email: e.target.value}); toast("E-mail address saved"); })}), h("select", {style: "width:auto", onchange: (e) => guard(async () => { await PUT("/api/users/" + x.id, {role: e.target.value}); toast("Role updated"); })}, S.cfg.roles.map((rr) => h("option", {selected: rr === x.role}, rr))), x.department || "all", x.active ? "yes" : "no",
       h("span", {class: "row"}, h("button", {class: "btn sm", onclick: () => guard(async () => { await PUT("/api/users/" + x.id, {active: !x.active}); route(); })}, x.active ? "Deactivate" : "Activate"),
         h("button", {class: "btn sm", onclick: async () => { const p = await promptBox("Reset password", "New temporary password (min 8)"); if (p) guard(async () => { await PUT("/api/users/" + x.id, {password: p}); toast("Password reset (user must change it)"); }); }}, "Reset password"))])),
       h("div", {class: "card"}, h("h3", null, "Role permissions"), table(["Role", "Can"], [["admin", "Everything"], ["controller", "Import, accept imports, edit, review, publish approved revisions, manage findings, view all"], ["dept_owner", "Edit/submit/review within own department, manage findings, relationships"],

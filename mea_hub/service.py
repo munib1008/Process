@@ -194,11 +194,11 @@ def public_user(u):
 def session_user(token):
     if not token:
         return None
-    s = one("SELECT s.*,u.username,u.display_name,u.role,u.department_id,u.must_change,u.active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?", (token,))
+    s = one("SELECT s.*,u.username,u.display_name,u.role,u.department_id,u.must_change,u.active,u.email,u.notify FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?", (token,))
     if not s or not s["active"] or s["expires_at"] < now():
         return None
     return dict(id=s["user_id"], username=s["username"], display_name=s["display_name"], role=s["role"],
-                department_id=s["department_id"], must_change=bool(s["must_change"]), csrf=s["csrf"])
+                department_id=s["department_id"], must_change=bool(s["must_change"]), csrf=s["csrf"], email=s["email"] or "", notify=s["notify"] != 0)
 
 
 def logout(token):

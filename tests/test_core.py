@@ -1158,6 +1158,127 @@ def test_single_sign_on_with_entra_id(server, admin, users, monkeypatch):
     assert sso.settings() is None                                                                           # one named tenant only
 
 
+def test_notifications_by_mail_and_teams(server, admin, users, monkeypatch, tmp_path):
+    """People are told once when work is waiting for them; failures are retried; nothing is sent unless a channel is configured."""
+    import datetime as dt
+    import socketserver
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from mea_hub import notify
+
+    class Smtp(socketserver.StreamRequestHandler):               # minimal mail server that keeps what it receives
+        def handle(self):
+            say = lambda t: self.wfile.write((t + "\r\n").encode())
+            say("220 test")
+            data, buf, rcpt = False, [], []
+            for line in self.rfile:
+                if data:
+                    if line.strip() == b".":
+                        self.server.box.append((list(rcpt), b"".join(buf).decode("utf-8", "replace")))
+                        data, buf, rcpt = False, [], []
+                        say("250 ok")
+                    else:
+                        buf.append(line)
+                    continue
+                cmd = line.strip()
+                if cmd.upper().startswith(b"RCPT TO:"):
+                    rcpt.append(cmd[8:].decode().strip("<> "))
+                if cmd.upper() == b"DATA":
+                    data = True
+                    say("354 go")
+                elif cmd.upper() == b"QUIT":
+                    say("221 bye")
+                    return
+                else:
+                    say("250 ok")
+    mail = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Smtp)
+    mail.box = []
+    threading.Thread(target=mail.serve_forever, daemon=True).start()
+    posts = []
+
+    class Hook(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            posts.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(202); self.send_header("Content-Length", "0"); self.end_headers()
+    hook = ThreadingHTTPServer(("127.0.0.1", 0), Hook)
+    threading.Thread(target=hook.serve_forever, daemon=True).start()
+
+    assert notify.run_once() == dict(mails=0, failed=0, teams=0, people_without_address=0) and not notify.enabled()      # nothing configured: nothing happens
+    db.db().execute("DELETE FROM notified")
+    db.db().execute("UPDATE users SET email=NULL, notify=1")
+    monday = dt.datetime(2026, 11, 16, 9, 0)
+    assert monday.weekday() == 0
+    hookfile = tmp_path / "hook.txt"
+    hookfile.write_text(f"http://127.0.0.1:{hook.server_address[1]}/workflows/abc")
+    for k, v in dict(MEA_HUB_SMTP_HOST="127.0.0.1", MEA_HUB_SMTP_PORT=str(mail.server_address[1]), MEA_HUB_MAIL_FROM="processhub@example.com", MEA_HUB_PUBLIC_URL="https://processhub.example.com",
+                     MEA_HUB_TEAMS_WEBHOOK_FILE=str(hookfile), MEA_HUB_NOTIFY_DIGEST="off").items():
+        monkeypatch.setenv(k, v)
+    ed, rev = users["editor"], users["reviewer"]
+    # addresses: the administrator enters them (single sign-on users have theirs from the directory)
+    uid = {u["username"]: u["id"] for u in admin.call("GET", "/api/users")[1]["users"]}
+    assert admin.call("PUT", f"/api/users/{uid['demo_reviewer']}", {"email": "not-an-address"})[0] == 400
+    assert admin.call("PUT", f"/api/users/{uid['demo_reviewer']}", {"email": "reviewer@example.com"})[0] == 200
+    assert admin.call("PUT", f"/api/users/{uid['demo_editor']}", {"email": "editor@example.com"})[0] == 200
+    notify.run_once()                                                # whatever is already waiting is announced once ...
+    mail.box.clear(); posts.clear()
+    assert notify.run_once()["mails"] == 0 and not mail.box and not posts         # ... and never twice
+    # a revision is submitted: the reviewer gets a message with a link, the channel gets a summary
+    assert ed.call("POST", "/api/process", {"name": "Notify me", "department": "LOG", "process_id": "ZZ-M-NT-01"})[0] == 200
+    assert ed.call("PUT", "/api/process/ZZ-M-NT-01/draft", {"content": {"objective": "x"}, "base_updated_at": None})[0] == 200
+    assert ed.call("POST", "/api/process/ZZ-M-NT-01/submit", {"change_summary": "first version"})[0] == 200
+    res = notify.run_once()
+    to_rev = [m for r, m in mail.box if r == ["reviewer@example.com"]]
+    assert res["failed"] == 0 and len(to_rev) == 1 and "Review requested" in to_rev[0] and "ZZ-M-NT-01" in to_rev[0]
+    assert "https://processhub.example.com/#/process/ZZ-M-NT-01" in to_rev[0] and "Subject: MEA Process Hub: 1 new item for you" in to_rev[0]
+    assert not [m for r, m in mail.box if r == ["editor@example.com"]]                                   # the author is not asked to review his own work
+    assert res["people_without_address"] >= 1                                                           # other reviewers without an address are counted, not lost
+    card = posts[-1]["attachments"][0]
+    assert posts[-1]["type"] == "message" and card["contentType"] == "application/vnd.microsoft.card.adaptive" and "ZZ-M-NT-01" in json.dumps(card["content"])
+    n_posts = len(posts)
+    mail.box.clear()
+    assert notify.run_once()["mails"] == 0 and len(posts) == n_posts                                     # announced once
+    # the reviewer asks for changes: the author is told; the reviewer's task is gone
+    assert rev.call("POST", "/api/process/ZZ-M-NT-01/review", {"decision": "request_changes", "note": "add scope"})[0] == 200
+    notify.run_once()
+    to_ed = [m for r, m in mail.box if r == ["editor@example.com"]]
+    assert len(to_ed) == 1 and "Changes requested" in to_ed[0]
+    # a person switches the messages off
+    assert ed.call("PUT", "/api/me/notify", {"enabled": False})[1] == {"enabled": False}
+    assert ed.call("POST", "/api/process/ZZ-M-NT-01/submit", {"change_summary": "scope added"})[0] == 200
+    assert rev.call("POST", "/api/process/ZZ-M-NT-01/review", {"decision": "request_changes", "note": "again"})[0] == 200
+    mail.box.clear()
+    notify.run_once()
+    assert not [m for r, m in mail.box if r == ["editor@example.com"]]
+    assert ed.call("PUT", "/api/me/notify", {"enabled": True})[0] == 200
+    # the mail server is down: recorded as failed, and delivered at the next run
+    assert ed.call("POST", "/api/process/ZZ-M-NT-01/submit", {"change_summary": "third"})[0] == 200
+    monkeypatch.setenv("MEA_HUB_SMTP_PORT", "1")
+    mail.box.clear()
+    assert notify.run_once()["failed"] >= 1 and not mail.box
+    monkeypatch.setenv("MEA_HUB_SMTP_PORT", str(mail.server_address[1]))
+    notify.run_once()
+    assert [m for r, m in mail.box if r == ["reviewer@example.com"]]
+    # weekly summary of open tasks: Monday after the set hour, once
+    monkeypatch.setenv("MEA_HUB_NOTIFY_DIGEST", "weekly")
+    mail.box.clear()
+    assert notify.run_once(now=monday.replace(hour=6))["mails"] == 0
+    notify.run_once(now=monday)
+    digests = [m for r, m in mail.box if "open task" in m]
+    assert digests and any(r == ["reviewer@example.com"] for r, m in mail.box if "open task" in m)
+    mail.box.clear()
+    assert notify.run_once(now=monday.replace(hour=15))["mails"] == 0
+    # administration: state without secrets, test message
+    st = admin.call("GET", "/api/admin/notifications")[1]
+    assert st["email"]["configured"] and st["teams"]["configured"] and "demo_viewer" in st["without_address"] and any(x["status"] == "failed" for x in st["recent"])
+    assert "workflows/abc" not in json.dumps(st)
+    assert admin.call("POST", "/api/admin/notifications/test", {})[0] == 400                               # the admin has no address yet
+    assert ed.call("GET", "/api/admin/notifications")[0] == 403
+    assert json.loads(__import__("urllib.request").request.urlopen(server + "/api/config").read())["notifications"] is True
+
+
 def test_teams_tab_package_and_pages(server, admin, users, monkeypatch, tmp_path):
     """The Teams app package points Teams at the hosted tool; the server lets the Teams hosts frame it only when asked to."""
     import importlib.util

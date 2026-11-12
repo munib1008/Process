@@ -24,6 +24,13 @@ set "MEA_HUB_OIDC_CLIENT_ID="
 set "MEA_HUB_OIDC_CLIENT_SECRET_FILE="
 REM    Optional: MEA_HUB_OIDC_DEFAULT_ROLE (viewer | none), MEA_HUB_OIDC_ROLE_SOURCE (entra | tool), MEA_HUB_OIDC_ONLY (1 = no passwords except local admins)
 
+REM 3c. Notifications (docs\NOTIFICATIONS.md). Leave empty for none.
+set "MEA_HUB_SMTP_HOST="
+set "MEA_HUB_SMTP_PORT=25"
+set "MEA_HUB_MAIL_FROM="
+set "MEA_HUB_TEAMS_WEBHOOK_FILE="
+REM    Optional: MEA_HUB_SMTP_STARTTLS (1), MEA_HUB_SMTP_USER, MEA_HUB_SMTP_PASSWORD_FILE, MEA_HUB_NOTIFY_DIGEST (weekly | daily | off), MEA_HUB_NOTIFY_DIGEST_HOUR (8)
+
 REM 4. Port on this server. The reverse proxy forwards to http://127.0.0.1:8765
 set "MEA_HUB_PORT=8765"
 

@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS exports(
   id INTEGER PRIMARY KEY, ts TEXT NOT NULL, username TEXT, scope TEXT NOT NULL, fmt TEXT NOT NULL, status TEXT NOT NULL,
   filename TEXT, sha256 TEXT, size INTEGER, snapshot_hash TEXT, snapshot TEXT, error TEXT);
 CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS notified(user_id INTEGER NOT NULL, key TEXT NOT NULL, sent_at TEXT NOT NULL, PRIMARY KEY(user_id, key));
+CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY, user_id INTEGER, channel TEXT NOT NULL, subject TEXT NOT NULL, status TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sso_states(state TEXT PRIMARY KEY, nonce TEXT NOT NULL, verifier TEXT NOT NULL, popup INTEGER NOT NULL DEFAULT 0, created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS sso_handoffs(token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS id_aliases(old_id TEXT PRIMARY KEY, process_row INTEGER NOT NULL REFERENCES processes(id), changed_at TEXT NOT NULL);
@@ -110,7 +112,8 @@ MIGRATIONS = {   # table -> columns added after the first release (applied with 
                  ("version_label", "TEXT NOT NULL DEFAULT ''"), ("section", "TEXT NOT NULL DEFAULT ''"), ("parent_id", "INTEGER"),
                  ("resolution", "TEXT NOT NULL DEFAULT ''"), ("resolved_by", "TEXT"), ("resolved_at", "TEXT")],
     "diagram_versions": [("preview_box", "TEXT")],
-    "users": [("auth", "TEXT NOT NULL DEFAULT 'local'"), ("external_id", "TEXT"), ("last_login", "TEXT")],      # single sign-on (Entra ID)
+    "users": [("auth", "TEXT NOT NULL DEFAULT 'local'"), ("external_id", "TEXT"), ("last_login", "TEXT"),
+              ("email", "TEXT"), ("notify", "INTEGER NOT NULL DEFAULT 1")],      # single sign-on (Entra ID)
     "processes": [("gen_key", "TEXT")],              # identifies a generated draft (e.g. the SAP step a work instruction was drafted for)   # graph bounds [x, y, w, h] of the stored draw.io preview (locates document pictures exactly)
 }
 

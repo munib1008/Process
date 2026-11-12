@@ -22,6 +22,13 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Notifications, security review pack, optional code signing (2026-11-12, version 1.2.0).** *Done, tested:* `mea_hub/notify.py` tells people by e-mail when work is
+waiting for them (review, approval, publication, changes requested, review due or overdue, published), once per task, with a weekly or daily summary; optional post to one
+Teams channel; per-person switch on the Dashboard; failures are recorded and retried; state and last messages under *Administration ▸ Notifications*. Automated test against
+a stand-in mail server and webhook. `Strict-Transport-Security` is sent behind HTTPS. `docs/SECURITY_REVIEW_PACK.md` gives IT Security the controls, their tests and the
+known gaps. *Built, not run:* the build signs the EXE when a certificate is supplied as repository secret (no certificate here). *Not tested:* the company mail relay and a
+real Teams Workflows webhook.
+
 **Single sign-on with Microsoft Entra ID (2026-11-12, version 1.1.0).** *Done, tested:* OpenID Connect authorization code flow with PKCE (`mea_hub/sso.py`): one-time
 state, ID-token signature (RS256, key from the tenant's key set, verified in the tool without an extra library), issuer, audience, tenant, validity and nonce; roles and
 department scope from Entra app roles at every sign-in, or kept in the tool; automatic creation of the user; local administrators as break-glass; passwords can be switched

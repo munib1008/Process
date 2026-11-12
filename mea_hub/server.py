@@ -11,7 +11,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import __version__, config, db, drawio, drafts, exporter, flowpic, importer, queries, service as svc, sso
+from . import __version__, config, db, drawio, drafts, exporter, flowpic, importer, notify, queries, service as svc, sso
 
 COOKIE = "mea_session"
 ROUTES = []
@@ -107,6 +107,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Accept-Encoding")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        if (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower() == "https":
+            self.send_header("Strict-Transport-Security", "max-age=31536000")      # reached through HTTPS: tell the browser to stay on it
         embed = config.embed_origins()
         if embed:                                            # framing is governed by frame-ancestors (X-Frame-Options cannot name other sites)
             self.send_header("Cross-Origin-Resource-Policy", "same-origin")
@@ -298,6 +300,31 @@ def r_handoff(c):
     return dict(user=pub, csrf=csrf, _set_cookie=cookie)
 
 
+@route("PUT", "/api/me/notify")
+def r_me_notify(c):
+    """Each person decides whether the tool sends them messages about their tasks."""
+    db.db().execute("UPDATE users SET notify=? WHERE id=?", (1 if c.json().get("enabled") else 0, c.user["id"]))
+    return dict(enabled=bool(c.json().get("enabled")))
+
+
+@route("GET", "/api/admin/notifications")
+def r_notify_status(c):
+    svc.need(c.user, "admin")
+    return notify.status()
+
+
+@route("POST", "/api/admin/notifications/test")
+def r_notify_test(c):
+    svc.need(c.user, "admin")
+    return dict(sent_to=notify.send_test(c.user))
+
+
+@route("POST", "/api/admin/notifications/run")
+def r_notify_run(c):
+    svc.need(c.user, "admin")
+    return notify.run_once()
+
+
 @route("GET", "/api/admin/sso")
 def r_sso_status(c):
     svc.need(c.user, "admin")
@@ -333,7 +360,7 @@ def r_health(c):
 
 @route("GET", "/api/config", auth=False)
 def r_config(c):
-    return dict(embeddable=bool(config.embed_origins()), sso=dict(enabled=sso.enabled(), only=sso.passwords_restricted()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
+    return dict(embeddable=bool(config.embed_origins()), notifications=notify.mail_ready(), sso=dict(enabled=sso.enabled(), only=sso.passwords_restricted()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
                 templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
                 comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version=__version__,
@@ -916,6 +943,11 @@ def r_user_upd(c, uid):
             if d["role"] not in svc.ROLES:
                 raise svc.Invalid("Unknown role")
             db.db().execute("UPDATE users SET role=? WHERE id=?", (d["role"], int(uid)))
+        if "email" in d:
+            mail = str(d["email"] or "").strip()
+            if mail and not notify.EMAIL_RE.fullmatch(mail):
+                raise svc.Invalid("This is not an e-mail address.")
+            db.db().execute("UPDATE users SET email=? WHERE id=?", (mail or None, int(uid)))
         if "active" in d:
             if int(uid) == c.user["id"] and not d["active"]:
                 raise svc.Invalid("You cannot deactivate yourself.")

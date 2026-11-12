@@ -89,6 +89,9 @@ def main():
         except (OSError, ValueError) as e:
             print("  ID decisions not applied:", e)
     srv = make_server(args.host, args.port)
+    from mea_hub import notify
+    if notify.start_worker():
+        print(" Notifications are switched on (see Administration > Notifications).")
     url = f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}/"
     print("=" * 66)
     print(" MEA Process Hub is running:", url)

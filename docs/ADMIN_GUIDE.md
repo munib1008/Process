@@ -35,5 +35,10 @@ the app treats the editor as an untrusted iframe (only messages from its origin 
 legend page of exports. A flow that already exists keeps the legend drawn inside it until it is built again. Give each role its own colour where possible: the flow
 reader recognises the role of a hand-drawn shape by its outline colour.
 
+## Code signing (optional)
+Add two repository secrets on GitHub – `CODESIGN_PFX_BASE64` (the certificate file, base64-encoded) and `CODESIGN_PFX_PASSWORD` – and the build signs
+`MEA_Process_Hub.exe` before it is tested and packaged. Certificates kept on a hardware token cannot be exported this way; use the issuer's cloud signing service instead.
+This step has not been run (no certificate was available).
+
 ## Hosting, SharePoint and Teams
 One shared installation on an internal server: `docs/SERVER_AND_SHAREPOINT.md`. Teams channel tab: `docs/TEAMS.md`. Roadmap: `docs/ROADMAP.md`.

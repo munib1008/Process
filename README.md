@@ -64,7 +64,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 38 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 39 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)
@@ -89,6 +89,9 @@ Channel tab that shows the hosted tool: Teams app package from *Administration â
 
 ## Single sign-on
 Sign-in with Microsoft Entra ID for the live tool, roles from Entra app roles: [docs/SSO_ENTRA.md](docs/SSO_ENTRA.md).
+
+## Notifications and security review
+E-mail and Teams messages about waiting work: [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md). Controls, tests and known gaps for IT Security: [docs/SECURITY_REVIEW_PACK.md](docs/SECURITY_REVIEW_PACK.md).
 
 ## Roadmap
 What is needed to turn the tool into an approved, trusted company platform â€“ content first, then single sign-on, then depth: [docs/ROADMAP.md](docs/ROADMAP.md).

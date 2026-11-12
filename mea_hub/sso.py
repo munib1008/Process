@@ -227,6 +227,7 @@ def finish(code, state):
     ext = str(claims.get("oid") or claims.get("sub"))
     uname = _username(claims)
     name = str(claims.get("name") or uname)[:120]
+    mail = next((v for v in (str(claims.get("email") or ""), str(claims.get("preferred_username") or "")) if re.fullmatch(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", v)), None)
     mapped = role_from_claims(claims) if cfg["role_source"] == "entra" else None
     with db.tx():
         u = one("SELECT * FROM users WHERE external_id=?", (ext,)) or one("SELECT * FROM users WHERE username=?", (uname,))
@@ -242,14 +243,14 @@ def finish(code, state):
             raise SsoError("You are signed in to Microsoft, but no role in MEA Process Hub is assigned to you. Ask the administrator of the tool.")
         c = db.db()
         if u:
-            c.execute("UPDATE users SET display_name=?, role=?, department_id=?, auth='entra', external_id=?, must_change=0, last_login=?, pw_hash=CASE WHEN auth='entra' THEN pw_hash ELSE ? END WHERE id=?",
-                      (name, role, dept, ext, svc.now(), svc.hash_password(secrets.token_urlsafe(32)), u["id"]))
+            c.execute("UPDATE users SET display_name=?, role=?, department_id=?, auth='entra', external_id=?, must_change=0, last_login=?, email=COALESCE(?, email), pw_hash=CASE WHEN auth='entra' THEN pw_hash ELSE ? END WHERE id=?",
+                      (name, role, dept, ext, svc.now(), mail, svc.hash_password(secrets.token_urlsafe(32)), u["id"]))
             uid = u["id"]
         else:
             if one("SELECT 1 FROM users WHERE username=?", (uname,)):
                 uname = (uname[:50] + "-" + ext[:8]).lower()
-            uid = c.execute("INSERT INTO users(username,display_name,pw_hash,role,department_id,must_change,created_at,auth,external_id,last_login) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                            (uname, name, svc.hash_password(secrets.token_urlsafe(32)), role, dept, 0, svc.now(), "entra", ext, svc.now())).lastrowid
+            uid = c.execute("INSERT INTO users(username,display_name,pw_hash,role,department_id,must_change,created_at,auth,external_id,last_login,email) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                            (uname, name, svc.hash_password(secrets.token_urlsafe(32)), role, dept, 0, svc.now(), "entra", ext, svc.now(), mail)).lastrowid
             svc.audit(uname, "user_created", "user", uid, f"first single sign-on, role {role}")
         user = one("SELECT * FROM users WHERE id=?", (uid,))
     return user, bool(st["popup"])
