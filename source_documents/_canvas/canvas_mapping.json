@@ -594,6 +594,217 @@
    "dept": "E2E",
    "kind": "e2e",
    "provisional": true
+  },
+  {
+   "title": "Project Management Complete E2E Flow",
+   "id": "PM-M-IN-01",
+   "name": "Project Initiation Process",
+   "dept": "PRJ",
+   "kind": "sop",
+   "attach": true,
+   "slice": {
+    "from": "LPO received and reviewed",
+    "to": "Initiate advance payments",
+    "start": "Initiation",
+    "end": "Planning"
+   },
+   "match": {
+    "chart_id": "PM-M-IN-01",
+    "name": "Project Initiation Process"
+   },
+   "note": "The canvas draws the five project phases as one complete flow. This is its section from “LPO received and reviewed” to “Initiate advance payments”, which has the same steps as the picture of this phase in S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx."
+  },
+  {
+   "title": "Project Management Complete E2E Flow",
+   "id": "PM-M-PL-01",
+   "name": "Project Planning Process",
+   "dept": "PRJ",
+   "kind": "sop",
+   "attach": true,
+   "slice": {
+    "from": "Parallel Tasks",
+    "to": "Engineering Approval",
+    "start": "Planning",
+    "end": "Execution"
+   },
+   "match": {
+    "chart_id": "PM-M-IN-01",
+    "name": "Project Planning Process"
+   },
+   "note": "The canvas draws the five project phases as one complete flow. This is its section from “Parallel Tasks” to “Engineering Approval”, which has the same steps as the picture of this phase in S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx."
+  },
+  {
+   "title": "Project Management Complete E2E Flow",
+   "id": "PM-M-EX-01",
+   "name": "Project Execution Process",
+   "dept": "PRJ",
+   "kind": "sop",
+   "attach": true,
+   "slice": {
+    "from": "External Kick-Off Meeting",
+    "to": "Supports and Structure procurement",
+    "start": "Execution",
+    "end": "Monitor & Control"
+   },
+   "match": {
+    "chart_id": "PM-M-IN-01",
+    "name": "Project Execution Process"
+   },
+   "note": "The canvas draws the five project phases as one complete flow. This is its section from “External Kick-Off Meeting” to “Supports and Structure procurement”, which has the same steps as the picture of this phase in S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx."
+  },
+  {
+   "title": "Project Management Complete E2E Flow",
+   "id": "PM-M-MC-01",
+   "name": "Project Monitoring and Control Process",
+   "dept": "PRJ",
+   "kind": "sop",
+   "attach": true,
+   "slice": {
+    "from": "Project plan review",
+    "to": "Payment on-track",
+    "start": "Monitor & Control",
+    "end": "Closing"
+   },
+   "match": {
+    "chart_id": "PM-M-IN-01",
+    "name": "Project Monitoring and Control Process"
+   },
+   "note": "The canvas draws the five project phases as one complete flow. This is its section from “Project plan review” to “Payment on-track”, which has the same steps as the picture of this phase in S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx."
+  },
+  {
+   "title": "Project Management Complete E2E Flow",
+   "id": "PM-M-CL-01",
+   "name": "Project Closing Process",
+   "dept": "PRJ",
+   "kind": "sop",
+   "attach": true,
+   "slice": {
+    "from": "Conduct final inspections",
+    "to": "Retention payment release",
+    "start": "Closing",
+    "end": "End"
+   },
+   "match": {
+    "chart_id": "PM-M-IN-01",
+    "name": "Project Closing Process"
+   },
+   "note": "The canvas draws the five project phases as one complete flow. This is its section from “Conduct final inspections” to “Retention payment release”, which has the same steps as the picture of this phase in S2S_Process_Documentation_-_dormakaba_MEA_Supply_chain_v1.0.docx."
+  },
+  {
+   "title": "QA/QC",
+   "id": "WL-S-QC-01.2",
+   "name": "Material Quality Assurance & Control Check",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "match": {
+    "chart_id": "WL-S-QC-01",
+    "name": "Material Quality Assurance & Control Check"
+   },
+   "note": "The picture of this process in S2S_Process_Documentation_-_Approval_processes.docx shows the same steps as the canvas flow “QA/QC” (also used for WL-S-QC-01). Both records now carry that flow; whether the two records are one process is an open duplicate decision."
+  },
+  {
+   "title": "Fragile Material Handling",
+   "id": "WL-S-FH-02",
+   "name": "Fragile Handling",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "match": {
+    "chart_id": "WL-S-FH-02",
+    "name": "Fragile Handling"
+   },
+   "note": "The picture of this process in S2S_Process_Documentation_-_Approval_processes.docx shows the same steps as the canvas flow “Fragile Material Handling” (also used for WL-S-FH-01). Both records now carry that flow; whether the two records are one process is an open duplicate decision."
+  },
+  {
+   "title": "PICK and PACK",
+   "id": "WL-M-PP-01",
+   "name": "Material Pick and Pack",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "match": {
+    "chart_id": "WL-M-PP-01",
+    "name": "Material Pick and Pack"
+   },
+   "note": "The picture of this process in S2S_Process_Documentation_-_Approval_processes.docx shows the same steps as the canvas flow “PICK and PACK” (also used for PP-M-PQ-01). Both records now carry that flow; whether the two records are one process is an open duplicate decision."
+  },
+  {
+   "title": "Shipping Documentation",
+   "id": "WL-M-SP-01.3",
+   "name": "Shipping Documentation",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "match": {
+    "chart_id": "WL-M-SP-01",
+    "name": "Shipping Documentation"
+   },
+   "note": "The picture of this process in S2S_Process_Documentation_-_Approval_processes.docx shows the same steps as the canvas flow “Shipping Documentation” (also used for WL-M-SP-01). Both records now carry that flow; whether the two records are one process is an open duplicate decision."
+  },
+  {
+   "title": "Dispatch",
+   "id": "WL-M-OB-01.2",
+   "name": "Material Dispatch",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "match": {
+    "chart_id": "WL-M-OB-01",
+    "name": "Material Dispatch"
+   },
+   "note": "The picture of this process in S2S_Process_Documentation_-_Approval_processes.docx shows the same steps as the canvas flow “Dispatch” (also used for WL-M-OB-01). Both records now carry that flow; whether the two records are one process is an open duplicate decision."
+  },
+  {
+   "title": "Annual Audit_KSA",
+   "id": "WL-M-IA-01.2",
+   "name": "Inventory Audit",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "match": {
+    "chart_id": "WL-M-IA-01",
+    "name": "Inventory Audit"
+   },
+   "note": "The picture of this process in S2S_Process_Documentation_-_Approval_processes.docx shows the same steps as the canvas flow “Annual Audit_KSA” (also used for WL-M-IA-02). Both records now carry that flow; whether the two records are one process is an open duplicate decision."
+  },
+  {
+   "hint": "Responsible ■ Sales & Support Team ■ Country Manag",
+   "id": "SA-M-PM-01",
+   "name": "Project Management Process",
+   "dept": "PRJ",
+   "kind": "approval",
+   "attach": true,
+   "match": {
+    "chart_id": "SA-M-PM-01",
+    "name": "Project Management Process"
+   },
+   "note": "The picture of this process in S2S_Process_Documentation_-_Approval_processes.docx shows the same steps as the canvas flow recorded as PM-M-PI-01 (Project Management Involvement). Both records now carry that flow; whether they are one process is an open duplicate decision."
+  },
+  {
+   "steps": [
+    "Start: CORRECTION",
+    "Warehouse: Physical Stock Examination",
+    "Note: Re-check/ Verify Stock Quantity.",
+    "Warehouse: Descripency confirmed?",
+    "No: End",
+    "Warehouse: Inform WH Head and Finance on Stock discrepancy",
+    "Financial Controller: Correction APPROVED?",
+    "No: End",
+    "Warehouse: Supervisor Updates Stock in SAP. Share reference Document number with Finance",
+    "Financial Controller: Finance document change and Update Stock price if necessary",
+    "End: EXIT"
+   ],
+   "id": "WL-S-SC-01.3",
+   "name": "Stock Correction",
+   "dept": "LOG",
+   "kind": "sop",
+   "attach": true,
+   "match": {
+    "chart_id": "WL-S-SC-01",
+    "name": "Stock Correction"
+   },
+   "note": "The picture in S2S_Process_Documentation_-_Approval_processes.docx is an earlier version of Stock Correction than the canvas flow WL-S-SC-01 (no root-cause analysis steps) and is not on the canvas. Redrawn from the picture; roles follow the outline colours (steel blue = Warehouse, maroon = Financial Controller). Owner to decide whether this version is still valid."
   }
  ],
  "legend": {

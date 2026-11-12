@@ -410,6 +410,42 @@ def test_canvas_split_revamp_and_read():
     assert new["role"] == "Logistics"
 
 
+def test_flow_section_redrawn_flow_and_match_key(tmp_path):
+    """A section of a canvas flow becomes its own flow; a flow missing on the canvas is redrawn from steps; both find
+    the document record by chart ID and heading, not by the ID the import happened to give it."""
+    from mea_hub import canvas, flowread
+    xml = drawio.normalize(_canvas_xml())
+    built, _, _ = canvas.build_all(xml, {"legend": LEGEND, "flows": [
+        {"title": "Alpha Flow", "id": "TST-C-AL-02", "name": "Alpha – posting", "dept": "LOG", "attach": True,
+         "slice": {"from": "Complete?", "to": "Post GR", "start": "Checked", "end": "Quality check"}, "match": {"chart_id": "TST-C-AL-01", "name": "Alpha posting"}},
+        {"title": "Alpha Flow", "id": "TST-C-AL-09", "name": "x", "slice": {"from": "No such step", "to": "Post GR"}},
+        {"steps": ["Start: CORRECTION", "Warehouse: Recount stock", "Logistics: Difference confirmed?", "No: End", "Warehouse: Post correction (MI07)", "End: EXIT"],
+         "id": "TST-C-SC-01", "name": "Stock correction", "dept": "LOG", "attach": True, "match": {"chart_id": "TST-C-SC-01", "name": "Stock correction"}}]})
+    part, missing, redrawn = built
+    assert missing["xml"] is None and "not found" in missing["error"]
+    drawio.normalize(part["xml"])
+    fr = flowread.read(part["xml"])
+    assert [a["activity"] for a in fr["activities"]] == ["Decision: Complete?", "Post GR (MIGO)", "Inform buyer"]      # only the section, in order
+    assert fr["has_start"] and fr["unreached"] == 0 and "Yes: Post GR (MIGO)" in fr["activities"][0]["output"]
+    assert ">Checked<" not in part["xml"] and 'value="Checked"' in part["xml"] and 'value="Quality check"' in part["xml"]  # own start and end
+    assert "Receive goods" not in part["xml"] and 'meaMatchChart="TST-C-AL-01"' in part["xml"] and 'meaSection="Complete? … Post GR"' in part["xml"]
+    assert "connector(s) to other sections" in part["xml"]                             # the cut is stated in the mapping note
+    assert 'meaRedrawn="1"' in redrawn["xml"] and [a["role"] for a in flowread.read(redrawn["xml"])["activities"]] == ["Warehouse", "Logistics", "Warehouse"]
+    # the document record exists under an import-given ID; the flow files find it by chart ID + heading
+    for cid, name, pid in (("TST-C-AL-01", "Alpha posting", "TST-C-AL-01.2"), ("TST-C-SC-01", "Stock correction", "TST-C-SC-01.3")):
+        svc.create_process_record(pid, cid, name, "LOG", "sop", dict(svc.EMPTY), "imported", "imported", "tester")
+    before = db.one("SELECT count(*) n FROM processes")["n"]
+    for i, b in enumerate((part, redrawn)):
+        f = tmp_path / f"flow{i}.drawio"
+        f.write_text(b["xml"], encoding="utf-8")
+        importer.import_paths([str(f)], "tester")
+    assert db.one("SELECT count(*) n FROM processes")["n"] == before                    # attached, no new record
+    for pid, n, title in (("TST-C-AL-01.2", 3, "Flowchart picture replaced by the native flow%"), ("TST-C-SC-01.3", 3, "Flow redrawn from the flowchart picture%")):
+        p_ = svc.get_process(pid)
+        assert len(svc.latest_version(p_["id"])["content"]["activities"]) == n
+        assert db.one("SELECT 1 FROM findings WHERE process_id=? AND title LIKE ?", (p_["id"], title))
+
+
 def test_flow_file_replaces_picture_and_stays_linked(users, tmp_path):
     from mea_hub import canvas
     built, _, _ = canvas.build_all(drawio.normalize(_canvas_xml()), {"flows": [

@@ -3,7 +3,7 @@
 ## What was done
 The file `source_documents/_canvas/dormakaba_All_Approved_process_Project_1.44_master_canvas.drawio` is **one page with
 2,171 shapes** – every approved flow drawn side by side. It was turned into **one draw.io file per process**
-(`source_documents/flows/<ID>_<Name>.drawio`, 71 flows + 1 file with the unassigned notes) by:
+(`source_documents/flows/<ID>_<Name>.drawio`, 71 flows + 1 file with the unassigned notes; 13 more were added on 2026-11-12, see below) by:
 
 1. **Cutting** the canvas: shapes joined by connectors form a flow; the large title above it names it; loose notes are
    attached to the nearest flow. Nothing is dropped – whatever belongs to no flow is in `SC-RF-NT-01`.
@@ -45,6 +45,26 @@ A canvas uploaded through **Import & Sources** without a mapping file is still s
 A flow entry in `canvas_mapping.json` may carry `id_corrections`: `{"chart": "<chart ID in the documents>", "name": "<process name>", "to": "<new ID>", "reason": "…"}`.
 They are written into the flow file, applied after import and re-checked at every start (idempotent; skipped when the target ID exists or the process is not found
 exactly once). Current entries: the project phases Planning / Execution / Monitoring and Control / Closing → `PM-M-PL-01`, `PM-M-EX-01`, `PM-M-MC-01`, `PM-M-CL-01`.
+
+## No pictures left: sections, twins and one redrawn flow (2026-11-12)
+After the first cut, 13 processes still showed the flowchart *picture* from a Word document. Each picture was compared with the canvas:
+
+| Process records | Editable source | How |
+|---|---|---|
+| `PM-M-IN-01`, `PM-M-PL-01`, `PM-M-EX-01`, `PM-M-MC-01`, `PM-M-CL-01` (project phases) | Canvas flow "Project Management Complete E2E Flow" (left version) | The canvas draws the phases as one flow. Each phase is the **section** between two of its steps (`"slice": {"from", "to", "start", "end"}`), closed with its own start and end – the same steps as the phase pictures in the Supply Chain document |
+| `WL-S-QC-01.2`, `WL-S-FH-02`, `WL-M-PP-01`, `WL-M-SP-01.3`, `WL-M-OB-01.2`, `WL-M-IA-01.2` (records from the Approval document) | Canvas flows QA/QC, Fragile Material Handling, PICK and PACK, Shipping Documentation, Dispatch, Annual Audit_KSA | The picture shows the same steps as that canvas flow, so the record carries a copy of it (**twin**) |
+| `SA-M-PM-01` Project Management Process | Canvas flow recorded as `PM-M-PI-01` | Twin |
+| `WL-S-SC-01.3` Stock Correction (Approval document) | **Not on the canvas** – an earlier version without the root-cause steps of `WL-S-SC-01` | **Redrawn** step by step from the picture with the flow builder (`"steps": [...]`); roles follow the outline colours. Finding of medium severity asks the owner to confirm it |
+
+* The picture stays as revision 1 of each diagram; the new flow is revision 2 and drives the activity table.
+* A flow file finds its document record by **chart ID + heading** (`"match"`, stored as `meaMatchChart` / `meaMatchName`), not by the ID the import assigned (`…-01.2`),
+  so the result does not depend on the order in which documents are imported.
+* ID decisions shipped with the flows are applied **before** the flow files look for their process.
+* Twins do not settle the open duplicate question (are `WL-S-FH-01` and `WL-S-FH-02` one process?). That decision stays with the owner; the findings say so.
+
+Native draw.io files outside `flows/` (`PMM-M-PR-01…`, `WL-M-VS-01…`, `SC-M-VS-01…`, the two-page Enterprise Architecture file) now also carry pictures rendered
+by draw.io (`<file>.png`, further pages `<file>.p2.png`). A file that is dedicated to one process and named after its ID takes precedence over a page with the same
+ID inside a collection file – `SC-M-VS-01_Level1_Value_Stream.drawio` (41 shapes) therefore replaces the older Level-1 page (37 shapes), which is kept as a duplicate mapping.
 
 ## Document pictures (flow only, export areas)
 `mea_hub/flowpic.py` cuts the document picture out of the sheet picture that draw.io rendered – nothing is redrawn, so the document cannot differ from the flow.

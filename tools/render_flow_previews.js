@@ -1,7 +1,8 @@
 /* Render every source_documents/flows/*.drawio to a PNG with the real draw.io engine (headless Chromium).
    The PNG sits next to the flow file and is used by the importer as the authoritative preview.
 
-   Usage:  node tools/render_flow_previews.js [baseUrl] [flowsDir]
+   Usage:  node tools/render_flow_previews.js [baseUrl] [flowsDir] [file1.drawio,file2.drawio]
+   A file with several pages gets one picture per page (<file>.png, <file>.p2.png, ...).
    Needs:  a running MEA Process Hub with the local draw.io copy (default http://127.0.0.1:8765) and Playwright. */
 const {chromium} = require('playwright');
 const fs = require('fs');
@@ -11,7 +12,8 @@ const base = process.argv[2] || 'http://127.0.0.1:8765';
 const dir = process.argv[3] || path.join(__dirname, '..', 'source_documents', 'flows');
 
 (async () => {
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.drawio')).sort();
+  const only = process.argv[4] ? process.argv[4].split(',') : null;      // optional: comma-separated file names
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.drawio') && (!only || only.includes(f))).sort();
   const browser = await chromium.launch();
   const page = await (await browser.newContext({viewport: {width: 1600, height: 1000}})).newPage();
   // same arrangement as the app: draw.io runs in an iframe and talks to the parent page via postMessage
@@ -26,8 +28,15 @@ const dir = process.argv[3] || path.join(__dirname, '..', 'source_documents', 'f
   }, base + '/drawio/index.html?embed=1&proto=json&spin=0&offline=1&libraries=0');
   await page.waitForFunction(() => window.__ev.some((m) => m.event === 'init'), null, {timeout: 90000});
   let ok = 0, failed = [];
+  const jobs = [];                                                        // one picture per page: <file>.png, <file>.p2.png, ...
   for (const f of files) {
     const xml = fs.readFileSync(path.join(dir, f), 'utf8');
+    const pages = xml.match(/<diagram[\s\S]*?<\/diagram>/g) || [];
+    if (pages.length < 2) jobs.push([f.replace(/\.drawio$/, '.png'), xml]);
+    else pages.forEach((p, i) => jobs.push([f.replace(/\.drawio$/, i ? '.p' + (i + 1) + '.png' : '.png'), '<mxfile>' + p + '</mxfile>']));
+  }
+  for (const [out, xml] of jobs) {
+    const f = out;
     try {
       const data = await page.evaluate(async (xml) => {
         const wait = (name, ms) => new Promise((res, rej) => {
@@ -51,11 +60,11 @@ const dir = process.argv[3] || path.join(__dirname, '..', 'source_documents', 'f
       const b64 = String(data).split(',')[1];
       const buf = Buffer.from(b64, 'base64');
       if (buf.slice(0, 4).toString('hex') !== '89504e47') throw new Error('not a PNG');
-      fs.writeFileSync(path.join(dir, f.replace(/\.drawio$/, '.png')), buf);
+      fs.writeFileSync(path.join(dir, out), buf);
       ok++;
     } catch (e) { failed.push(f + ': ' + e.message); }
   }
-  console.log(`${ok} of ${files.length} previews rendered`);
+  console.log(`${ok} of ${jobs.length} previews rendered`);
   failed.forEach((x) => console.log('FAILED', x));
   await browser.close();
 })();

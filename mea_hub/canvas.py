@@ -192,6 +192,60 @@ def extract(xml: str, unit_ids, margin=(60, 110)) -> str:
     return etree.tostring(mx, encoding="unicode")
 
 
+def slice_units(xml: str, unit_ids, sl: dict):
+    """A section of one flow as its own flow: every shape between the steps `from` and `to` (labels, top to bottom),
+    closed with its own start and end terminators (`start`, `end`). Connectors that leave the section are cut; the one
+    that led on from the last step is replaced by a connector to the new end terminator (keeping its label).
+    Returns (xml with the two terminators added, unit ids of the section, number of other connectors cut) or None."""
+    sc = drawio.scene(xml)
+    B = sc["boxes"]
+    units = [B[i] for i in unit_ids if i in B]
+    uid = {u["id"] for u in units}
+
+    def top(i):
+        while i in B and B[i]["parent"] in B:
+            i = B[i]["parent"]
+        return i
+
+    def find(text):
+        hits = sorted((u for u in units if re.sub(r"\s+", " ", u["label"]).strip().lower().startswith(text.lower())), key=lambda u: u["y"])
+        return hits[0] if hits else None
+    first, last = find(sl["from"]), find(sl["to"])
+    if not first or not last:
+        return None
+    links = [(top(e["source"]) if e["source"] else None, top(e["target"]) if e["target"] else None, e) for e in sc["edges"]]
+    connected = {i for s, t, _ in links for i in (s, t) if i in uid}
+    steps = [u for u in units if u["id"] in connected]
+    above = [u["y"] + u["h"] for u in steps if u["y"] + u["h"] <= first["y"]]
+    below = [u["y"] for u in steps if u["y"] >= last["y"] + last["h"]]
+    upper = (max(above) + first["y"]) / 2 if above else float("-inf")
+    lower = (min(below) + last["y"] + last["h"]) / 2 if below else float("inf")
+    span = last["y"] + last["h"] - first["y"]
+    part = [u for u in units if upper <= u["y"] + u["h"] / 2 < lower and u["h"] <= span * 1.5 + 200]
+    ids = {u["id"] for u in part}
+    onward = next((e for s, t, e in links if s == last["id"] and t in uid and t not in ids), None)
+    cut = sum(1 for s, t, e in links if (s in ids) != (t in ids) and s in uid and t in uid) - (1 if onward else 0)
+    root = drawio._parse(xml.encode("utf-8"))
+    cells = root.find("diagram").find("mxGraphModel").find("root")
+    tag = re.sub(r"[^A-Za-z0-9]", "", sl.get("start", "part"))[:12] or "part"
+
+    def vertex(cid, label, x, y):
+        c = etree.SubElement(cells, "mxCell", id=cid, value=label, style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;", vertex="1", parent="1")
+        g = etree.SubElement(c, "mxGeometry", x=str(round(x, 1)), y=str(round(y, 1)), width="130", height="34")
+        g.set("as", "geometry")
+
+    def edge(cid, label, src, dst, style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;"):
+        c = etree.SubElement(cells, "mxCell", id=cid, value=label, style=style, edge="1", parent="1", source=src, target=dst)
+        g = etree.SubElement(c, "mxGeometry", relative="1")
+        g.set("as", "geometry")
+    s_id, e_id = f"mea_ps_{tag}", f"mea_pe_{tag}"
+    vertex(s_id, sl.get("start", "Start"), first["x"] + first["w"] / 2 - 65, first["y"] - 62)
+    vertex(e_id, sl.get("end", "End"), last["x"] + last["w"] / 2 - 65, last["y"] + last["h"] + 28)
+    edge(s_id + "_e", "", s_id, first["id"])
+    edge(e_id + "_e", onward["label"] if onward else "", last["id"], e_id)
+    return etree.tostring(root, encoding="unicode"), [u["id"] for u in part] + [s_id, e_id], max(cut, 0)
+
+
 # ====================================================================== revamp: brand style, frame, master legend
 ID_IN_TEXT = re.compile(r"\b([A-Z]{2,3})-([A-Z]{1,2})-([A-Z]{2,3})-\s?(\d)\s?(\d)\b")
 ID_SPLIT_BY_MARKUP = re.compile(r"([A-Z]{2,3}-[A-Z]{1,2}-[A-Z]{2,3}-\d)((?:\s|<[^>]*>)+)(\d)(?!\d)")
@@ -428,6 +482,17 @@ def build_all(canvas_xml: str, mapping: dict):
     used, built = set(), []
     for spec in mapping["flows"]:
         cand = None
+        match = spec.get("match") or {}
+        common = dict(meaKind=spec.get("kind", "sop"), meaAttach="1" if spec.get("attach") else "0", meaProvisional="1" if spec.get("provisional") else "0",
+                      meaCanvasTitle=spec.get("title") or spec.get("hint") or spec["name"], meaNote=spec.get("note", ""), meaCategory=spec.get("category", ""))
+        if match:                                            # the document record this flow belongs to, whatever ID the import gave it
+            common.update(meaMatchChart=match.get("chart_id", ""), meaMatchName=match.get("name", ""))
+        if "steps" in spec:                                  # not on the canvas: redrawn step by step from the flowchart picture of a document
+            from . import flowbuild
+            fx, warn = flowbuild.build(spec["name"], spec["id"], spec.get("dept", "E2E"), "\n".join(spec["steps"]), legend,
+                                       dict(common, meaRedrawn="1"))
+            built.append(dict(spec=spec, shapes=len(spec["steps"]), xml=fx, error="; ".join(warn) if warn else None))
+            continue
         if "title" in spec:
             lst = pools["title"].get(spec["title"], [])
             cand = lst[spec.get("nth", 0)] if len(lst) > spec.get("nth", 0) else None
@@ -438,9 +503,18 @@ def build_all(canvas_xml: str, mapping: dict):
             built.append(dict(spec=spec, xml=None, error="not found on canvas"))
             continue
         used.add(id(cand))
-        fx = extract(canvas_xml, cand["unit_ids"])
-        meta = dict(meaKind=spec.get("kind", "sop"), meaAttach="1" if spec.get("attach") else "0", meaProvisional="1" if spec.get("provisional") else "0",
-                    meaCanvasTitle=spec.get("title") or spec.get("hint"), meaNote=spec.get("note", ""), meaCategory=spec.get("category", ""))
+        meta = dict(common)
+        if spec.get("slice"):                                # one section of the flow (e.g. a project phase) as its own flow
+            res = slice_units(canvas_xml, cand["unit_ids"], spec["slice"])
+            if res is None:
+                built.append(dict(spec=spec, xml=None, error="section steps not found in the flow"))
+                continue
+            fx = extract(res[0], res[1])
+            meta["meaSection"] = f"{spec['slice']['from']} … {spec['slice']['to']}"
+            if res[2]:
+                meta["meaNote"] = (meta["meaNote"] + " " if meta["meaNote"] else "") + f"{res[2]} connector(s) to other sections of the complete flow are not part of this section."
+        else:
+            fx = extract(canvas_xml, cand["unit_ids"])
         if spec.get("id_corrections"):
             import json as _json
             meta["meaIdCorrections"] = _json.dumps(spec["id_corrections"], ensure_ascii=False)
@@ -466,8 +540,10 @@ if __name__ == "__main__":                                   # python -m mea_hub
     built, rest, frag = build_all(page, mapping)
     for b in built:
         if b["xml"] is None:
-            print("NOT FOUND:", b["spec"].get("title") or b["spec"].get("hint"))
+            print("NOT FOUND:", b["spec"].get("title") or b["spec"].get("hint"), "-", b.get("error"))
             continue
+        if b.get("error"):
+            print("REMARK:", b["spec"]["id"], b["error"])
         fn = os.path.join(out, re.sub(r"[^A-Za-z0-9._-]+", "_", f"{b['spec']['id']}_{b['spec']['name']}")[:90] + ".drawio")
         with open(fn, "w", encoding="utf-8") as f:
             f.write(b["xml"])

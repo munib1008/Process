@@ -21,6 +21,14 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**No picture flows left (2026-11-12).** *Done, tested:* the 13 processes that still showed a flowchart picture now carry editable flows: five project phases cut as
+sections out of the project E2E flow on the canvas, seven records that show the same steps as an existing canvas flow (twins), and one flow that is not on the canvas
+(earlier Stock Correction version) redrawn step by step from its picture and flagged for confirmation. Fresh import: 100 processes as before, **90 with native editable
+flows, 0 pictures**, 1,387 activities; 278 open findings (18 high) – the 35 additional ones document the replacements. The newer `SC-M-VS-01` file replaces the older
+Level-1 page. Native files outside `flows/` now have draw.io-rendered pictures. *Limits:* a data folder that was created earlier keeps its pictures until the new flow
+files are imported into it (Import & Sources) or the folder is started fresh; twins do not answer whether two records are one process; the redrawn flow reflects my
+reading of the picture and needs the owner's check.
+
 **Flow pictures in documents (2026-11-12).** *Done, tested:* DOCX / PDF / HTML show the flow without frame, title bar and master legend, at drawn size unless the page
 forces a reduction (50 of the 72 supplied flows now print at 100 %); "Export area" shape in Flow Studio – only the part inside goes into the document, several areas give
 several pictures; preview on the process page and in Flow Studio; *Whole sheet* remains selectable in the Export Center. Checked in the real draw.io editor (area dragged
