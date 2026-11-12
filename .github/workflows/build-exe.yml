@@ -44,7 +44,7 @@ jobs:
           Set-Content -Encoding ascii "dist/MEA_Process_Hub/Reset admin password.bat" "@echo off`r`n""%~dp0MEA_Process_Hub.exe"" --reset-admin`r`npause"
           Copy-Item docs dist/MEA_Process_Hub/docs -Recurse
           Copy-Item deploy dist/MEA_Process_Hub/deploy -Recurse
-      - name: Smoke-test the EXE (first-start import, drafts, login, library, DOCX + PDF export, flow builder)
+      - name: Smoke-test the EXE (first-start import, drafts, login, library, DOCX + PDF + SharePoint export, flow builder)
         shell: pwsh
         run: |
           $data = "$PWD/smoke_data"
@@ -68,7 +68,7 @@ jobs:
             $lib = Invoke-RestMethod "$base/api/library" -WebSession $sess
             Write-Host "Processes in library: $($lib.processes.Count)"
             if ($lib.processes.Count -lt 90) { throw "Expected the source documents to be imported (got $($lib.processes.Count) processes)" }
-            foreach ($fmt in 'docx', 'pdf') {
+            foreach ($fmt in 'docx', 'pdf', 'site') {
               $e = Invoke-RestMethod "$base/api/exports" -Method Post -WebSession $sess -Headers $h -ContentType 'application/json' `
                      -Body (@{ scope = 'handbook'; fmt = $fmt } | ConvertTo-Json)
               Write-Host "Handbook $fmt export: $($e.export.status), $($e.export.size) bytes"
