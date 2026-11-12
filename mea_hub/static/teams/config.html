@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MEA Process Hub – tab settings</title>
+<link rel="stylesheet" href="/style.css">
+<style>body{background:transparent}.wrap{max-width:560px;margin:18px auto;padding:0 16px}label.opt{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:400}label.opt input{width:auto}</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 style="margin:0 0 4px">MEA Process Hub</h2>
+  <p class="muted">Choose what this tab opens. People sign in with their MEA Process Hub user name the first time they open it.</p>
+  <label class="opt"><input type="radio" name="start" value="#/dashboard" checked> Dashboard</label>
+  <label class="opt"><input type="radio" name="start" value="#/handbook"> Master Handbook</label>
+  <label class="opt"><input type="radio" name="start" value="#/library"> Process Library</label>
+  <label class="opt"><input type="radio" name="start" value="#/departments"> Departments (overview)</label>
+  <label class="opt"><input type="radio" name="start" value="dept"> One department:&nbsp;<input type="text" id="dept" placeholder="code, e.g. LOG" maxlength="12" style="width:140px"></label>
+  <label class="opt"><input type="radio" name="start" value="proc"> One process:&nbsp;<input type="text" id="proc" placeholder="ID, e.g. WL-M-IB-01" maxlength="44" style="width:200px"></label>
+  <label style="margin-top:14px">Tab name</label>
+  <input type="text" id="name" value="Process Hub" maxlength="30">
+  <p class="muted" id="state" style="margin-top:12px"></p>
+</div>
+<script src="/teams/teams-js.min.js"></script>
+<script src="/teams/config.js"></script>
+</body>
+</html>

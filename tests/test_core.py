@@ -870,6 +870,45 @@ def test_embedding_in_sharepoint_is_opt_in(server, users, monkeypatch):
     assert ed.call("POST", "/api/process", {"name": "x", "department": "LOG"}, csrf=False)[0] == 403
 
 
+def test_teams_tab_package_and_pages(server, admin, users, monkeypatch, tmp_path):
+    """The Teams app package points Teams at the hosted tool; the server lets the Teams hosts frame it only when asked to."""
+    import importlib.util
+    import urllib.request
+    from mea_hub import config
+    from mea_hub import teams as mk
+    man = mk.manifest("https://processhub.example.com/")
+    assert man["validDomains"] == ["processhub.example.com"] and man["manifestVersion"] == "1.16" and len(man["name"]["short"]) <= 30
+    tab = man["configurableTabs"][0]
+    assert tab["configurationUrl"] == "https://processhub.example.com/teams/config.html" and tab["scopes"] == ["team", "groupChat"] and tab["canUpdateConfiguration"]
+    assert man["staticTabs"][0]["contentUrl"] == "https://processhub.example.com/#/dashboard" and man["staticTabs"][0]["scopes"] == ["personal"]
+    assert man["id"] == mk.manifest("https://processhub.example.com")["id"] != mk.manifest("https://other.example.com")["id"]      # same address, same app: an upload updates it
+    for bad in ("http://processhub.example.com", "https://processhub.example.com/app", "processhub.example.com", "https://"):
+        with pytest.raises(ValueError):
+            mk.manifest(bad)
+    z = zipfile.ZipFile(io.BytesIO(mk.build("https://processhub.example.com", name="MEA Process Hub – Logistics and Warehouse team")))
+    assert sorted(z.namelist()) == ["color.png", "manifest.json", "outline.png"]
+    assert _png_size(z.read("color.png")) == (192, 192) and _png_size(z.read("outline.png")) == (32, 32)
+    assert len(json.loads(z.read("manifest.json"))["name"]["short"]) == 30
+    # pages of the tab are part of the tool and need no session
+    for path, needle in (("/teams/config.html", b"/teams/teams-js.min.js"), ("/teams/config.js", b"pages.config.setConfig"), ("/teams/about.html", b"does not use your Microsoft 365 sign-in")):
+        r = urllib.request.urlopen(server + path)
+        assert r.status == 200 and needle in r.read() and r.headers["X-Frame-Options"] == "SAMEORIGIN"      # not frameable by Teams unless switched on
+    assert len(urllib.request.urlopen(server + "/teams/teams-js.min.js").read()) > 100000
+    # administrators download the package from the tool itself
+    assert users["controller"].call("GET", "/api/admin/teams-package?url=https://processhub.example.com")[0] == 403
+    assert admin.call("GET", "/api/admin/teams")[1]["teams_allowed"] is False
+    s, raw = admin.call("GET", "/api/admin/teams-package?url=https://processhub.example.com&name=Process%20Hub", raw=True)
+    assert s == 200 and json.loads(zipfile.ZipFile(io.BytesIO(raw)).read("manifest.json"))["name"]["short"] == "Process Hub"
+    assert admin.call("GET", "/api/admin/teams-package?url=http://processhub.example.com")[0] == 400
+    monkeypatch.setenv("MEA_HUB_EMBED_ORIGINS", "teams")
+    assert config.embed_origins() == config.TEAMS_ORIGINS and "https://teams.microsoft.com" in config.TEAMS_ORIGINS and "https://*.cloud.microsoft" in config.TEAMS_ORIGINS
+    h = urllib.request.urlopen(server + "/teams/config.html").headers
+    assert h["X-Frame-Options"] is None and "frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com" in h["Content-Security-Policy"]
+    assert "script-src 'self'" in h["Content-Security-Policy"]                                         # the Teams library is served by the tool itself
+    monkeypatch.setenv("MEA_HUB_EMBED_ORIGINS", "Teams, https://contoso.sharepoint.com")
+    assert config.embed_origins() == config.TEAMS_ORIGINS + ["https://contoso.sharepoint.com"]             # Teams tab hosted through a SharePoint (SPFx) page
+
+
 def test_one_time_password_file_and_admin_reset(server, admin):
     import conftest
     path = os.path.join(conftest._tmp, svc.ADMIN_FILE)

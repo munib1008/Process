@@ -21,6 +21,13 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Microsoft Teams channel tab (2026-11-12).** *Done, tested:* the tool can be displayed in a Teams channel tab from the hosted server. (1) Teams app package built by the
+tool (*Administration ▸ Teams & SharePoint* or `tools/make_teams_app.py`), manifest valid against Microsoft's schemas 1.16–1.24; tab settings page `/teams/config.html` with
+Microsoft's Teams JavaScript SDK 2.59 (served locally), exercised against a stand-in Teams host; `--embed-origins teams` allows the Teams hosts; sign-in and pages work when
+framed by the origin `https://teams.microsoft.com` (Chromium). (2) The proposed SPFx route: frame web part with `TeamsTab` in `supportedHosts`, generated with Microsoft's
+generator 1.24.1 and built here to `deploy/teams/MEA_Process_Hub_SharePoint_Teams.sppkg`. *Not possible, stated plainly:* the tool itself cannot be converted into an SPFx
+package – it is a server program; both packages only display it. *Not tested:* upload to a real tenant, App Catalog, Teams desktop and mobile clients. Guide: `docs/TEAMS.md`.
+
 **Internal server and SharePoint embedding (2026-11-12).** *Done, tested:* embedding is opt-in per site (`MEA_HUB_EMBED_ORIGINS` → `frame-ancestors`, cookie
 `SameSite=None; Secure; Partitioned`, CSRF header still required), host allow-list and `--allow-hosts` / `--embed-origins` options, `/api/health`, *Full window* link inside a
 frame; checked in Chromium with a page on another site (sign-in, library, nested draw.io editor; unlisted site refused). *Built, not run:* `deploy/` files for a Windows

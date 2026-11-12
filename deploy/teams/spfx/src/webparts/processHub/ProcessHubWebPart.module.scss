@@ -1,0 +1,30 @@
+.processHub {
+  overflow: hidden;
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+
+.foot {
+  font-size: 12px;
+  padding: 2px 4px;
+  text-align: right;
+
+  a {
+    text-decoration: none;
+    color: "[theme:link, default:#003594]";
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.hint {
+  padding: 1em;
+  border: 1px dashed "[theme:neutralTertiary, default:#a19f9d]";
+  color: "[theme:bodyText, default: #323130]";
+}

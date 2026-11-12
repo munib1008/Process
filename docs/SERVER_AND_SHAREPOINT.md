@@ -59,6 +59,8 @@ The tool is a "third party" inside a SharePoint page, so the browser applies its
 If sign-in does not hold inside the frame, the user clicks **Full window ↗** (or opens the address directly); nothing is lost.
 A user signed in through the frame is not automatically signed in when opening the tool in its own tab, and the other way round.
 
+For a Microsoft Teams channel tab see [TEAMS.md](TEAMS.md).
+
 ## 3. Operation
 * **Backup:** *Administration ▸ Backup* creates a ZIP of the database and files; additionally include the data folder in the server backup.
 * **Update:** stop the task, replace the program files (not the data folder), start the task. Database changes are applied automatically at start.

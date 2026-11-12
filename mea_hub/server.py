@@ -758,6 +758,27 @@ def r_register(c):
     return file_resp(queries.register_xlsx(c.user), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "MEA_Master_Process_Register.xlsx")
 
 
+# ---- Microsoft Teams / SharePoint
+@route("GET", "/api/admin/teams")
+def r_teams_info(c):
+    svc.need(c.user, "admin")
+    origins = config.embed_origins()
+    return dict(embed_origins=origins, teams_allowed=all(o in origins for o in config.TEAMS_ORIGINS), teams_origins=config.TEAMS_ORIGINS)
+
+
+@route("GET", "/api/admin/teams-package")
+def r_teams_package(c):
+    """The Teams app package for the address under which the tool is hosted (admin only)."""
+    svc.need(c.user, "admin")
+    from . import teams
+    try:
+        data = teams.build(c.arg("url", ""), name=c.arg("name", "MEA Process Hub")[:100] or "MEA Process Hub", developer=c.arg("developer", "")[:32] or svc.cfg("org_name", "dormakaba MEA"))
+    except ValueError as e:
+        raise svc.Invalid(str(e))
+    svc.audit(c.user, "teams_package", "system", "teams", c.arg("url", "")[:200])
+    return file_resp(data, "application/zip", "MEA_Process_Hub_Teams.zip")
+
+
 # ---- drafts derived from the flows (RACI per process, work instruction per SAP task)
 @route("GET", "/api/drafts")
 def r_drafts_info(c):

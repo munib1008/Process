@@ -1,0 +1,39 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "MEA Process Hub (SharePoint and Teams)",
+    "id": "e5800c3e-0078-48d2-a0a6-4e48f6f1723c",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "developer": {
+      "name": "dormakaba MEA",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.24.1"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "Shows MEA Process Hub on SharePoint pages and in Microsoft Teams tabs"
+      },
+      "longDescription": {
+        "default": "A frame around MEA Process Hub, which runs on the company server. The package contains no process data. Enter the https address of the tool in the web part settings."
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "MEA Process Hub web part",
+        "description": "Adds the MEA Process Hub web part (SharePoint page, Teams tab, Teams personal app).",
+        "id": "52a50857-c863-4b3d-965e-0a54fd6eaab3",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/mea-process-hub-tab.sppkg"
+  }
+}

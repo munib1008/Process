@@ -33,15 +33,22 @@ DRAWIO_REMOTE = os.environ.get("MEA_HUB_DRAWIO_URL", "https://embed.diagrams.net
 _ORIGIN = __import__("re").compile(r"https://(\*\.)?[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(:\d{1,5})?|http://localhost(:\d{1,5})?")
 
 
+# Hosts of Microsoft Teams (web and desktop client) in the commercial cloud. A tab page must allow all of them as frame
+# ancestors. Source: the valid-domain list shipped inside Microsoft's Teams JavaScript SDK 2.59 plus the *.teams / *.skype hosts
+# of the older clients. Government clouds use other hosts (e.g. https://gov.teams.microsoft.us) - list those explicitly.
+TEAMS_ORIGINS = ["https://teams.microsoft.com", "https://*.teams.microsoft.com", "https://*.cloud.microsoft", "https://*.skype.com"]
+
+
 def embed_origins():
     """Sites that may show the app inside a frame (e.g. a SharePoint page): MEA_HUB_EMBED_ORIGINS, comma-separated
-    https origins such as https://contoso.sharepoint.com (a leading *. is allowed). Empty = the app refuses to be framed
-    by other sites. http://localhost is accepted for testing only."""
+    https origins such as https://contoso.sharepoint.com (a leading *. is allowed), or the word "teams" for Microsoft
+    Teams. Empty = the app refuses to be framed by other sites. http://localhost is accepted for testing only."""
     out = []
     for o in os.environ.get("MEA_HUB_EMBED_ORIGINS", "").split(","):
         o = o.strip().rstrip("/")
-        if o and _ORIGIN.fullmatch(o) and o not in out:
-            out.append(o)
+        for x in (TEAMS_ORIGINS if o.lower() == "teams" else [o]):       # the word "teams" stands for the Microsoft Teams hosts
+            if x and _ORIGIN.fullmatch(x) and x not in out:
+                out.append(x)
     return out
 
 

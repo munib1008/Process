@@ -660,10 +660,29 @@ async function viewExport() {
 async function viewAdmin(tab) {
   if (!can("admin")) throw new Error("Administrator access required.");
   tab = tab || "users";
-  const tabs = [["users", "Users & roles"], ["settings", "Settings"], ["backup", "Backup & restore"], ["audit", "Audit log"]];
+  const tabs = [["users", "Users & roles"], ["settings", "Settings"], ["backup", "Backup & restore"], ["teams", "Teams & SharePoint"], ["audit", "Audit log"]];
   const bar = h("div", {class: "tabs"}, tabs.map(([k, l]) => h("a", {class: "tab" + (k === tab ? " on" : ""), href: "#/admin/" + k}, l)));
   let body;
-  if (tab === "users") {
+  if (tab === "teams") {
+    const t = await GET("/api/admin/teams"), https = location.protocol === "https:";
+    const url = h("input", {type: "text", value: https ? location.origin : "", placeholder: "https://processhub.example.com"}), name = h("input", {type: "text", value: "MEA Process Hub", maxlength: 100});
+    body = h("div", {class: "grid g2"},
+      h("div", {class: "card"}, h("h3", null, "Microsoft Teams tab"),
+        h("p", {class: "muted"}, "Teams shows the tool from this server inside a channel tab. The package below only tells Teams the address; it contains no process data."),
+        h("div", {class: "banner " + (t.teams_allowed ? "ok" : "warn")}, t.teams_allowed ? "This server allows Microsoft Teams to display the tool."
+          : "This server does not allow Microsoft Teams to display the tool yet. Start it with --embed-origins teams (or MEA_HUB_EMBED_ORIGINS=teams) behind HTTPS."),
+        https ? null : h("div", {class: "banner warn"}, "You opened the tool without HTTPS. Teams only shows https addresses – enter the address users will reach the tool at."),
+        h("label", null, "Address of the tool (https, without path)"), url, h("label", null, "App name in Teams"), name,
+        h("div", {style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => guard(async () => {
+          const q = "/api/admin/teams-package?url=" + encodeURIComponent(url.value.trim()) + "&name=" + encodeURIComponent(name.value.trim());
+          await api("GET", q, undefined, {raw: true}); download(q); })}, "Download Teams app package (.zip)")),
+        h("p", {class: "muted", style: "margin-top:10px"}, "Then: Teams ▸ Apps ▸ Manage your apps ▸ Upload an app (or the Teams admin center), and in the channel ▸ + ▸ choose the app. Steps and limits: docs/TEAMS.md.")),
+      h("div", {class: "card"}, h("h3", null, "Sites allowed to display the tool"),
+        t.embed_origins.length ? h("ul", null, t.embed_origins.map((o) => h("li", null, o))) : h("p", null, "None – the tool cannot be shown inside another site."),
+        h("p", {class: "muted"}, "Set on the server with --embed-origins (or MEA_HUB_EMBED_ORIGINS): the word “teams” for Microsoft Teams, and https://<tenant>.sharepoint.com for SharePoint pages or the SharePoint-hosted Teams tab. It cannot be changed from this page."),
+        h("p", {class: "muted"}, "A SharePoint package (.sppkg) with a web part for SharePoint pages and Teams tabs is in the folder deploy/teams of the installation.")));
+  }
+  else if (tab === "users") {
     const r = await GET("/api/users"), u = h("input", {type: "text"}), n = h("input", {type: "text"}), pw = h("input", {type: "password"}), role = h("select", null, S.cfg.roles.map((x) => h("option", null, x))), dp = h("select", null, h("option", {value: ""}, "All departments"), S.tree.map((d) => h("option", {value: d.id}, d.name)));
     const addUser = () => { const f2 = {u: h("input", {type: "text", placeholder: "e.g. m.munib"}), n: h("input", {type: "text", placeholder: "Full name"}), pw: h("input", {type: "text", placeholder: "min 8 characters"}),
         role: h("select", null, S.cfg.roles.map((x) => h("option", null, x))), dp: h("select", null, h("option", {value: ""}, "All departments"), S.tree.map((d) => h("option", {value: d.id}, d.name)))};
