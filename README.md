@@ -64,7 +64,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 36 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 37 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)
@@ -80,6 +80,9 @@ Open the repository in **GitHub Codespaces** – the app installs, imports the s
 
 ## Internal server and SharePoint
 One shared installation behind IIS or nginx, optionally shown inside a SharePoint page (Embed web part): [docs/SERVER_AND_SHAREPOINT.md](docs/SERVER_AND_SHAREPOINT.md). Ready-made files are in `deploy/`.
+
+## Library inside SharePoint, no server
+Export the read-only *SharePoint publication*, upload its folder to a document library, add the *MEA Process Hub* web part: [docs/SHAREPOINT_PUBLISHING.md](docs/SHAREPOINT_PUBLISHING.md).
 
 ## Microsoft Teams
 Channel tab that shows the hosted tool: Teams app package from *Administration ▸ Teams & SharePoint*, or the SPFx web part in `deploy/teams/` (also for SharePoint pages). What the packages can and cannot do: [docs/TEAMS.md](docs/TEAMS.md).

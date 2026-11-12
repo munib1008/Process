@@ -1,6 +1,10 @@
 declare interface IProcessHubWebPartStrings {
   PropertyPaneDescription: string;
   BasicGroupName: string;
+  LibraryGroupName: string;
+  LibraryFieldLabel: string;
+  LibraryFieldHelp: string;
+  LibraryInvalid: string;
   UrlFieldLabel: string;
   UrlInvalid: string;
   StartFieldLabel: string;

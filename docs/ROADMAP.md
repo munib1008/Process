@@ -59,6 +59,10 @@ Status of this document: proposal for the tool owner, 2026-11-12. Figures marked
 | Split the 5 very wide maps with export areas or accept them as overview-only | Owners | Flow Studio export areas | Readable in print |
 
 ### Phase 2 – Make it a company system (weeks 2–10)
+**Change of 2026-11-12:** readers no longer need the server or single sign-on. Version 1.0.2 publishes a read-only copy of the library into
+SharePoint (`docs/SHAREPOINT_PUBLISHING.md`); readers use their Microsoft 365 sign-in there. Items 2a–2d now matter only when more than a
+handful of people must *edit* in one shared installation. Do the SharePoint publication first (one package upload by the SharePoint administrator).
+
 | # | Item | Why | Effort (estimate) | Confidence |
 |---|---|---|---|---|
 | 2a | Internal server behind HTTPS, service account, backup and one restore test | One shared library instead of copies | 2–3 days IT, files are in `deploy/` | High |

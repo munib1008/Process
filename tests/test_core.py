@@ -921,6 +921,31 @@ def test_upgrade_helpers_aliases_legend_loops_and_long_flows(admin, users, tmp_p
     assert len(ed.call("GET", "/api/process/ZZ-M-LP-01")[1]["version"]["content"]["activities"]) == 8      # the delivered flow became the next revision
 
 
+def test_read_only_publication_for_sharepoint(admin, users):
+    """The "site" export is a self-contained read-only library: data, flow pictures and the reader - no server needed to read it."""
+    ed, viewer = users["editor"], users["viewer"]
+    svc.set_cfg("master_legend", json.dumps(FLOW_LEGEND))
+    assert ed.call("POST", "/api/process", {"name": "Goods receipt", "department": "LOG", "process_id": "ZZ-M-PB-01"})[0] == 200
+    assert ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-PB-01", "steps": "Warehouse: Receive goods\nLogistics: Documents complete?\nNo: End\nWarehouse: Post goods receipt (MIGO)"})[0] == 200
+    s, e = ed.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-PB-01"], "fmt": "site"})
+    assert s == 200 and e["export"]["filename"].endswith("_SharePoint.zip")
+    z = zipfile.ZipFile(io.BytesIO(ed.call("GET", f"/api/exports/{e['export']['id']}/download", raw=True)[1]))
+    names = z.namelist()
+    assert {"processhub/handbook.json", "processhub/index.html", "processhub/viewer.js", "README.txt"} <= set(names)
+    assert "processhub/flows/ZZ-M-PB-01_1.png" in names and z.read("processhub/flows/ZZ-M-PB-01_1.png")[:4] == b"\x89PNG"
+    assert b"MEAProcessHubViewer" in z.read("processhub/viewer.js") and b"viewer.js" in z.read("processhub/index.html")
+    book = json.loads(z.read("processhub/handbook.json"))
+    pr = book["departments"][0]["processes"][0]
+    assert book["count"] == 1 and book["unapproved"] == 1 and pr["id"] == "ZZ-M-PB-01" and pr["status"] != "published"
+    assert [a["activity"] for a in pr["activities"]][-1] == "Post goods receipt (MIGO)" and pr["sap"][0]["transaction"] == "MIGO"
+    assert pr["pictures"] == [{"file": "flows/ZZ-M-PB-01_1.png", "label": "", "part": 0, "of": 1}]
+    assert {"Warehouse", "Logistics"} <= {r["role"] for r in book["legend"]}
+    assert "UNCONTROLLED DRAFT" in z.read("README.txt").decode()
+    assert "xml" not in pr and "password" not in json.dumps(book).lower()                           # no editable source, no account data
+    # a viewer can only publish what is approved: nothing here yet
+    assert viewer.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-PB-01"], "fmt": "site"})[0] in (400, 403)
+
+
 def test_teams_tab_package_and_pages(server, admin, users, monkeypatch, tmp_path):
     """The Teams app package points Teams at the hosted tool; the server lets the Teams hosts frame it only when asked to."""
     import importlib.util

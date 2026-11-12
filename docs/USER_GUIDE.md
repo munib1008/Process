@@ -46,6 +46,7 @@ A flow is printed at its drawn size and reduced only when it would not fit the p
 * **Whole sheet with legend:** in the Export Center choose *Flow pictures ▸ Whole sheet*.
 An export area is not a process step: it does not appear in the activity table or the flow check.
 **Reports → Process inventory** downloads the Excel process register.
+**SharePoint publication** (Export Center ▸ Format) produces a read-only copy of the library that SharePoint can show without a server: [SHAREPOINT_PUBLISHING.md](SHAREPOINT_PUBLISHING.md).
 
 ## Add things quickly
 * **RACI, KPI, SAP, escalation, activities**: open the process → the tab → **+ Add / Edit**. Or Governance → RACI / KPIs / Escalation → **+ Add … for a process**. Changes are saved to a draft.

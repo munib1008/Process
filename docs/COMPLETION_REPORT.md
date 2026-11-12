@@ -22,6 +22,12 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Library hosted in SharePoint without a server (2026-11-12).** *Done, tested:* new export format *SharePoint publication* (`mea_hub/publish.py`): `handbook.json`,
+flow pictures and text pictures in one folder; a reader (`deploy/teams/spfx/src/viewer/viewer.ts`) compiled into the SharePoint web part and into `viewer.js` for other
+web hosts: department navigation, search, process pages with flows in parts, RACI, SAP, relations, draft banner. Tested in Chromium against a real export of 130
+processes (navigation, search, pictures, links, phone width) and with a tampered file (no script runs). The web part now has two modes: published library from a
+SharePoint folder, or frame around the live tool. `.sppkg` rebuilt with SPFx 1.24.1, lint clean. *Not tested:* installation on a tenant. Guide: `docs/SHAREPOINT_PUBLISHING.md`.
+
 **Closing the open development points (2026-11-12).** *Done, tested:* (1) a former process ID still leads to the process after a controlled ID change; (2) a data
 folder created by an older version is offered the new or corrected source files of the installed version (*Import & Sources ▸ Import them now*), which also brings the
 editable flows to libraries that still show pictures; (3) exports carry the flowchart legend once (Appendix B: shape key and the role colours that occur), because the

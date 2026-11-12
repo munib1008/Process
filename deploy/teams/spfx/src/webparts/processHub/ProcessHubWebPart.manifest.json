@@ -19,9 +19,10 @@
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70", // Advanced
     "group": { "default": "Advanced" },
     "title": { "default": "MEA Process Hub" },
-    "description": { "default": "Shows MEA Process Hub (hosted on the company server) on a SharePoint page or in a Microsoft Teams tab" },
+    "description": { "default": "Shows the MEA Process Hub library on a SharePoint page or in a Microsoft Teams tab: the published read-only library from a SharePoint folder, or the live tool from a company server" },
     "officeFabricIconFontName": "Page",
     "properties": {
+      "libraryUrl": "",
       "hubUrl": "",
       "startPage": "#/dashboard",
       "customPage": "",

@@ -649,7 +649,7 @@ async function reviewWorkspace(pid, out) {
 // ---------------------------------------------------------------- export center
 async function viewExport() {
   const sel = h("select", {multiple: true, size: 12}, S.tree.flatMap((d) => d.processes.map((p) => h("option", {value: p.process_id}, p.process_id + " – " + p.name)))), dept = h("select", null, S.tree.map((d) => h("option", {value: d.code}, d.name))), inc = h("input", {type: "checkbox", checked: true});
-  const fmt = h("select", null, ["docx", "pdf", "html", "zip"].map((f) => h("option", {value: f}, f === "zip" ? "ZIP (editable .drawio diagrams)" : f.toUpperCase())));
+  const fmt = h("select", null, ["docx", "pdf", "html", "zip", "site"].map((f) => h("option", {value: f}, f === "site" ? "SharePoint publication – read-only library, no server (ZIP)" : f === "zip" ? "ZIP (editable .drawio diagrams)" : f.toUpperCase())));
   const pic = h("select", null, h("option", {value: "flow"}, "Flow only – without frame and master legend (export areas apply)"), h("option", {value: "sheet"}, "Whole sheet – with frame and master legend"));
   const hist = (await GET("/api/exports")).rows;
   return h("div", {class: "page"}, h("h1", null, "Export Center"), h("div", {class: "sub"}, "Each export is built from one consistent revision snapshot, hashed and logged."),

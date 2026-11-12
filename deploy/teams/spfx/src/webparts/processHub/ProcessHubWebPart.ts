@@ -9,8 +9,10 @@ import { escape } from '@microsoft/sp-lodash-subset';
 
 import styles from './ProcessHubWebPart.module.scss';
 import * as strings from 'ProcessHubWebPartStrings';
+import { mount } from '../../viewer/viewer';
 
 export interface IProcessHubWebPartProps {
+  libraryUrl: string;  // folder in a SharePoint document library that holds the published library (handbook.json), e.g. /sites/ProcessHub/Shared Documents/processhub
   hubUrl: string;      // https address of the hosted MEA Process Hub, e.g. https://processhub.example.com
   startPage: string;   // view the frame opens: #/dashboard, #/handbook, #/library, #/departments or "custom"
   customPage: string;  // e.g. #/departments/LOG or #/process/WL-M-IB-01 (used when startPage is "custom")
@@ -18,9 +20,11 @@ export interface IProcessHubWebPartProps {
 }
 
 /**
- * Shows MEA Process Hub, which runs on the company server, inside a SharePoint page or a Microsoft Teams tab.
- * The web part contains no process data and no program logic of the tool: it is a frame around the hosted address.
- * The server must allow this site as a frame ancestor (MEA_HUB_EMBED_ORIGINS, see docs/TEAMS.md of the tool).
+ * Shows MEA Process Hub on a SharePoint page or in a Microsoft Teams tab, in one of two ways:
+ *  1. Published library (no server): reads the read-only publication that the tool exports ("site" export) from a folder of a
+ *     SharePoint document library. Sign-in and permissions are those of SharePoint.
+ *  2. Live tool: a frame around the tool running on a company server (the server must allow this site, see docs/TEAMS.md).
+ * The web part contains no process data.
  */
 export default class ProcessHubWebPart extends BaseClientSideWebPart<IProcessHubWebPartProps> {
 
@@ -42,7 +46,22 @@ export default class ProcessHubWebPart extends BaseClientSideWebPart<IProcessHub
     return /^#\/[A-Za-z0-9._\-\/%]*$/.test(page) ? page : '#/dashboard';
   }
 
+  /** A folder of this SharePoint tenant only: server-relative ("/sites/...") or absolute with this site's origin. */
+  private _library(): string | undefined {
+    const raw: string = (this.properties.libraryUrl || '').trim().replace(/\/+$/, '');
+    if (!raw) { return undefined; }
+    const origin: string = window.location.origin;
+    const path: string = raw.indexOf(origin + '/') === 0 ? raw.substring(origin.length) : raw;
+    return /^\/[^\\?#<>"]*$/.test(path) && path.indexOf('//') < 0 ? path : undefined;
+  }
+
   public render(): void {
+    const library: string | undefined = this._library();
+    if (library) {
+      this.domElement.innerHTML = '';
+      mount(this.domElement, library);
+      return;
+    }
     const base: string | undefined = this._base();
     if (!base) {
       this.domElement.innerHTML = `
@@ -71,6 +90,14 @@ export default class ProcessHubWebPart extends BaseClientSideWebPart<IProcessHub
     return !v || /^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/.test(v) ? '' : strings.UrlInvalid;
   }
 
+  private _validateLibrary(value: string): string {
+    const v: string = (value || '').trim();
+    if (!v) { return ''; }
+    const origin: string = window.location.origin;
+    const path: string = v.indexOf(origin + '/') === 0 ? v.substring(origin.length) : v;
+    return /^\/[^\\?#<>"]*$/.test(path) && path.indexOf('//') < 0 ? '' : strings.LibraryInvalid;
+  }
+
   private _validatePage(value: string): string {
     return !value || /^#\/[A-Za-z0-9._\-\/%]*$/.test(value.trim()) ? '' : strings.PageInvalid;
   }
@@ -81,6 +108,17 @@ export default class ProcessHubWebPart extends BaseClientSideWebPart<IProcessHub
         {
           header: { description: strings.PropertyPaneDescription },
           groups: [
+            {
+              groupName: strings.LibraryGroupName,
+              groupFields: [
+                PropertyPaneTextField('libraryUrl', {
+                  label: strings.LibraryFieldLabel,
+                  description: strings.LibraryFieldHelp,
+                  placeholder: '/sites/ProcessHub/Shared Documents/processhub',
+                  onGetErrorMessage: this._validateLibrary.bind(this)
+                })
+              ]
+            },
             {
               groupName: strings.BasicGroupName,
               groupFields: [

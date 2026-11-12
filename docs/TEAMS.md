@@ -8,6 +8,11 @@ review workflow, the exports and the audit log run on a server. None of that can
 What Teams (and SPFx) can do is **display** the tool from the server where it runs. So every route below needs the hosted
 installation described in [SERVER_AND_SHAREPOINT.md](SERVER_AND_SHAREPOINT.md) first; the package only tells Teams the address.
 
+## The simplest route for readers: publish to SharePoint
+If people only need to **read** the library, no server and no Teams app are needed: the tool exports a read-only publication, a SharePoint
+web part shows it, and the page is added to the channel with **+ ▸ SharePoint ▸ Pages**. See [SHAREPOINT_PUBLISHING.md](SHAREPOINT_PUBLISHING.md).
+The routes below are for the live tool with editing.
+
 ## Three routes, ranked
 | # | Route | Who must act | Effort | Use when |
 |---|---|---|---|---|

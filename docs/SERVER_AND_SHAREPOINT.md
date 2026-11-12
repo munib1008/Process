@@ -1,5 +1,8 @@
 # Hosting on an internal server and showing the tool inside SharePoint
 
+> Readers only need to read? Then no server is needed: publish a read-only copy into SharePoint, see [SHAREPOINT_PUBLISHING.md](SHAREPOINT_PUBLISHING.md).
+> This guide is for the live tool with editing by many users.
+
 MEA Process Hub is a server program with its own database. SharePoint cannot run it, and neither can a static host
 (GitHub Pages, Azure Static Web Apps, a storage static website). The working arrangement is therefore:
 

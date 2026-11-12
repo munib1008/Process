@@ -11,6 +11,16 @@ A thin web part that shows MEA Process Hub, which runs on the company server, in
 | Supported hosts | `SharePointWebPart`, `SharePointFullPage`, `TeamsTab`, `TeamsPersonalApp` |
 | Built package | `../MEA_Process_Hub_SharePoint_Teams.sppkg` (built from this source; not yet deployed to a tenant) |
 
+## Two modes
+1. **Published library (no server):** enter the SharePoint folder that holds `handbook.json` (the tool's *SharePoint publication* export). The reader in
+   `src/viewer/viewer.ts` shows it. Guide: `docs/SHAREPOINT_PUBLISHING.md`.
+2. **Live tool:** enter the https address of the tool on a company server; the web part frames it.
+
+The reader is also built as a plain script for other web hosts (from this folder):
+```bash
+npx esbuild src/viewer/viewer.ts --bundle --format=iife --global-name=MEAProcessHubViewer --target=es2017 --minify --outfile=../../../mea_hub/static/viewer/viewer.js
+```
+
 ## Build
 ```bash
 npm install

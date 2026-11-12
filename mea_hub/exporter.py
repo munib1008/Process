@@ -899,6 +899,15 @@ FORMATS = {"docx": (build_docx, "application/vnd.openxmlformats-officedocument.w
            "html": (build_html, "text/html; charset=utf-8"), "zip": (build_zip, "application/zip")}
 
 
+def _site(snap):
+    from . import publish
+    return publish.build_site(snap)
+
+
+FORMATS["site"] = (_site, "application/zip")        # read-only publication for SharePoint or any static web host
+EXT = {"site": "zip"}
+
+
 def run_export(user, scope, fmt, ids=None, dept=None, include_unapproved=True, version_id=None, flow_picture="flow"):
     if fmt not in FORMATS:
         raise svc.Invalid("Unsupported format.")
@@ -912,7 +921,7 @@ def run_export(user, scope, fmt, ids=None, dept=None, include_unapproved=True, v
         data = FORMATS[fmt][0](snap)
         sha = hashlib.sha256(data).hexdigest()
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", snap["title"])[:60]
-        fname = f"{safe}_{snap['generated_at'][:10]}_{snap['hash'][:6]}.{fmt}"
+        fname = f"{safe}_{snap['generated_at'][:10]}_{snap['hash'][:6]}{'_SharePoint' if fmt == 'site' else ''}.{EXT.get(fmt, fmt)}"
         path = os.path.join(config.EXPORT_DIR, f"{eid}_{fname}")
         with open(path, "wb") as f:
             f.write(data)

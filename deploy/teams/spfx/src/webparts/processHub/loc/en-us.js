@@ -1,7 +1,11 @@
 define([], function() {
   return {
-    "PropertyPaneDescription": "MEA Process Hub runs on the company server. This web part shows it here.",
-    "BasicGroupName": "Connection",
+    "PropertyPaneDescription": "Show the published process library from a SharePoint folder (no server), or the live tool from a company server.",
+    "LibraryGroupName": "Published library (no server needed)",
+    "LibraryFieldLabel": "Folder that holds handbook.json",
+    "LibraryFieldHelp": "Upload the folder 'processhub' from the tool's SharePoint export to a document library and enter its address, starting with /sites/…",
+    "LibraryInvalid": "Enter a folder of this SharePoint tenant, for example /sites/ProcessHub/Shared Documents/processhub",
+    "BasicGroupName": "Live tool on a server (used only when no folder is entered above)",
     "UrlFieldLabel": "Address of MEA Process Hub (https)",
     "UrlInvalid": "Enter the https address without a path, for example https://processhub.example.com",
     "StartFieldLabel": "Opens with",
@@ -14,7 +18,7 @@ define([], function() {
     "PageInvalid": "The page starts with #/ and contains only letters, digits, '.', '-', '_' and '/'.",
     "HeightFieldLabel": "Height on a SharePoint page (pixels)",
     "SetupTitle": "MEA Process Hub is not connected yet",
-    "SetupText": "Open the settings of this web part (in Teams: Settings of the tab) and enter the https address of MEA Process Hub.",
+    "SetupText": "Open the settings of this web part (in Teams: Settings of the tab) and enter the SharePoint folder of the published library, or the https address of the live tool.",
     "OpenInBrowser": "Open in browser"
   }
 });
