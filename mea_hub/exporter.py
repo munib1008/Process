@@ -10,12 +10,12 @@ import re
 import zipfile
 from html.parser import HTMLParser
 
-from . import brand, config, db, drawio, service as svc
+from . import brand, config, db, drawio, flowpic, service as svc
 from .db import jloads, one, q
 from .security import strip_tags
 
 # ------------------------------------------------------------------ snapshot
-def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=True, version_id=None):
+def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=True, version_id=None, flow_picture="flow"):
     staff = svc.can(user, "view_all")
     if include_unapproved and not svc.can(user, "export_draft"):
         include_unapproved = False
@@ -68,7 +68,8 @@ def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=Tru
                         png = svc.asset_bytes(dv["preview_asset_id"])[1]
                     except svc.NotFound:
                         png = None
-                item["diagram"] = dict(code=dv["code"], ver_no=dv["ver_no"], xml=dv["xml"], png=png, validation=dv["validation"], sha=dv["sha256"])
+                item["diagram"] = dict(code=dv["code"], ver_no=dv["ver_no"], xml=dv["xml"], png=png, validation=dv["validation"], sha=dv["sha256"],
+                                       cover=flowpic.cover_of(db.jloads(dv.get("preview_box"))) if png else None)
             item["sources"] = q("SELECT s.filename,s.version_text,m.heading,m.role FROM mappings m JOIN sources s ON s.id=m.source_id WHERE m.process_id=? ORDER BY m.id", (p["id"],))
             item["relations"] = q("SELECT r.rel_type,p2.process_id,p2.name,'out' dir FROM relationships r JOIN processes p2 ON p2.id=r.to_id WHERE r.from_id=?", (p["id"],))
             items.append(item)
@@ -85,7 +86,7 @@ def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=Tru
              "process": f"{items[0]['process_id']} – {items[0]['name']}" if items else "Process", "selected": "Selected Processes"}[scope]
     snap = dict(org=svc.cfg("org_name", "dormakaba MEA"), footer=svc.cfg("export_footer", ""), classification=svc.cfg("classification", "Internal"),
                 region=svc.cfg("region_label", brand.REGION), title=title, scope=scope, generated_by=user["username"],
-                generated_at=svc.now(), departments=grouped, count=len(items), unapproved=unapproved,
+                generated_at=svc.now(), departments=grouped, count=len(items), unapproved=unapproved, flow_picture=flow_picture,
                 versions={i["process_id"]: i["version_id"] for i in items}, user_display=user["display_name"])
     snap["hash"] = hashlib.sha256(json.dumps(
         dict(v=snap["versions"], d={i["process_id"]: (i["diagram"] or {}).get("sha") for g in grouped for i in g["processes"]}), sort_keys=True).encode()).hexdigest()[:16]
@@ -113,6 +114,30 @@ def diagram_image(diagram):
         return drawio.to_png(diagram["xml"])
     except Exception:
         return None
+
+
+def diagram_pictures(diagram, mode="flow"):
+    """Pictures of a flow for a document: [dict(png, label, scale)] - the export areas drawn in Flow Studio, else the
+    flow without frame and master legend (mode "sheet": the whole sheet)."""
+    if not diagram:
+        return []
+    return svc.picture_set(diagram["xml"], diagram["png"], diagram.get("cover"), mode)["pictures"]
+
+
+def picture_cm(pic, maxw=16.0, maxh=21.0):
+    """(width, height) in cm: natural size of the drawing (96 units per inch), reduced to fit the page."""
+    from PIL import Image
+    w, h = Image.open(io.BytesIO(pic["png"])).size
+    k = pic.get("scale") or (w / (maxw / 2.54 * 96))        # unknown scale: fill the width as before
+    cw, ch = w / k / 96 * 2.54, h / k / 96 * 2.54
+    f = min(1.0, maxw / cw, maxh / ch)
+    return cw * f, ch * f
+
+
+def part_caption(pics, i):
+    if len(pics) < 2 and not pics[i]["label"]:
+        return ""
+    return (f"Part {i + 1} of {len(pics)}" if len(pics) > 1 else "") + (" – " if len(pics) > 1 and pics[i]["label"] else "") + pics[i]["label"]
 
 
 _PDF_IMG_CACHE = {}
@@ -475,10 +500,13 @@ def build_docx(snap) -> bytes:
                     doc.add_paragraph(x, style="List Bullet")
             if pr["diagram"]:
                 doc.add_paragraph(f"Process Flow – {pr['process_id']}", style="Heading 3")
-                png = diagram_image(pr["diagram"])
-                if png:
-                    doc.add_picture(io.BytesIO(png), width=Cm(16))
+                pics = diagram_pictures(pr["diagram"], snap.get("flow_picture", "flow"))
+                for i, pic in enumerate(pics):
+                    doc.add_picture(io.BytesIO(pic["png"]), width=Cm(picture_cm(pic)[0]))
                     doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    if part_caption(pics, i):
+                        pc = doc.add_paragraph(part_caption(pics, i))
+                        pc.alignment = WD_ALIGN_PARAGRAPH.CENTER; pc.runs[0].font.size = Pt(8.5); pc.runs[0].bold = True
                 cap = doc.add_paragraph(f"Figure – {pr['process_id']} flowchart preview (diagram {pr['diagram']['code']}, revision {pr['diagram']['ver_no']}). "
                                         f"Editable source: {pr['diagram']['code']}_rev{pr['diagram']['ver_no']}.drawio in the diagram package (open with draw.io / Flow Studio). "
                                         + ("STATUS: imported reference image – requires functional validation." if pr["diagram"]["validation"] == "requires_validation" else ""))
@@ -701,9 +729,14 @@ def build_pdf(snap) -> bytes:
                 story += [Paragraph(esc(x), sLi, bulletText="•") for x in c["responsible"]]
             if pr["diagram"]:
                 story.append(Paragraph(f"Process Flow – {pr['process_id']}", sH3))
-                png = diagram_image(pr["diagram"])
-                if png:
-                    story.append(KeepTogether([fit_image(png, 17 * cm, 16 * cm), Paragraph(
+                pics = diagram_pictures(pr["diagram"], snap.get("flow_picture", "flow"))
+                for i, pic in enumerate(pics[:-1]):
+                    pw, ph = picture_cm(pic, 17.0, 19.0)
+                    story.append(KeepTogether([fit_image(pic["png"], pw * cm, ph * cm), Paragraph(esc(part_caption(pics, i)), sSmall)]))
+                if pics:
+                    pw, ph = picture_cm(pics[-1], 17.0, 16.0)
+                    story.append(KeepTogether([fit_image(pics[-1]["png"], pw * cm, ph * cm), Paragraph(
+                        (esc(part_caption(pics, len(pics) - 1)) + ". " if part_caption(pics, len(pics) - 1) else "") +
                         f"Figure – {pr['process_id']} flowchart preview (diagram {pr['diagram']['code']} rev {pr['diagram']['ver_no']}); editable source = {pr['diagram']['code']}_rev{pr['diagram']['ver_no']}.drawio"
                         + (" – imported reference image, requires functional validation" if pr["diagram"]["validation"] == "requires_validation" else ""), sSmall)]))
             for label, key, heads, widths in (
@@ -764,9 +797,13 @@ def build_html(snap) -> bytes:
             if c.get("responsible"):
                 out.append("<h3>Responsible</h3><ul>" + "".join(f"<li>{e(x)}</li>" for x in c["responsible"]) + "</ul>")
             if p["diagram"]:
-                png = diagram_image(p["diagram"])
-                if png:
-                    out.append(f"<h3>Process Flow</h3><img alt='{e(p['process_id'])} flow' src='data:image/png;base64,{base64.b64encode(png).decode()}'>")
+                pics = diagram_pictures(p["diagram"], snap.get("flow_picture", "flow"))
+                if pics:
+                    out.append("<h3>Process Flow</h3>")
+                for i, pic in enumerate(pics):
+                    wcm = picture_cm(pic, 24.0, 400.0)[0]
+                    out.append(f"<p><img alt='{e(p['process_id'])} flow' style='width:{wcm:.1f}cm' src='data:image/png;base64,{base64.b64encode(pic['png']).decode()}'>"
+                               + (f"<br><small><b>{e(part_caption(pics, i))}</b></small>" if part_caption(pics, i) else "") + "</p>")
             for label, key, heads in (("Detailed activities", "activities", ["No", "Activity", "Role", "SAP", "Output"]), ("RACI", "raci", ["Activity", "R", "A", "C", "I"]),
                                       ("SAP references", "sap", ["Transaction", "Purpose"]), ("KPIs", "kpis", ["KPI", "Definition", "Target"]),
                                       ("Escalation", "escalation", ["Stage", "To", "Time", "Escalation", "SLA"])):
@@ -814,14 +851,14 @@ FORMATS = {"docx": (build_docx, "application/vnd.openxmlformats-officedocument.w
            "html": (build_html, "text/html; charset=utf-8"), "zip": (build_zip, "application/zip")}
 
 
-def run_export(user, scope, fmt, ids=None, dept=None, include_unapproved=True, version_id=None):
+def run_export(user, scope, fmt, ids=None, dept=None, include_unapproved=True, version_id=None, flow_picture="flow"):
     if fmt not in FORMATS:
         raise svc.Invalid("Unsupported format.")
     ts = svc.now()
     cur = db.db().execute("INSERT INTO exports(ts,username,scope,fmt,status) VALUES(?,?,?,?,?)", (ts, user["username"], scope + (f":{dept}" if dept else "") + (f":{','.join(ids)}" if ids else ""), fmt, "running"))
     eid = cur.lastrowid
     try:
-        snap = build_snapshot(user, scope, ids, dept, include_unapproved, version_id)
+        snap = build_snapshot(user, scope, ids, dept, include_unapproved, version_id, flow_picture)
         if not snap["count"]:
             raise svc.Invalid("Nothing to export for this scope (no visible content).")
         data = FORMATS[fmt][0](snap)

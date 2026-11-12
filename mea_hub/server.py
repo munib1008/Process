@@ -11,7 +11,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import config, db, drawio, exporter, importer, queries, service as svc
+from . import config, db, drawio, exporter, flowpic, importer, queries, service as svc
 
 COOKIE = "mea_session"
 ROUTES = []
@@ -508,7 +508,7 @@ def r_diagram(c, did):
     p = db.one("SELECT process_id,name FROM processes WHERE id=?", (d["process_id"],)) if d["process_id"] else None
     approx = bool(latest["preview_asset_id"] is None or (db.one("SELECT role FROM assets WHERE id=?", (latest["preview_asset_id"],)) or {}).get("role") == "preview-approx")
     return dict(diagram=d, latest=dict(id=latest["id"], ver_no=latest["ver_no"], xml=latest["xml"], validation=latest["validation"], preview_asset_id=latest["preview_asset_id"], preview_approx=approx,
-                            checks=svc.flow_checks(latest["id"])),
+                            checks=svc.flow_checks(latest["id"]), picture=flowpic.describe(latest["xml"])),
                 process=p, versions=svc.diagram_versions(d["id"]), nodes=svc.diagram_nodes(latest["id"]))
 
 
@@ -554,7 +554,25 @@ def r_preview(c, dvid):
     with db.tx():
         aid = svc.store_asset(raw, "image/png", f"diagram_{dvid}.png", None, "preview")
         db.db().execute("UPDATE diagram_versions SET preview_asset_id=? WHERE id=?", (aid, dv["id"]))
+        svc.set_preview_box(dv["id"], c.json().get("box"))
     return dict(replaced=True)
+
+
+@route("GET", "/api/diagram-versions/(\\d+)/picture")
+def r_dv_picture(c, dvid):
+    """What documents show of this flow (export areas, or the flow without frame and legend)."""
+    svc.need(c.user, "view_all")
+    res = svc.diagram_pictures(int(dvid))
+    return dict(kind=res["kind"], note=res["note"], pictures=[dict(n=i, label=p["label"]) for i, p in enumerate(res["pictures"])])
+
+
+@route("GET", "/api/diagram-versions/(\\d+)/picture/(\\d+)")
+def r_dv_picture_png(c, dvid, n):
+    svc.need(c.user, "view_all")
+    pics = svc.diagram_pictures(int(dvid))["pictures"]
+    if int(n) >= len(pics):
+        raise svc.NotFound("Not found")
+    return pics[int(n)]["png"], "image/png", {"Content-Security-Policy": "sandbox"}, "private, no-cache"
 
 
 @route("POST", "/api/diagrams/(\\d+)/lock")
@@ -570,7 +588,7 @@ def r_unlock(c, did):
 @route("POST", "/api/diagrams/(\\d+)/save")
 def r_dsave(c, did):
     d = c.json()
-    return svc.save_diagram(int(did), c.user, d.get("xml", ""), d.get("png"), d.get("base_ver"), d.get("note", ""))
+    return svc.save_diagram(int(did), c.user, d.get("xml", ""), d.get("png"), d.get("base_ver"), d.get("note", ""), d.get("box"))
 
 
 @route("PUT", "/api/diagram-versions/(\\d+)/nodes/([^/]+)")
@@ -720,7 +738,8 @@ def r_register(c):
 @route("POST", "/api/exports")
 def r_export(c):
     d = c.json()
-    e = exporter.run_export(c.user, d.get("scope", "handbook"), d.get("fmt", "docx"), d.get("ids"), d.get("dept"), bool(d.get("include_unapproved", True)), d.get("version_id"))
+    e = exporter.run_export(c.user, d.get("scope", "handbook"), d.get("fmt", "docx"), d.get("ids"), d.get("dept"), bool(d.get("include_unapproved", True)), d.get("version_id"),
+                            "sheet" if d.get("flow_picture") == "sheet" else "flow")
     return dict(export=e)
 
 

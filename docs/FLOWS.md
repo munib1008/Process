@@ -46,6 +46,15 @@ A flow entry in `canvas_mapping.json` may carry `id_corrections`: `{"chart": "<c
 They are written into the flow file, applied after import and re-checked at every start (idempotent; skipped when the target ID exists or the process is not found
 exactly once). Current entries: the project phases Planning / Execution / Monitoring and Control / Closing → `PM-M-PL-01`, `PM-M-EX-01`, `PM-M-MC-01`, `PM-M-CL-01`.
 
+## Document pictures (flow only, export areas)
+`mea_hub/flowpic.py` cuts the document picture out of the sheet picture that draw.io rendered – nothing is redrawn, so the document cannot differ from the flow.
+* No export area: the region inside the frame, below the title bar and clear of the master legend, with white margins trimmed.
+* Export areas (style key `meaExport=1`, shape "Export area" in the dormakaba MEA library): one picture per area, in reading order, cut 3 units inside the dashed outline.
+* Position on the sheet: Flow Studio stores the graph bounds reported by draw.io with every saved picture (`diagram_versions.preview_box`); for the supplied flow files the
+  frame gives the position. If neither fits the picture's proportions the whole sheet is used and the preview says so – a picture is never cut blindly.
+* Three purchasing flows (`PP-M-GS-01`, `PP-M-OC-01`, `PP-M-PC-01`) carried a "Yes" label about 2,700 units above their connector on the canvas, which made their sheet
+  three times as tall. Labels further than 600 units from their connector now return to it (`canvas.STRAY_LABEL`).
+
 ## New flows (text-to-flow, shape library, flow check)
 - `mea_hub/flowbuild.py` builds a flow from one line per step (`build`), offers the activity table or a template as starting text and produces the Flow Studio shape library
   (`library_entries`, one tagged activity per role of the master legend). Built flows use the same tags (`meaKind`, `meaRole`), frame and legend as the flows cut from the canvas,

@@ -10,7 +10,7 @@ async function openFlowStudio(diagramId, root, exitTo) {
   const title = info.process ? info.process.process_id + " – " + info.process.name : info.diagram.title;
   const status = h("span", {class: "muted"}, "Opening editor…");
   const banner = h("div");
-  const nodesBox = h("div"), revBox = h("div"), checkBox = h("div");
+  const nodesBox = h("div"), revBox = h("div"), checkBox = h("div"), picBox = h("div");
 
   let lock = null, readOnly = false;
   try { lock = await POST("/api/diagrams/" + diagramId + "/lock"); } catch (e) { readOnly = true; banner.append(h("div", {class: "banner bad"}, e.message + " The diagram is opened read-only.")); }
@@ -29,7 +29,7 @@ async function openFlowStudio(diagramId, root, exitTo) {
   function requestPng() {
     return new Promise((res) => {
       const t = setTimeout(() => { exportWaiters = exportWaiters.filter((w) => w !== done); res(null); }, 12000);
-      const done = (data) => { clearTimeout(t); res(data); };
+      const done = (m) => { clearTimeout(t); const b = m && m.modelBounds; res(m && m.data ? {png: m.data, box: b ? [b.x, b.y, b.width, b.height] : null} : null); };
       exportWaiters.push(done);
       post({action: "export", format: "png", scale: 1.5, border: 10, background: "#ffffff"});
     });
@@ -39,12 +39,13 @@ async function openFlowStudio(diagramId, root, exitTo) {
     if (busy) { pending = xml; return; }
     busy = true; status.textContent = "Saving…";
     try {
-      const png = await requestPng();
-      const r = await POST("/api/diagrams/" + diagramId + "/save", {xml, png, base_ver: baseVer});
+      const pic = await requestPng();                                                  // picture + its exact position on the sheet, both from draw.io
+      const r = await POST("/api/diagrams/" + diagramId + "/save", {xml, png: pic && pic.png, box: pic && pic.box, base_ver: baseVer});
       baseVer = r.ver_no; dirty = false;
       status.textContent = (r.changed ? "Saved as revision " : "No change – revision ") + r.ver_no + " at " + new Date().toLocaleTimeString();
       post({action: "status", message: "Saved (revision " + r.ver_no + ")", modified: false});
       if (r.checks) clear(checkBox).append(flowCheckBox(r.checks));
+      if (r.picture) showPicture(r.picture);
       if (r.synced) status.textContent += " · document updated";
       await refreshSide();
     } catch (e) {
@@ -64,9 +65,9 @@ async function openFlowStudio(diagramId, root, exitTo) {
     else if (msg.event === "init") { post({action: "load", xml: info.latest.xml, autosave: readOnly ? 0 : 1, title}); ready = true; status.textContent = readOnly ? "Read-only" : "Loaded revision " + baseVer; }
     else if (msg.event === "autosave" && msg.xml) { dirty = true; status.textContent = "Unsaved changes…"; clearTimeout(onMessage.t); onMessage.t = setTimeout(() => persist(msg.xml), 2500); }
     else if (msg.event === "save" && msg.xml) { clearTimeout(onMessage.t); persist(msg.xml); }
-    else if (msg.event === "export") { const w = exportWaiters.shift(); if (w) w(msg.data || null); }
+    else if (msg.event === "export") { const w = exportWaiters.shift(); if (w) w(msg); }
     else if (msg.event === "load" && info.latest.preview_approx && !readOnly) {      // swap the server's approximate preview for draw.io's own render
-      setTimeout(async () => { const png = await requestPng(); if (png) { try { await POST("/api/diagram-versions/" + info.latest.id + "/preview", {png}); } catch (e) { /* non-fatal */ } } }, 1500);
+      setTimeout(async () => { const pic = await requestPng(); if (pic) { try { await POST("/api/diagram-versions/" + info.latest.id + "/preview", pic); } catch (e) { /* non-fatal */ } } }, 1500);
     }
     else if (msg.event === "exit") { leave(); }
   }
@@ -81,9 +82,17 @@ async function openFlowStudio(diagramId, root, exitTo) {
   function cleanup() { clearInterval(renew); window.removeEventListener("message", onMessage); window.onbeforeunload = null; root.dataset.flowCleanup = ""; }
   root.__cleanup = () => { cleanup(); if (!readOnly) navigator.sendBeacon && 0; fetch("/api/diagrams/" + diagramId + "/unlock", {method: "POST", headers: {"X-CSRF-Token": S.csrf, "Content-Type": "application/json"}, body: "{}", credentials: "same-origin", keepalive: true}); };
 
+  function showPicture(pic) {
+    clear(picBox).append(h("div", {class: "card docpic"}, h("b", null, "In documents: "), pic.text + ". ",
+      h("a", {href: "#", onclick: (e) => { e.preventDefault(); documentPictures(latestDv); }}, "Preview"),
+      pic.note ? h("p", {class: "muted"}, pic.note) : null,
+      h("p", {class: "muted"}, pic.kind === "areas" ? "Move or resize the red dashed export area to change the part shown. Delete it to show the whole flow again."
+        : "To show only a part, drag “Export area (document picture)” from the dormakaba MEA shapes around it. Several areas become several pictures.")));
+  }
   async function refreshSide() {
     const d = await GET("/api/diagrams/" + diagramId);
     latestDv = d.latest.id;
+    if (d.latest.picture && !picBox.firstChild) showPicture(d.latest.picture);
     if (d.latest.checks && !checkBox.firstChild) checkBox.append(flowCheckBox(d.latest.checks));
     clear(nodesBox).append(h("h3", null, "Business metadata for shapes"),
       h("p", {class: "muted"}, "Stored separately from geometry, keyed by stable shape IDs. Link a shape to a process to make it navigable."),
@@ -103,7 +112,7 @@ async function openFlowStudio(diagramId, root, exitTo) {
       })}, "Save metadata"));
     return det;
   }
-  const side = h("div", {class: "side"}, h("div", {class: "card"}, status, banner), checkBox, revBox, nodesBox);
+  const side = h("div", {class: "side"}, h("div", {class: "card"}, status, banner), picBox, checkBox, revBox, nodesBox);
   root.append(h("div", {class: "page"}, h("div", {class: "row spread"}, h("div", null, h("h1", null, "Flow Studio"), h("div", {class: "sub"}, title + " · " + info.diagram.code)),
       h("div", {class: "row"}, h("button", {class: "btn", onclick: () => api("GET", "/api/diagram-versions/" + latestDv + "/xml", undefined, {raw: true}).then(() => download("/api/diagram-versions/" + latestDv + "/xml"))}, "Download .drawio"),
         h("button", {class: "btn", onclick: () => download("/api/diagram-versions/" + latestDv + "/svg")}, "Export SVG"),

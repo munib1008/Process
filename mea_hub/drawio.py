@@ -420,7 +420,7 @@ def _font(bold, size):
         return ImageFont.load_default()
 
 
-def to_png(xml: str, page: int = 0, max_px: int = 3000):
+def to_png(xml: str, page: int = 0, max_px: int = 3000, info: dict | None = None):
     """Approximate raster preview using Pillow (used only until the draw.io editor produces the authoritative PNG)."""
     from PIL import Image, ImageDraw
     import io, math
@@ -434,6 +434,8 @@ def to_png(xml: str, page: int = 0, max_px: int = 3000):
     if W * H > 40_000_000:
         k *= 0.5
         W, H = int((maxx - minx + 2 * pad) * k), int((maxy - miny + 2 * pad) * k)
+    if info is not None:                                     # diagram rectangle shown by the picture
+        info["cover"] = (minx - pad, miny - pad, max(W, 10) / k, max(H, 10) / k)
     img = Image.new("RGB", (max(W, 10), max(H, 10)), "white")
     dr = ImageDraw.Draw(img)
     T = lambda x, y: ((x - minx + pad) * k, (y - miny + pad) * k)

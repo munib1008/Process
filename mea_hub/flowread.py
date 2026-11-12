@@ -33,6 +33,8 @@ def read(xml: str) -> dict:
     def kind(b):
         st = b["style"]
         k = st.get("meaKind")
+        if st.get("meaExport"):                              # export area of the document picture: not part of the process
+            return "export"
         if k:
             return k
         first = st["_first"]
@@ -61,7 +63,7 @@ def read(xml: str) -> dict:
             return by_colour if by_colour and by_colour != tag and legend_colour.get(tag, c) != c else tag
         return by_colour
     K = {i: kind(b) for i, b in B.items()}
-    skip = {i for i, k in K.items() if k in ("legend", "frame")}
+    skip = {i for i, k in K.items() if k in ("legend", "frame", "export")}
     changed = True
     while changed:                                           # everything inside the legend group is legend
         changed = False

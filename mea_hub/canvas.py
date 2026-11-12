@@ -10,6 +10,7 @@ from lxml import etree
 from . import drawio
 
 TITLE_FONT = "20"
+STRAY_LABEL = 600        # label offsets beyond this (diagram units) are leftovers of the canvas, not a deliberate position
 
 
 def _dist(a, b):
@@ -268,6 +269,10 @@ def revamp(flow_xml: str, name: str, pid: str, dept: str, legend: dict, meta: di
             col = "#009900" if lab in ("yes", "y", "approved", "ok") else ("#E4002B" if lab in ("no", "n", "rejected", "not ok") else "#484848")
             put("strokeColor", col); put("strokeWidth", "1.5"); put("fontColor", "#484848"); put("fontFamily", "Arial"); put("endArrow", d.get("endArrow") or "classic")
             n.set("style", _ss(d, order))
+            g = n.find("mxGeometry")                            # a label dragged far off its connector on the canvas returns to the connector
+            for off in (g.findall("mxPoint") if g is not None else []):
+                if off.get("as") == "offset" and max(abs(drawio._num(off.get("x"))), abs(drawio._num(off.get("y")))) > STRAY_LABEL:
+                    g.remove(off)
             continue
         if n.get("vertex") != "1":
             continue

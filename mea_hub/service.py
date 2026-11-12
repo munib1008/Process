@@ -747,7 +747,7 @@ def release_lock(did, user):
     db.db().execute("UPDATE diagrams SET lock_user=NULL, lock_expires=NULL WHERE id=? AND lock_user=?", (did, user["username"]))
 
 
-def save_diagram(did, user, xml, png_b64, base_ver, note=""):
+def save_diagram(did, user, xml, png_b64, base_ver, note="", box=None):
     d = diagram_info(did)
     proc = one("SELECT * FROM processes WHERE id=?", (d["process_id"],)) if d["process_id"] else None
     need(user, "edit", proc)
@@ -768,11 +768,12 @@ def save_diagram(did, user, xml, png_b64, base_ver, note=""):
             if raw[:8] != b"\x89PNG\r\n\x1a\n" or len(raw) > 12 * 1024 * 1024:
                 raise Invalid("Preview must be a PNG under 12 MB.")
             asset = store_asset(raw, "image/png", f"{d['code']}.png", None, "preview")
-        elif latest:
-            asset = None  # preview missing for this revision; exports fall back to the server renderer
+        else:
+            box = None    # preview missing for this revision; exports fall back to the server renderer
         if proc:
             ensure_draft(proc, user)
         dv = _add_dv(did, xml, "editor", asset, note or "Edited in Flow Studio", user["username"])
+        set_preview_box(dv, box)
         synced, checks = False, None
         if proc:
             v = open_version(proc["id"])
@@ -800,7 +801,8 @@ def save_diagram(did, user, xml, png_b64, base_ver, note=""):
         audit(user, "diagram_saved", "diagram", d["code"], f"revision {latest['ver_no'] + 1 if latest else 1}")
     if checks is None:
         checks = flow_checks(dv)
-    return dict(ver_no=(latest["ver_no"] + 1 if latest else 1), changed=True, synced=synced, checks=checks)
+    from . import flowpic
+    return dict(ver_no=(latest["ver_no"] + 1 if latest else 1), changed=True, synced=synced, checks=checks, picture=flowpic.describe(xml))
 
 
 def diagram_versions(did):
@@ -831,6 +833,56 @@ def set_node_meta(dvid, node_id, user, meta):
         if proc:
             reindex(proc["id"])
     return clean
+
+
+def set_preview_box(dvid, box):
+    """Graph bounds [x, y, w, h] (diagram units) of the draw.io preview of a revision, as reported by draw.io itself."""
+    from . import flowpic
+    ok = flowpic.cover_of(box) if isinstance(box, (list, tuple)) and len(box) == 4 else None
+    db.db().execute("UPDATE diagram_versions SET preview_box=? WHERE id=?", (json.dumps([round(float(v), 2) for v in box]) if ok else None, dvid))
+
+
+def picture_info(dvid):
+    """What documents show of a diagram revision (text only, cached with the flow check)."""
+    key = ("pic", dvid)
+    if key not in _CHECKS:
+        from . import flowpic
+        row = one("SELECT xml FROM diagram_versions WHERE id=?", (dvid,))
+        _CHECKS[key] = flowpic.describe(row["xml"]) if row else None
+    return _CHECKS[key]
+
+
+def diagram_pictures(dvid, mode="flow"):
+    """Document pictures of a diagram revision: dict(kind, pictures=[dict(png, label, scale)], note)."""
+    from . import flowpic
+    dv = one("SELECT xml,preview_asset_id,preview_box FROM diagram_versions WHERE id=?", (dvid,))
+    if not dv:
+        raise NotFound("Diagram version not found")
+    png, cover = None, flowpic.cover_of(jloads(dv["preview_box"]))
+    if dv["preview_asset_id"]:
+        try:
+            mime, png = asset_bytes(dv["preview_asset_id"])
+            if mime != "image/png":
+                png = None
+        except NotFound:
+            png = None
+    return picture_set(dv["xml"], png, cover, mode)
+
+
+def picture_set(xml, png, cover, mode="flow"):
+    from . import flowpic
+    if not png:                                              # no draw.io picture yet: the server's own approximate render
+        info = {}
+        try:
+            png, cover = drawio.to_png(xml, info=info), info.get("cover")
+        except Exception:
+            png = None
+    if not png:
+        return dict(kind="sheet", pictures=[], note="")
+    try:
+        return flowpic.cut(png, xml, cover, mode)
+    except Exception:
+        return dict(kind="sheet", pictures=[dict(png=png, label="", scale=None)], note="")
 
 
 def diagram_svg(dvid):

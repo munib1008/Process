@@ -243,6 +243,7 @@ function flowCard(d, editing, reload) {
   const links = dg.nodes.filter((n) => n.meta && n.meta.process_ref);
   const bar = h("div", {class: "row"},
     h("button", {class: "btn sm", onclick: () => img.click()}, "View full screen"),
+    dg.picture ? h("button", {class: "btn sm", title: "What DOCX / PDF / HTML exports show of this flow: " + dg.picture.text, onclick: () => guard(() => documentPictures(dg.id))}, "Document picture") : null,
     d.perms.edit ? h("button", {class: "btn sm pri", onclick: () => { location.hash = "#/flow/" + dg.diagram_id; }}, "Edit diagram") : null,
     h("button", {class: "btn sm", onclick: () => diagramHistory(dg)}, "Revision history"),
     h("button", {class: "btn sm", onclick: () => download("/api/diagram-versions/" + dg.id + "/xml")}, "Download .drawio"),
@@ -254,6 +255,13 @@ function flowCard(d, editing, reload) {
   if (dg.checks) card.append(flowCheckBox(dg.checks));
   if (dg.validation === "requires_validation") card.append(h("p", {class: "muted", style: "font-size:12px"}, "Original picture preserved as locked layer. Use Edit diagram to redraw shapes/connectors."));
   return card;
+}
+async function documentPictures(dvId) {
+  const r = await GET("/api/diagram-versions/" + dvId + "/picture"), stamp = Date.now();
+  const what = {areas: "Export areas drawn in Flow Studio – only the part inside each area is shown.", flow: "The flow without frame, title bar and master legend.", sheet: "The whole sheet."}[r.kind];
+  modal("Picture in exported documents", h("div", null, h("p", {class: "muted"}, what + (r.note ? " " + r.note : "")),
+    r.pictures.length ? r.pictures.map((p) => h("div", {class: "docpicitem"}, r.pictures.length > 1 || p.label ? h("b", null, "Part " + (p.n + 1) + " of " + r.pictures.length + (p.label ? " – " + p.label : "")) : null,
+      h("img", {class: "big", src: "/api/diagram-versions/" + dvId + "/picture/" + p.n + "?t=" + stamp, alt: "Document picture"}))) : h("p", null, "No picture available for this revision.")), {wide: true});
 }
 function flowCheckBox(checks) {
   if (!checks.length) return h("div", {class: "flowcheck ok"}, "Flow check: no open points (start, end, connections, decision branches and roles are complete).");
@@ -621,13 +629,14 @@ async function reviewWorkspace(pid, out) {
 async function viewExport() {
   const sel = h("select", {multiple: true, size: 12}, S.tree.flatMap((d) => d.processes.map((p) => h("option", {value: p.process_id}, p.process_id + " – " + p.name)))), dept = h("select", null, S.tree.map((d) => h("option", {value: d.code}, d.name))), inc = h("input", {type: "checkbox", checked: true});
   const fmt = h("select", null, ["docx", "pdf", "html", "zip"].map((f) => h("option", {value: f}, f === "zip" ? "ZIP (editable .drawio diagrams)" : f.toUpperCase())));
+  const pic = h("select", null, h("option", {value: "flow"}, "Flow only – without frame and master legend (export areas apply)"), h("option", {value: "sheet"}, "Whole sheet – with frame and master legend"));
   const hist = (await GET("/api/exports")).rows;
   return h("div", {class: "page"}, h("h1", null, "Export Center"), h("div", {class: "sub"}, "Each export is built from one consistent revision snapshot, hashed and logged."),
-    h("div", {class: "grid g2"}, h("div", {class: "card"}, h("h3", null, "Scope"), h("label", null, "Format"), fmt,
+    h("div", {class: "grid g2"}, h("div", {class: "card"}, h("h3", null, "Scope"), h("label", null, "Format"), fmt, h("label", null, "Flow pictures"), pic,
       h("label", null, h("input", {type: "checkbox", style: "width:auto", checked: true, onchange: (e) => { inc.checked = e.target.checked; }}), " Include unapproved processes (labelled as uncontrolled draft)"),
-      h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => doExport({scope: "handbook", fmt: fmt.value, include_unapproved: inc.checked})}, "Complete master handbook")),
-      h("label", null, "Department manual"), h("div", {class: "row"}, dept, h("button", {class: "btn", onclick: () => doExport({scope: "department", dept: dept.value, fmt: fmt.value, include_unapproved: inc.checked})}, "Export")),
-      h("label", null, "Selected processes (Ctrl/Shift-click)"), sel, h("div", {style: "margin-top:6px"}, h("button", {class: "btn", onclick: () => { const ids = [...sel.selectedOptions].map((o) => o.value); doExport({scope: ids.length === 1 ? "process" : "selected", ids, fmt: fmt.value, include_unapproved: inc.checked}); }}, "Export selection")),
+      h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => doExport({scope: "handbook", fmt: fmt.value, include_unapproved: inc.checked, flow_picture: pic.value})}, "Complete master handbook")),
+      h("label", null, "Department manual"), h("div", {class: "row"}, dept, h("button", {class: "btn", onclick: () => doExport({scope: "department", dept: dept.value, fmt: fmt.value, include_unapproved: inc.checked, flow_picture: pic.value})}, "Export")),
+      h("label", null, "Selected processes (Ctrl/Shift-click)"), sel, h("div", {style: "margin-top:6px"}, h("button", {class: "btn", onclick: () => { const ids = [...sel.selectedOptions].map((o) => o.value); doExport({scope: ids.length === 1 ? "process" : "selected", ids, fmt: fmt.value, include_unapproved: inc.checked, flow_picture: pic.value}); }}, "Export selection")),
       h("p", {class: "muted"}, "A DOCX contains real Word text/tables with flowchart previews; the editable source stays a .drawio file (ZIP format). Word cannot edit the preview picture itself.")),
       h("div", {class: "card"}, h("h3", null, "Recent exports"), table(["#", "When", "By", "Scope", "Fmt", "Status", ""], hist.map((e) => [e.id, fmtDate(e.ts), e.username, e.scope.slice(0, 40), e.fmt, e.status === "failed" ? h("span", {class: "chip bad", title: e.error}, "failed") : e.status, e.status === "done" ? h("a", {href: "/api/exports/" + e.id + "/download"}, (e.size / 1024).toFixed(0) + " KB · " + e.sha256.slice(0, 8)) : ""]))))) ;
 }

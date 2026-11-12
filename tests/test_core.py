@@ -598,7 +598,7 @@ def test_flow_built_from_text_is_standard_and_reads_back():
     assert "Credit Controller: Credit limit sufficient?" in text and "Ref: WL-M-OB-01 Outbound delivery" in text
     # shape library: standard shapes + one tagged activity per role (roles are listed once)
     lib = flowbuild.library_entries(FLOW_LEGEND)
-    assert [e["title"] for e in lib].count("Activity – Sales") == 1 and len(lib) == 9 + 6 and flowbuild.library_xml(FLOW_LEGEND).startswith("<mxlibrary")
+    assert [e["title"] for e in lib].count("Activity – Sales") == 1 and len(lib) == 10 + 6 and flowbuild.library_xml(FLOW_LEGEND).startswith("<mxlibrary")
 
 
 def test_new_flow_from_steps_is_linked_to_the_document(users):
@@ -631,7 +631,7 @@ def test_new_flow_from_steps_is_linked_to_the_document(users):
     # builder helpers and library
     assert "Take order" in ed.call("GET", "/api/flows/steps?process_id=ZZ-M-OS-01")[1]["steps"]
     assert ed.call("GET", "/api/flows/steps?template=approval_workflow")[1]["steps"].startswith("Prepare and submit request")
-    assert len(ed.call("GET", "/api/flow-library")[1]["entries"]) == 15
+    assert len(ed.call("GET", "/api/flow-library")[1]["entries"]) == 16
     s, raw = ed.call("GET", "/api/flow-library.xml", raw=True)
     assert s == 200 and raw.startswith(b"<mxlibrary")
     # a library flow (no process) and a process created from a template are standard tagged flows as well
@@ -640,6 +640,79 @@ def test_new_flow_from_steps_is_linked_to_the_document(users):
     assert ed.call("POST", "/api/process", {"name": "Template flow", "department": "LOG", "process_id": "ZZ-M-TF-01", "template": "department_workflow"})[0] == 200
     t = ed.call("GET", "/api/process/ZZ-M-TF-01")[1]
     assert t["version"]["content"]["flow_sync"] and t["diagram"]["checks"] is not None and "ZZ-M-TF-01" in ed.call("GET", f"/api/diagrams/{t['diagram']['diagram_id']}")[1]["latest"]["xml"]
+
+
+def _png_size(data):
+    from PIL import Image
+    return Image.open(io.BytesIO(data)).size
+
+
+def test_document_picture_is_the_flow_only_or_the_export_areas(users):
+    """Documents show the flow without frame, title bar and master legend; export areas drawn in Flow Studio cut it further."""
+    import base64
+    from docx import Document
+    from mea_hub import flowbuild, flowpic, flowread
+    xml, _ = flowbuild.build("Order to shipment", "ZZ-M-DP-01", "LOG", "Sales: Take order\nStock available?\nNo: End\nWarehouse: Pick goods (LT03)\nLogistics: Ship order (VL01N)", FLOW_LEGEND)
+    info = {}
+    png = drawio.to_png(xml, info=info)                                         # stands in for the picture draw.io renders
+    cover, (W, H) = info["cover"], _png_size(png)
+    L = flowpic.layout(xml)
+    assert L["frame"] and L["legend"] and L["flow"][3] < L["legend"][1] and not L["areas"]
+    res = flowpic.cut(png, xml, cover)
+    assert res["kind"] == "flow" and len(res["pictures"]) == 1 and not res["note"]
+    w, h = _png_size(res["pictures"][0]["png"])
+    k = W / cover[2]
+    assert w < W * 0.8 and h < (L["legend"][1] - L["frame"][1]) * k           # narrower than the sheet, ends above the legend
+    assert h > (L["flow"][3] - L["flow"][1]) * k * 0.9                        # ... and nothing of the flow is lost
+    assert _png_size(flowpic.cut(png, xml, cover, "sheet")["pictures"][0]["png"]) == (W, H)
+    assert flowpic.cut(png, xml, (0, 0, 50, 5000))["kind"] == "sheet"         # a picture that cannot be located is never cut blindly
+    # an export area around the first steps: only that window, exactly its size
+    area = ('<mxCell id="exp1" value="%s" style="%s" vertex="1" parent="1"><mxGeometry x="%s" y="%s" width="300" height="200" as="geometry"/></mxCell>'
+            % (flowpic.AREA_LABEL, flowpic.AREA_STYLE, L["flow"][0] - 10, L["flow"][1] - 10))
+    area2 = area.replace('id="exp1"', 'id="exp2"').replace(flowpic.AREA_LABEL, "Shipping").replace('y="%s"' % (L["flow"][1] - 10), 'y="%s"' % (L["flow"][1] + 230))
+    xa = xml.replace("</root>", area + area2 + "</root>")
+    drawio.normalize(xa)
+    png_a = drawio.to_png(xa, info=info)
+    res = flowpic.cut(png_a, xa, info["cover"])
+    assert res["kind"] == "areas" and [p["label"] for p in res["pictures"]] == ["", "Shipping"]
+    for p_ in res["pictures"]:
+        w, h = _png_size(p_["png"])
+        assert abs(w - (300 - 2 * flowpic.INSET) * k) <= 2 and abs(h - (200 - 2 * flowpic.INSET) * k) <= 2
+    assert flowpic.describe(xa)["kind"] == "areas" and flowpic.describe(xa)["count"] == 2 and flowpic.describe(xml)["kind"] == "flow"
+    # the area is not a process step: activities, roles and the flow check are unchanged
+    a, b = flowread.read(xml), flowread.read(xa)
+    assert a["activities"] == b["activities"] and a["checks"] == b["checks"]
+    assert "Export area (document picture)" in [e["title"] for e in flowbuild.library_entries(FLOW_LEGEND)]
+    # through the application: Flow Studio sends the picture and its position, the export uses the areas
+    ed = users["editor"]
+    svc.set_cfg("master_legend", json.dumps(FLOW_LEGEND))
+    assert ed.call("POST", "/api/process", {"name": "Order to shipment", "department": "LOG", "process_id": "ZZ-M-DP-01"})[0] == 200
+    s, r = ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-DP-01", "steps": "Sales: Take order\nStock available?\nNo: End\nWarehouse: Pick goods (LT03)\nLogistics: Ship order (VL01N)"})
+    did = r["diagram_id"]
+    d = ed.call("GET", "/api/process/ZZ-M-DP-01")[1]
+    assert d["diagram"]["picture"]["kind"] == "flow"
+    s, pic = ed.call("GET", f"/api/diagram-versions/{d['diagram']['id']}/picture")
+    assert s == 200 and pic["kind"] == "flow" and len(pic["pictures"]) == 1
+    assert ed.call("GET", f"/api/diagram-versions/{d['diagram']['id']}/picture/0", raw=True)[1][:4] == b"\x89PNG"
+    assert ed.call("GET", f"/api/diagram-versions/{d['diagram']['id']}/picture/3")[0] == 404
+    assert ed.call("POST", f"/api/diagrams/{did}/lock")[0] == 200
+    c = info["cover"]
+    box = [c[0] + flowpic.BORDER, c[1] + flowpic.BORDER, c[2] - 2 * flowpic.BORDER, c[3] - 2 * flowpic.BORDER]
+    s, sv = ed.call("POST", f"/api/diagrams/{did}/save", {"xml": xa, "png": "data:image/png;base64," + base64.b64encode(png_a).decode(), "box": box, "base_ver": 1})
+    assert s == 200 and sv["picture"]["kind"] == "areas" and sv["picture"]["count"] == 2
+    d = ed.call("GET", "/api/process/ZZ-M-DP-01")[1]
+    assert len(d["version"]["content"]["activities"]) == len(a["activities"])                       # the areas did not become activities
+    s, pic = ed.call("GET", f"/api/diagram-versions/{d['diagram']['id']}/picture")
+    assert pic["kind"] == "areas" and [p_["label"] for p_ in pic["pictures"]] == ["", "Shipping"]
+    s, e = ed.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-DP-01"], "fmt": "docx"})
+    doc = Document(io.BytesIO(ed.call("GET", f"/api/exports/{e['export']['id']}/download", raw=True)[1]))
+    assert sum(len(p_._p.xpath(".//w:drawing")) for p_ in doc.paragraphs) == 2 and "Part 2 of 2 – Shipping" in all_text(doc)
+    s, e = ed.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-DP-01"], "fmt": "docx", "flow_picture": "sheet"})
+    doc = Document(io.BytesIO(ed.call("GET", f"/api/exports/{e['export']['id']}/download", raw=True)[1]))
+    assert sum(len(p_._p.xpath(".//w:drawing")) for p_ in doc.paragraphs) == 1
+    for fmt in ("pdf", "html"):
+        s, e = ed.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-DP-01"], "fmt": fmt})
+        assert s == 200 and e["export"]["status"] == "done"
 
 
 def test_hosted_mode_secure_cookie_and_login_throttle(server, users):

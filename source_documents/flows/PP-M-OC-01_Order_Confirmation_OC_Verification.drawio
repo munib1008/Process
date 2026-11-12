@@ -102,8 +102,7 @@
         </mxCell>
         <mxCell id="dafkhF3eAkh7Ja60SMOW-119" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;Yes&lt;/font&gt;" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;fontFamily=Arial;spacing=1;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;strokeColor=#009900;strokeWidth=1.5;fontColor=#484848;endArrow=classic;" parent="1" source="dafkhF3eAkh7Ja60SMOW-111" target="dafkhF3eAkh7Ja60SMOW-112" edge="1">
           <mxGeometry x="-0.4215" relative="1" as="geometry">
-            <mxPoint y="-2754.5" as="offset"/>
-          </mxGeometry>
+            </mxGeometry>
         </mxCell>
         <mxCell id="dafkhF3eAkh7Ja60SMOW-111" value="On Time?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#DAA520;strokeWidth=2;fontColor=#484848;fontFamily=Arial;fontSize=10;fontStyle=1;meaKind=decision;meaRole=Procurement Specialist;" parent="1" vertex="1">
           <mxGeometry x="348.56" y="795.0" width="100" height="90" as="geometry"/>

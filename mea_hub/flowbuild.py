@@ -25,7 +25,7 @@ from urllib.parse import quote
 
 from lxml import etree
 
-from . import canvas
+from . import canvas, flowpic
 
 FONT = "fontFamily=Arial;fontColor=#484848;"
 ST = {
@@ -300,6 +300,7 @@ def library_entries(legend):
              ("Linked process (Ref ID)", _lib_vertex("Ref: XX-M-XX-01", ST["ref"], 240, 44), 240, 44),
              ("Note / checklist", _lib_vertex("Note", ST["note"], 230, 46), 230, 46),
              ("Connector – Yes", _lib_edge("Yes", YES), 50, 70), ("Connector – No", _lib_edge("No", NO), 50, 70), ("Connector", _lib_edge("", GREY), 50, 70)]
+    items.append(("Export area (document picture)", _lib_vertex(flowpic.AREA_LABEL, flowpic.AREA_STYLE, 420, 300), 420, 300))
     for name, colour in dict.fromkeys(role_index(legend).values()):
         items.append((f"Activity – {name}", _lib_vertex(name, ST["activity"].format(color=colour, sw="2") + f"meaRole={name};", 240, 46), 240, 46))
     return [dict(xml=_compress(x), w=w, h=h, aspect="fixed", title=t) for t, x, w, h in items]

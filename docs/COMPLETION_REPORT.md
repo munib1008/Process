@@ -21,6 +21,13 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Flow pictures in documents (2026-11-12).** *Done, tested:* DOCX / PDF / HTML show the flow without frame, title bar and master legend, at drawn size unless the page
+forces a reduction (50 of the 72 supplied flows now print at 100 %); "Export area" shape in Flow Studio – only the part inside goes into the document, several areas give
+several pictures; preview on the process page and in Flow Studio; *Whole sheet* remains selectable in the Export Center. Checked in the real draw.io editor (area dragged
+from the shape panel, saved, picture identical to the window). *Limits:* nine large end-to-end maps are still reduced to 22–58 % because one page cannot hold them – they
+need export areas drawn by their owners; the master legend is no longer printed with each flow, so readers of a flow-only document do not see the colour key unless
+*Whole sheet* is chosen; data folders created before this version keep the old tall pictures of the three corrected purchasing flows until those flows are re-imported or saved once.
+
 **Creating new flows (2026-11-12).** *Done, tested:* text-to-flow builder on every process page and in Flow Studio (roles from the master legend, decisions with Yes/No branches,
 notes, linked processes, SAP codes; standard frame and legend; linked to the document; previous flowchart kept as a revision); dormakaba shape library inside the editor (verified in the
 real draw.io: 50 shapes with the 41 legend roles); flow check on the process page and after every save; templates now produce the same standard, readable flows.

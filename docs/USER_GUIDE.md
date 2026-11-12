@@ -34,6 +34,15 @@ Process page → **Related** tab → choose a type (next, supports, parent, appr
 Choose whether unapproved processes are included (they are labelled and the cover shows *UNCONTROLLED DRAFT*).
 DOCX contains editable Word text and tables; flowcharts are preview pictures – the editable source is the `.drawio` in the **ZIP** format.
 In Word, right-click the Contents list → *Update Field* to add page numbers.
+
+**Flow pictures in documents.** DOCX, PDF and HTML show the **flow only** – the titled frame, its blue title bar and the master legend stay on the sheet in the tool.
+A flow is printed at its drawn size and reduced only when it would not fit the page.
+* **Show only a part:** open the flow in Flow Studio and drag **Export area (document picture)** from the *dormakaba MEA* shapes around the part you want (red dashed window).
+  Only what lies inside goes into the document. Move, resize or delete the window at any time; it is saved with the flow revision.
+* **Split a long flow:** draw several export areas. Each becomes its own picture, from top to bottom ("Part 1 of 3"); the text you type on an area becomes its caption.
+* **Check before exporting:** *Document picture* on the process page, or *Preview* in the Flow Studio side panel, shows exactly what will be printed.
+* **Whole sheet with legend:** in the Export Center choose *Flow pictures ▸ Whole sheet*.
+An export area is not a process step: it does not appear in the activity table or the flow check.
 **Reports → Process inventory** downloads the Excel process register.
 
 ## Add things quickly

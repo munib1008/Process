@@ -445,7 +445,7 @@ def build_drawio_plan(parsed: dict) -> dict:
             cands.append(tagged_candidate(parsed, pname, pxml))
             continue
         sc = drawio.scene(pxml)
-        B = sc["boxes"]
+        B = sc["boxes"] = {i: b_ for i, b_ in sc["boxes"].items() if not b_["style"].get("meaExport")}      # export areas are not process steps
         for b_ in B.values():
             b_["label"] = re.sub(r"\s+", " ", b_["label"].replace("\xa0", " ")).strip()
         is_sw = lambda b: b["style"]["_first"] == "swimlane" or b["style"].get("swimlane")
