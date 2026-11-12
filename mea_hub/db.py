@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS exports(
   id INTEGER PRIMARY KEY, ts TEXT NOT NULL, username TEXT, scope TEXT NOT NULL, fmt TEXT NOT NULL, status TEXT NOT NULL,
   filename TEXT, sha256 TEXT, size INTEGER, snapshot_hash TEXT, snapshot TEXT, error TEXT);
 CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS id_aliases(old_id TEXT PRIMARY KEY, process_row INTEGER NOT NULL REFERENCES processes(id), changed_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS search_index(process_id INTEGER PRIMARY KEY REFERENCES processes(id), body TEXT NOT NULL, body_pub TEXT NOT NULL DEFAULT '');
 """
 

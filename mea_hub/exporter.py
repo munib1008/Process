@@ -88,6 +88,11 @@ def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=Tru
                 region=svc.cfg("region_label", brand.REGION), title=title, scope=scope, generated_by=user["username"],
                 generated_at=svc.now(), departments=grouped, count=len(items), unapproved=unapproved, flow_picture=flow_picture,
                 versions={i["process_id"]: i["version_id"] for i in items}, user_display=user["display_name"])
+    # flow pictures are printed without the master legend, so the document carries the legend once (roles that occur in it)
+    used = {a.get("role") for i in items for a in i["content"].get("activities", [])} | {r for i in items for r in i["content"].get("responsible", [])}
+    seen = set()
+    snap["legend"] = [(r["role"], r["color"]) for r in svc.master_legend().get("roles", [])
+                      if r["role"] in used and not (r["role"] in seen or seen.add(r["role"]))] if flow_picture == "flow" and any(i["diagram"] for i in items) else []
     snap["hash"] = hashlib.sha256(json.dumps(
         dict(v=snap["versions"], d={i["process_id"]: (i["diagram"] or {}).get("sha") for g in grouped for i in g["processes"]}), sort_keys=True).encode()).hexdigest()[:16]
     return snap
@@ -116,6 +121,11 @@ def diagram_image(diagram):
         return None
 
 
+LEGEND_TITLE = "Appendix B – Flowchart legend"
+LEGEND_KEY = ["Rounded box with green outline: start. Rounded box with thick black outline: end.",
+              "Box: activity. The colour of its outline shows the responsible role (table below); a grey outline means the flow names no role.",
+              "Diamond: decision. Green connector: Yes. Red connector: No.",
+              "Grey box with double side lines: linked process (its ID is in the box). Yellow box: note or checklist."]
 RACI_DRAFT_NOTE = "Draft RACI derived from the flowchart – not yet confirmed by the process owner."
 
 
@@ -460,6 +470,8 @@ def build_docx(snap) -> bytes:
         entries.append((0, g_["name"]))
         entries += [(1, f"{p_['process_id']} – {p_['name']}") for p_ in g_["processes"]]
     entries.append((0, "Appendix A – Revision history (included processes)"))
+    if snap.get("legend"):
+        entries.append((0, LEGEND_TITLE))
     # pre-populated TOC field (Word refreshes it with page numbers on update)
     for i, (lvl, text) in enumerate(entries):
         par = doc.add_paragraph()
@@ -538,6 +550,23 @@ def build_docx(snap) -> bytes:
     doc.add_page_break()
     doc.add_paragraph("Appendix A – Revision history (included processes)", style="Heading 1")
     table(["Process", "Version", "Status", "Author", "Change summary"], history)
+    if snap.get("legend"):
+        doc.add_page_break()
+        doc.add_paragraph(LEGEND_TITLE, style="Heading 1")
+        for line in LEGEND_KEY:
+            doc.add_paragraph(line, style="List Bullet")
+        lt = doc.add_table(rows=1, cols=2)
+        lt.style = "Table Grid"
+        for i, htxt in enumerate(("Outline colour", "Responsible role")):
+            lt.rows[0].cells[i].text = ""
+            rr = lt.rows[0].cells[i].paragraphs[0].add_run(htxt); rr.bold = True; rr.font.color.rgb = RGBColor(255, 255, 255); rr.font.size = Pt(9.5)
+            shade(lt.rows[0].cells[i], BLUE)
+        for role_, col_ in snap["legend"]:
+            cells = lt.add_row().cells
+            shade(cells[0], col_.lstrip("#"))
+            cells[1].text = ""
+            rr = cells[1].paragraphs[0].add_run(role_); rr.font.size = Pt(9.5)
+        fix_widths(lt, (Cm(3.0), Cm(9.0)))
     # header / footer (cover page has none, like the collateral layout)
     s0 = doc.sections[0]
     hp = s0.header.paragraphs[0]
@@ -767,6 +796,12 @@ def build_pdf(snap) -> bytes:
                                                                   [7 * cm, 2 * cm, 5.5 * cm, 2.5 * cm])]
             history.append([pr["process_id"], pr["version"], pr["status_label"], pr["author"], pr["change_summary"]])
     story += [PageBreak(), Paragraph("Appendix A – Revision history (included processes)", sH1), tbl(["Process", "Version", "Status", "Author", "Change summary"], history, [3.5 * cm, 1.8 * cm, 3 * cm, 2.7 * cm, 6 * cm])]
+    if snap.get("legend"):
+        lt = Table([[Paragraph("Outline colour", sCellB), Paragraph("Responsible role", sCellB)]] + [["", Paragraph(esc(r_), sCell)] for r_, _ in snap["legend"]],
+                   colWidths=[3 * cm, 9 * cm], repeatRows=1, hAlign="LEFT")
+        lt.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), BLUE), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#999999"))]
+                               + [("BACKGROUND", (0, i + 1), (0, i + 1), colors.HexColor(c_)) for i, (_, c_) in enumerate(snap["legend"])]))
+        story += [PageBreak(), Paragraph(LEGEND_TITLE, sH1)] + [Paragraph(esc(x), sLi, bulletText="•") for x in LEGEND_KEY] + [Spacer(1, 8), lt]
     bio = io.BytesIO()
     d = Doc(bio, pagesize=A4, leftMargin=2 * cm, rightMargin=2 * cm, topMargin=2.2 * cm, bottomMargin=2 * cm, title=snap["title"], author=snap["generated_by"])
     d.multiBuild(story, onFirstPage=cover, onLaterPages=head_foot)
@@ -823,6 +858,9 @@ def build_html(snap) -> bytes:
             for s in c.get("sections", []):
                 html = re.sub(r'src="/api/assets/(\d+)"', lambda m: _data_uri(int(m.group(1))), s["html"])
                 out.append(f"<h3>{e(s['title'])}</h3>{html}")
+    if snap.get("legend"):
+        out.append(f"<h2>{e(LEGEND_TITLE)}</h2><ul>" + "".join(f"<li>{e(x)}</li>" for x in LEGEND_KEY) + "</ul><table><tr><th>Outline colour</th><th>Responsible role</th></tr>"
+                   + "".join(f"<tr><td style='background:{e(c_)};width:3cm'></td><td>{e(r_)}</td></tr>" for r_, c_ in snap["legend"]) + "</table>")
     out.append("</body></html>")
     return "".join(out).encode()
 

@@ -4,9 +4,10 @@ Status vocabulary: **Tested** = automated test and/or driven in a real browser; 
 **Partial**; **Not implemented**; **Blocked**. The platform is **not** declared complete against the full brief – see §3 and §4.
 
 ## 0. Latest round (flows per process, audit tool, add-options, branching, performance)
-**State with all supplied files loaded:** 100 processes, and no department is empty; 76 have native, editable, linked flows
-(72 files from the master canvas, plus the earlier native diagrams); 13 still carry pictures (the five project phases, which the canvas does not draw separately, and
-duplicates from the "Approval" document). 1,270 activities were read from the flows, 795 with a role. 243 open findings (18 high), 6 resolved by decision.
+**State with all supplied files loaded (2026-11-12, first start of the current version):** 130 records – the 100 processes from the supplied documents and flows plus
+30 generated draft SAP work instructions. 90 of the 100 processes have native, editable, linked flows; **none carries a picture any more**; 10 are reference chapters,
+forms or records without a flow. 1,387 activities were read from the flows, 899 with a role. Draft RACI for 84 processes. 308 open findings (18 high), 6 resolved by decision.
+Nothing is published: every record is *Imported / Unverified* or *Draft* until an owner takes it through review.
 
 **Process IDs (update of 2026-11-10).** By owner decision the four project phases that the Word documents all label `PM-M-IN-01` carry the IDs of the approved canvas:
 Planning `PM-M-PL-01`, Execution `PM-M-EX-01`, Monitoring and Control `PM-M-MC-01`, Closing `PM-M-CL-01` (Initiation stays `PM-M-IN-01`). The decision is stored in
@@ -20,6 +21,14 @@ screen; old IDs are not redirected, so bookmarks to `…/PM-M-IN-01.2` no longer
 Verified here: set-up and start scripts on a clean copy (import of all 82 files, address and one-time password printed), access through a forwarded host name,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
+
+**Closing the open development points (2026-11-12).** *Done, tested:* (1) a former process ID still leads to the process after a controlled ID change; (2) a data
+folder created by an older version is offered the new or corrected source files of the installed version (*Import & Sources ▸ Import them now*), which also brings the
+editable flows to libraries that still show pictures; (3) exports carry the flowchart legend once (Appendix B: shape key and the role colours that occur), because the
+flow pictures no longer contain it; (4) flows much taller than a page are printed in consecutive parts cut between shapes – flows printed below 60 % drop from nine to
+five, the rest are very wide maps that need export areas or a landscape page; (5) the master legend is editable under *Administration ▸ Settings*; (6) the flow builder
+accepts loops (`No: Back to 2`). *Still open, not development:* owner decisions (duplicates, canvas versions, accountable roles), tenant-side deployment and its tests.
+The way forward is in `docs/ROADMAP.md`.
 
 **Microsoft Teams channel tab (2026-11-12).** *Done, tested:* the tool can be displayed in a Teams channel tab from the hosted server. (1) Teams app package built by the
 tool (*Administration ▸ Teams & SharePoint* or `tools/make_teams_app.py`), manifest valid against Microsoft's schemas 1.16–1.24; tab settings page `/teams/config.html` with

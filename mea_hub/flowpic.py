@@ -67,7 +67,7 @@ def layout(xml: str, page: int = 0) -> dict:
     if sheet and everything:
         sheet = _union([sheet, everything])
     areas.sort(key=lambda a: (round(a["box"][1] / 40.0), a["box"][0]))
-    return dict(sheet=sheet, frame=frame, title_h=title_h, legend=_union(legend), flow=flow, areas=areas)
+    return dict(sheet=sheet, frame=frame, title_h=title_h, legend=_union(legend), flow=flow, areas=areas, shapes=rest)
 
 
 def plan(xml: str, mode: str = "flow") -> dict:
@@ -137,14 +137,46 @@ def _rgb(im):
 
 
 def _trim(im):
-    """Cut the white margins (the picture keeps its colour mode, so a small palette PNG stays small)."""
+    """Cut the white margins (the picture keeps its colour mode, so a small palette PNG stays small). -> (picture, (left, top) cut off)."""
     from PIL import Image, ImageChops
     rgb = _rgb(im)
     diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, "white")).convert("L").point(lambda v: 255 if v > 14 else 0)
     bb = diff.getbbox()
     if not bb:
-        return im
-    return im.crop((max(0, bb[0] - MARGIN_PX), max(0, bb[1] - MARGIN_PX), min(im.width, bb[2] + MARGIN_PX), min(im.height, bb[3] + MARGIN_PX)))
+        return im, (0, 0)
+    box = (max(0, bb[0] - MARGIN_PX), max(0, bb[1] - MARGIN_PX), min(im.width, bb[2] + MARGIN_PX), min(im.height, bb[3] + MARGIN_PX))
+    return im.crop(box), (box[0], box[1])
+
+
+PAGE_CM = (16.0, 20.0)     # room for a flow picture on an A4 page of the exports (width, height)
+SPLIT_GAIN = 1.4           # split a tall flow only when its parts print at least this much larger
+
+
+def split_tall(im, scale, shapes=()):
+    """A flow that is much taller than a page is cut into consecutive parts so that it stays readable. A cut runs between
+    shapes (`shapes` = their top/bottom rows in this picture), across connectors only, as close to an even division as
+    possible; where no such row exists nearby, the row with the least drawing is used. Nothing is redrawn."""
+    from PIL import Image, ImageChops
+    cw, ch = im.width / scale / 96 * 2.54, im.height / scale / 96 * 2.54
+    now = min(1.0, PAGE_CM[0] / cw, PAGE_CM[1] / ch)                         # reduction when printed as one picture
+    best = min(1.0, PAGE_CM[0] / cw)                                         # the width limits what splitting can gain
+    n = math.ceil(ch * best / PAGE_CM[1])
+    if n < 2 or n > 8 or best / now < SPLIT_GAIN:
+        return [im]
+    rgb = _rgb(im)
+    ink = ImageChops.difference(rgb, Image.new("RGB", rgb.size, "white")).convert("L").point(lambda v: 255 if v > 14 else 0).resize((1, im.height), Image.BOX)
+    rows = list(ink.tobytes())
+    part = im.height / n
+    cuts = [0]
+    for k in range(1, n):
+        ideal, win = int(k * part), int(part * 0.14)
+        lo, hi = max(cuts[-1] + int(part * 0.5), ideal - win), min(im.height - 1, ideal + win)
+        small = [(a - 4, b + 4) for a, b in shapes if b - a < part * 0.45]             # tall containers cannot be avoided
+        free = [r for r in range(lo, hi + 1) if not any(a <= r <= b for a, b in small)]
+        y = min(free or range(lo, hi + 1), key=lambda r: (rows[r] // 8, abs(r - ideal))) if lo <= hi else ideal
+        cuts.append(y)
+    cuts.append(im.height)
+    return [im.crop((0, a, im.width, b)) for a, b in zip(cuts, cuts[1:]) if b - a > 20]
 
 
 _CACHE = {}
@@ -177,6 +209,7 @@ def _cut(png, xml, cover, mode):
     if not cover:
         s = layout(xml)["sheet"]
         cover = (s[0] - 0.5 - BORDER, s[1] - 0.5 - BORDER, s[2] - s[0] + 1 + 2 * BORDER, s[3] - s[1] + 1 + 2 * BORDER)
+    shapes = layout(xml)["shapes"]
     kx, ky = im.width / cover[2], im.height / cover[3]
     if not (0.1 < kx < 8) or abs(kx - ky) / kx > 0.03:
         return dict(whole, note="The document picture could not be located in this preview, so the whole sheet is used. Open and save the flow once in Flow Studio.")
@@ -187,11 +220,18 @@ def _cut(png, xml, cover, mode):
         if px[2] - px[0] < 12 or px[3] - px[1] < 12:
             continue
         part = im.crop(px)
-        if p["trim"]:
-            part = _trim(part)
-        bio = io.BytesIO()
-        part.save(bio, "PNG", optimize=part.mode == "P")
-        pics.append(dict(png=bio.getvalue(), label=label, scale=(kx + ky) / 2))
+        parts = [part]
+        if p["trim"]:                                                                 # automatic parts only where no export area was drawn
+            piece, (ox, oy) = _trim(part)
+            rows_ = [((r[1] - cover[1]) * ky - px[1] - oy, (r[3] - cover[1]) * ky - px[1] - oy) for r in shapes]
+            parts = split_tall(piece, (kx + ky) / 2, rows_)
+        for piece in parts:
+            bio = io.BytesIO()
+            piece.save(bio, "PNG", optimize=piece.mode == "P")
+            pics.append(dict(png=bio.getvalue(), label=label, scale=(kx + ky) / 2, auto=len(parts) > 1))
     if not pics:
         return dict(whole, note="The export area lies outside the picture, so the whole sheet is used.")
-    return dict(kind=p["kind"], pictures=pics, note=p["note"])
+    note = p["note"]
+    if len(pics) > 1 and p["trim"]:
+        note = (note + " " if note else "") + f"The flow is taller than a page and is printed in {len(pics)} consecutive parts. Draw export areas in Flow Studio to choose the parts yourself."
+    return dict(kind=p["kind"], pictures=pics, note=note)

@@ -399,7 +399,7 @@ def revamp(flow_xml: str, name: str, pid: str, dept: str, legend: dict, meta: di
     return etree.tostring(root, encoding="unicode")
 
 
-def finish(root, cells_root, name, pid, dept, legend, used_roles, meta=None):
+def finish(root, cells_root, name, pid, dept, legend, used_roles, meta=None, pad_left=0):
     """Wrap the shapes of a flow in the titled frame, add the master legend and the file attributes (in place)."""
     tmp = etree.tostring(root, encoding="unicode")
     sc = drawio.scene(tmp)
@@ -407,8 +407,8 @@ def finish(root, cells_root, name, pid, dept, legend, used_roles, meta=None):
     x0, y0 = min(b["x"] for b in tops), min(b["y"] for b in tops)
     x1, y1 = max(b["x"] + b["w"] for b in tops), max(b["y"] + b["h"] for b in tops)
     legend_cells, lw, lh = legend_block(legend, used_roles, x0, y1 + 50)
-    fx, fy = x0 - 40, y0 - 70
-    fw, fh = max(x1 - x0, lw) + 80, (y1 - y0) + lh + 70 + 90
+    fx, fy = x0 - 40 - pad_left, y0 - 70                     # pad_left: room for connectors that run left of the shapes (loops)
+    fw, fh = max(x1 - x0, lw) + 80 + pad_left, (y1 - y0) + lh + 70 + 90
     title = f"Process Map – {name} – {pid}" if pid else f"Process Map – {name}"
     frame = etree.Element("mxCell", id="mea_frame", value=title, vertex="1", parent="1",
                           style="swimlane;whiteSpace=wrap;html=1;fillColor=#003594;fontColor=#FFFFFF;strokeColor=#003594;fontSize=14;fontStyle=1;fontFamily=Arial;startSize=34;swimlaneFillColor=#FFFFFF;connectable=0;meaKind=frame;")

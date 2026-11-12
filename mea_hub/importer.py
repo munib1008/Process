@@ -733,6 +733,24 @@ def import_paths(paths: list[str], user: str = "system") -> dict:
     return summary
 
 
+def shipped_files():
+    """Source files delivered with the program (./source_documents and ./source_documents/flows)."""
+    import glob
+    root = os.path.join(config.app_root(), "source_documents")
+    return sorted(glob.glob(os.path.join(root, "*.docx")) + glob.glob(os.path.join(root, "*.drawio")) + glob.glob(os.path.join(root, "flows", "*.drawio")))
+
+
+def pending_shipped():
+    """Shipped source files that this data folder has not imported yet (new or corrected in a newer version of the tool)."""
+    have = {r["sha256"] for r in db.q("SELECT sha256 FROM sources")}
+    out = []
+    for p in shipped_files():
+        with open(p, "rb") as f:
+            if hashlib.sha256(f.read()).hexdigest() not in have:
+                out.append(p)
+    return out
+
+
 def load_source(d: dict, user: str) -> dict:
     now = svc.now()
     stored = os.path.join(config.SOURCE_DIR, f"{d['sha'][:12]}_{re.sub(r'[^A-Za-z0-9._-]', '_', d['filename'])}")

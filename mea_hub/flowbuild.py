@@ -7,6 +7,7 @@ One line per step:
     Credit Controller: Credit limit sufficient?       a line ending with "?" is a decision
     No: Credit Controller: Block order, inform Sales  branch of the decision above (No: or Yes:), may be repeated
     No: End                                           ... and may finish at End
+    No: Back to 2                                     ... or loop back to an earlier step (its number, or the start of its text)
     Note: Check incoterms on the PO                   note attached to the step above
     Ref: WL-M-OB-01 Outbound delivery                 linked process
     Logistics: Create delivery (VL01N)
@@ -113,6 +114,19 @@ def parse(text, legend):
                         warnings.append(f"Line {line_no}: the “{lab}:” branch already ends; the line was skipped.")
                     elif m.group(2).strip().lower() in ("end", "end.", "stop"):
                         br["to_end"] = True
+                    elif re.match(r"^back\s+to\b\s*:?\s*\S", m.group(2), re.I):      # loop: the branch returns to an earlier step
+                        target = re.sub(r"^back\s+to\b\s*:?\s*", "", m.group(2), flags=re.I).strip()
+                        main = steps[:steps.index(dec)]
+                        hit = None
+                        if re.fullmatch(r"(step\s*)?\d{1,3}", target, re.I):
+                            n = int(re.sub(r"\D", "", target))
+                            hit = n if 1 <= n <= len(main) else None
+                        else:
+                            hit = next((i for i, s_ in enumerate(main, 1) if s_["text"].lower().startswith(target.lower())), None)
+                        if hit:
+                            br["back"], br["to_end"] = hit, True     # the branch is closed by the loop
+                        else:
+                            warnings.append(f"Line {line_no}: “Back to {target}” names no earlier step (use its number or the beginning of its text). The branch was left open.")
                     else:
                         role, body = _split_role(m.group(2), roles, warnings, line_no)
                         st = _step(body, role)
@@ -209,12 +223,15 @@ def build(title, pid, dept, text, legend, meta=None):
     prev, prev_label, prev_colour = "mea_start", "", GREY
     y += 38 + 40
     branch_bottom = 0
+    box = {}                                                 # main step id -> (top, height)
+    to_back = []                                             # loops back to an earlier main step
     to_end = []                                              # (source id, label, colour) connected to End at the very end
     for i, st in enumerate(steps, 1):
         cid = f"s{i}"
         if st["kind"] == "decision" and st["branch"]:
             y = max(y, branch_bottom + 30)
         hgt = shape(st, cid, MAIN_X, MAIN_W, y)
+        box[cid] = (y, hgt)
         edge(prev, cid, prev_label, prev_colour, "exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;")
         prev, prev_label, prev_colour = cid, "", GREY
         if st["kind"] == "decision":
@@ -232,7 +249,9 @@ def build(title, pid, dept, text, legend, meta=None):
                     bprev, blabel = bid, ""
                     by += bh + 34
                     branch_bottom = by - 34
-                if br["to_end"]:                             # (source, label, colour, from the decision itself, y of the source's middle)
+                if br.get("back"):
+                    to_back.append((bprev, blabel, side_col if blabel else GREY, bprev == cid, (y + hgt / 2) if bprev == cid else (by - 34 - bh / 2), f"s{br['back']}"))
+                elif br["to_end"]:                           # (source, label, colour, from the decision itself, y of the source's middle)
                     to_end.append((bprev, blabel, side_col if blabel else GREY, bprev == cid, (y + hgt / 2) if bprev == cid else (by - 34 - bh / 2)))
             else:
                 prev_label, prev_colour = "Yes", YES         # the other answer is left open on purpose (flow check reports it)
@@ -244,7 +263,17 @@ def build(title, pid, dept, text, legend, meta=None):
         # run down a free corridor: between the columns when it leaves the decision, right of the branch column otherwise
         cx = (MAIN_X + MAIN_W + 30 + 6 * (k % 4)) if from_decision else (BR_X + BR_W + 20 + 6 * (k % 5))
         edge(src, "mea_end", label, colour, "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;", points=[(cx, mid_y), (cx, y + 19)])
-    canvas.finish(root, cells, title, pid, dept, legend, used_roles, dict(meaBuilt="steps", **(meta or {})))
+    for k, (src, label, colour, from_decision, mid_y, target) in enumerate(to_back):
+        ty, th = box[target]
+        if from_decision:                                    # straight from the decision: up the free corridor left of the main column
+            cx = MAIN_X - 34 - 8 * (k % 4)
+            edge(src, target, label, colour, "exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;", points=[(cx, mid_y), (cx, ty + th / 2)])
+        else:                                                # from a branch step: up the corridor right of the branch column, in above the target
+            cx = BR_X + BR_W + 20 + 6 * (k % 5)
+            edge(src, target, label, colour, "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.62;entryY=0;entryDx=0;entryDy=0;",
+                 points=[(cx, mid_y), (cx, ty - 16), (MAIN_X + MAIN_W * 0.62, ty - 16)])
+    canvas.finish(root, cells, title, pid, dept, legend, used_roles, dict(meaBuilt="steps", **(meta or {})),
+                  pad_left=60 if any(t[3] for t in to_back) else 0)
     return etree.tostring(root, encoding="unicode"), warnings
 
 

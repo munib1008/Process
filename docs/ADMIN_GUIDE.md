@@ -23,3 +23,17 @@ the app treats the editor as an untrusted iframe (only messages from its origin 
 * Logs: console window; errors in `data\error.log`. Audit trail: Administration → Audit log (also Governance → Revision history for process events).
 * Upgrade: replace the EXE, keep `data\`. The schema is created with `IF NOT EXISTS`; take a backup first.
 * Rebuild/CI: see README *Building the EXE*.
+
+## Updating an installation
+1. Back up (*Administration ▸ Backup*), stop the program, replace the program files, keep the data folder, start again. Database changes are applied at start.
+2. If the new version brings new or corrected source files, the console and **Import & Sources** say so. *Import them now* adds them to the existing library:
+   a delivered flow becomes the next revision of the flowchart of its process (the earlier revision stays), nothing is published.
+3. Draft RACI and draft SAP work instructions are created automatically only on the first start of a new data folder. In an existing library use *Governance ▸ RACI*.
+
+## Master legend
+*Administration ▸ Settings ▸ Master legend* lists the roles and their outline colours. They are used for new flows, the dormakaba MEA shapes in Flow Studio and the
+legend page of exports. A flow that already exists keeps the legend drawn inside it until it is built again. Give each role its own colour where possible: the flow
+reader recognises the role of a hand-drawn shape by its outline colour.
+
+## Hosting, SharePoint and Teams
+One shared installation on an internal server: `docs/SERVER_AND_SHAREPOINT.md`. Teams channel tab: `docs/TEAMS.md`. Roadmap: `docs/ROADMAP.md`.

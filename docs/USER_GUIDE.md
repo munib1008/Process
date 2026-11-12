@@ -41,6 +41,8 @@ A flow is printed at its drawn size and reduced only when it would not fit the p
   Only what lies inside goes into the document. Move, resize or delete the window at any time; it is saved with the flow revision.
 * **Split a long flow:** draw several export areas. Each becomes its own picture, from top to bottom ("Part 1 of 3"); the text you type on an area becomes its caption.
 * **Check before exporting:** *Document picture* on the process page, or *Preview* in the Flow Studio side panel, shows exactly what will be printed.
+* **Long flows:** a flow much taller than a page is printed automatically in consecutive parts, cut between shapes. Draw your own export areas if you want other parts.
+* **Legend:** the document ends with *Appendix B – Flowchart legend* (shape key and the role colours that occur in it).
 * **Whole sheet with legend:** in the Export Center choose *Flow pictures ▸ Whole sheet*.
 An export area is not a process step: it does not appear in the activity table or the flow check.
 **Reports → Process inventory** downloads the Excel process register.
@@ -67,7 +69,7 @@ Open the process and choose **New flow from steps…** (for a process that still
 |---|---|
 | `Logistics: Create delivery (VL01N)` | Activity of a role of the master legend (outline colour = role). SAP codes are picked up. |
 | `Credit limit sufficient?` | Decision. The next line is the **Yes** path. |
-| `No: Credit Controller: Block the order` | The other answer of the decision above. Repeat `No:` for more steps on that branch; `No: End` finishes it. `Yes:` works the same way when the main path is the "No" path. |
+| `No: Credit Controller: Block the order` | The other answer of the decision above. Repeat `No:` for more steps on that branch; `No: End` finishes it; `No: Back to 2` (step number, or the start of the step's text) loops back to an earlier step. `Yes:` works the same way when the main path is the "No" path. |
 | `Note: Check incoterms on the PO` | Note or checklist attached to the step above. |
 | `Ref: WL-M-OB-01 Outbound delivery` | Linked process (becomes a link when that process exists). |
 | `Start: …` / `End: …` | Own wording for the start and end shapes (optional). |
@@ -107,6 +109,8 @@ Open a draft, choose **Edit draft**, complete it and send it for review like any
 On the first start of a new installation both kinds of drafts are created automatically.
 
 ## Change a process ID (Document Controller / Administrator)
+The former ID keeps working: links, bookmarks and the search by the old ID lead to the process under its new ID.
+
 Open the process and choose **Change ID**. Enter the new ID and the reason (mandatory). The versions, flowchart, relationships, comments and change log stay with the
 process; the diagram code (`DG-<ID>`) and links from other flows follow; the open "provisional ID" finding is closed with your reason. The chart ID stated in the source
 document is kept for traceability. An ID that is already in use is refused. The old ID is not kept as an alias, so inform users who bookmarked it.

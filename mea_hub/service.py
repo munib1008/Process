@@ -357,7 +357,10 @@ def get_version(vid: int):
 
 
 def get_process(pid_text: str):
-    p = one("SELECT p.*,d.name AS department,d.code AS dept_code FROM processes p LEFT JOIN departments d ON d.id=p.department_id WHERE p.process_id=?", (pid_text,))
+    sql = "SELECT p.*,d.name AS department,d.code AS dept_code FROM processes p LEFT JOIN departments d ON d.id=p.department_id WHERE "
+    p = one(sql + "p.process_id=?", (pid_text,))
+    if not p:                                                # an ID the process had before a controlled ID change still leads to it
+        p = one(sql + "p.id=(SELECT process_row FROM id_aliases WHERE old_id=?)", (pid_text,))
     if not p:
         raise NotFound(f"Process {pid_text} not found")
     return p
@@ -368,6 +371,7 @@ def create_process_record(process_id, chart_id, name, dept_code, kind, content, 
     c = db.db()
     dept = one("SELECT id FROM departments WHERE code=?", (dept_code,))
     uname = user if isinstance(user, str) else user["username"]
+    c.execute("DELETE FROM id_aliases WHERE old_id=?", (process_id,))      # a new process may take an ID that was given up earlier
     cur = c.execute("INSERT INTO processes(process_id,chart_id,name,department_id,kind,category,countries,owner,origin,created_at,created_by,validation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                     (process_id, chart_id, name, dept["id"] if dept else None, kind, category, countries, owner, origin, now(), uname,
                      "unverified" if status == "imported" else "authored"))
@@ -899,7 +903,8 @@ def diagram_svg(dvid):
 # ------------------------------------------------------------------ search index & relationships
 def reindex(pid: int):
     p = one("SELECT p.*,d.name dname FROM processes p LEFT JOIN departments d ON d.id=p.department_id WHERE p.id=?", (pid,))
-    head = " ".join([p["process_id"], p["chart_id"] or "", p["name"], p["dname"] or "", p["owner"], p["countries"], p["category"], p["kind"]])
+    head = " ".join([p["process_id"], p["chart_id"] or "", p["name"], p["dname"] or "", p["owner"], p["countries"], p["category"], p["kind"]]
+                    + [a["old_id"] for a in q("SELECT old_id FROM id_aliases WHERE process_row=?", (pid,))])      # former IDs stay searchable
 
     def body(v):
         if not v:
@@ -1292,6 +1297,8 @@ def rename_process(user, old_id, new_id, reason=""):
     c = db.db()
     with tx():
         c.execute("UPDATE processes SET process_id=? WHERE id=?", (new_id, proc["id"]))
+        c.execute("DELETE FROM id_aliases WHERE old_id=?", (new_id,))
+        c.execute("INSERT OR REPLACE INTO id_aliases(old_id,process_row,changed_at) VALUES(?,?,?)", (old_id, proc["id"], now()))
         for d in q("SELECT id,code FROM diagrams WHERE process_id=?", (proc["id"],)):
             base = f"DG-{old_id}"
             if d["code"] == base or d["code"].startswith(base + "-"):

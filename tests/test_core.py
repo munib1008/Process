@@ -559,7 +559,8 @@ def test_process_id_change_is_controlled_and_follows_everywhere(users, tmp_path)
     assert ctl.call("POST", "/api/process/ZZ-M-AA-01.2/rename", {"new_id": "ZZ-M-BB-01", "reason": ""})[0] == 400       # reason is mandatory
     s, d = ctl.call("POST", "/api/process/ZZ-M-AA-01.2/rename", {"new_id": "zz-m-bb-01", "reason": "Permanent ID issued by Document Controller"})
     assert s == 200 and d["process_id"] == "ZZ-M-BB-01"
-    assert ctl.call("GET", "/api/process/ZZ-M-AA-01.2")[0] == 404
+    s, old = ctl.call("GET", "/api/process/ZZ-M-AA-01.2")                 # the former ID still leads to the process (bookmarks, printed documents)
+    assert s == 200 and old["process"]["process_id"] != "ZZ-M-AA-01.2"
     s, p = ctl.call("GET", "/api/process/ZZ-M-BB-01")
     assert s == 200 and p["process"]["chart_id"] == "ZZ-M-AA-01"                    # what the source said is kept
     row = db.one("SELECT id FROM processes WHERE process_id='ZZ-M-BB-01'")
@@ -868,6 +869,56 @@ def test_embedding_in_sharepoint_is_opt_in(server, users, monkeypatch):
     # the cookie now travels with cross-site requests, so changes still need the CSRF header
     ed = users["editor"]
     assert ed.call("POST", "/api/process", {"name": "x", "department": "LOG"}, csrf=False)[0] == 403
+
+
+def test_upgrade_helpers_aliases_legend_loops_and_long_flows(admin, users, tmp_path, monkeypatch):
+    """Small things that make the tool hold up in daily use."""
+    from mea_hub import config, flowbuild, flowpic, flowread
+    ed, ctl = users["editor"], users["controller"]
+    # a flow builder branch may loop back to an earlier step
+    xml, warn = flowbuild.build("Loop", "ZZ-M-LP-01", "LOG", "Sales: Receive order\nSales: Check data\nLogistics: Data complete?\nNo: Sales: Ask customer\nNo: Back to 2\n"
+                                "Warehouse: Pick goods\nLogistics: Quantity correct?\nNo: Back to: Pick goods\nLogistics: Ship\nLogistics: Delivered?\nNo: Back to 99", FLOW_LEGEND)
+    acts = {a["activity"]: a["output"] for a in flowread.read(xml)["activities"]}
+    assert acts["Ask customer"] == "→ Check data" and "No: Pick goods" in acts["Decision: Quantity correct?"]
+    assert len(warn) == 1 and "Back to 99" in warn[0]                                                # an unknown target is reported, the branch stays open
+    # the master legend is editable; bad input is refused
+    roles = admin.call("GET", "/api/legend")[1]["roles"]
+    assert ed.call("PUT", "/api/legend", {"roles": roles})[0] == 403
+    assert admin.call("PUT", "/api/legend", {"roles": roles + [{"role": "Quality Inspector", "color": "red"}]})[0] == 400
+    assert admin.call("PUT", "/api/legend", {"roles": roles + [{"role": "Sales", "color": "#112233"}]})[0] == (400 if any(r["role"] == "Sales" for r in roles) else 200)
+    s, r = admin.call("PUT", "/api/legend", {"roles": [x for x in roles if x["role"] != "Quality Inspector"] + [{"role": " Quality  Inspector ", "color": "#aa3377"}, {"role": "", "color": ""}]})
+    assert s == 200 and r["roles"][-1] == {"role": "Quality Inspector", "color": "#AA3377"}
+    assert "Quality Inspector" in ed.call("GET", "/api/config")[1]["flow_roles"]
+    assert any(e["title"] == "Activity – Quality Inspector" for e in ed.call("GET", "/api/flow-library")[1]["entries"])
+    # a flow much taller than a page is printed in consecutive parts, cut between shapes
+    steps = "\n".join(f"Sales: Step number {i} of a long procedure" for i in range(1, 41))
+    long_xml, _ = flowbuild.build("Long", "ZZ-M-LG-01", "LOG", steps, FLOW_LEGEND)
+    info = {}
+    res = flowpic.cut(drawio.to_png(long_xml, info=info), long_xml, info["cover"])
+    assert res["kind"] == "flow" and 2 <= len(res["pictures"]) <= 8 and "consecutive parts" in res["note"]
+    heights = [_png_size(p_["png"])[1] for p_ in res["pictures"]]
+    assert max(heights) < 1.6 * min(heights)                                                         # roughly even parts
+    short_xml, _ = flowbuild.build("Short", "ZZ-M-SH-01", "LOG", "Sales: One\nSales: Two", FLOW_LEGEND)
+    assert len(flowpic.cut(drawio.to_png(short_xml, info=info), short_xml, info["cover"])["pictures"]) == 1
+    # exports carry the legend once, because the flow pictures no longer do
+    assert ed.call("POST", "/api/process", {"name": "Loop process", "department": "LOG", "process_id": "ZZ-M-LP-01"})[0] == 200
+    assert ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-LP-01", "steps": "Sales: Receive order\nLogistics: Ship"})[0] == 200
+    from docx import Document
+    s, e = ed.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-LP-01"], "fmt": "docx"})
+    text = all_text(Document(io.BytesIO(ed.call("GET", f"/api/exports/{e['export']['id']}/download", raw=True)[1])))
+    assert "Appendix B – Flowchart legend" in text and "Logistics" in text
+    s, e = ed.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-LP-01"], "fmt": "docx", "flow_picture": "sheet"})
+    assert "Appendix B – Flowchart legend" not in all_text(Document(io.BytesIO(ed.call("GET", f"/api/exports/{e['export']['id']}/download", raw=True)[1])))
+    # source files delivered with a newer version are offered for import, once
+    root = tmp_path / "app"
+    (root / "source_documents" / "flows").mkdir(parents=True)
+    (root / "source_documents" / "flows" / "ZZ-M-LP-01_Loop.drawio").write_text(xml, encoding="utf-8")
+    monkeypatch.setattr(config, "app_root", lambda: str(root))
+    assert ed.call("GET", "/api/sources/pending")[1] == {"files": ["ZZ-M-LP-01_Loop.drawio"], "can": False}
+    assert ed.call("POST", "/api/sources/import-shipped", {})[0] == 403
+    s, r = ctl.call("POST", "/api/sources/import-shipped", {})
+    assert s == 200 and len(r["sources"]) == 1 and ctl.call("GET", "/api/sources/pending")[1]["files"] == []
+    assert len(ed.call("GET", "/api/process/ZZ-M-LP-01")[1]["version"]["content"]["activities"]) == 8      # the delivered flow became the next revision
 
 
 def test_teams_tab_package_and_pages(server, admin, users, monkeypatch, tmp_path):

@@ -111,3 +111,5 @@ table.syntax td{padding:3px 8px;font-size:12px;vertical-align:top}label.check{di
 
 .docpic{font-size:13px;margin-bottom:8px}.docpic p{margin:6px 0 0;font-size:12px}
 .docpicitem{margin-bottom:18px}.docpicitem b{display:block;margin-bottom:6px}
+
+.legendgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 14px}.legendgrid .row{gap:6px;flex-wrap:nowrap}

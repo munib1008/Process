@@ -171,6 +171,7 @@ async function doExport(spec) {
 async function processPage(pid, versionId, editing) {
   const d = await GET("/api/process/" + encodeURIComponent(pid) + (versionId ? "?version=" + versionId : ""));
   const p = d.process, v = d.version, c = v.content, perms = d.perms;
+  if (p.process_id !== pid) { toast(pid + " is now " + p.process_id); history.replaceState(null, "", "#/process/" + encodeURIComponent(p.process_id)); pid = p.process_id; }   // ID changed by a recorded decision
   const isLatest = !versionId || (d.versions[0] && d.versions[0].id === v.id);
   const reload = async (ed) => { await reloadTree(); clear($("#main")).append(await processPage(pid, null, ed)); };
   const act = (label, fn, cls) => h("button", {class: "btn " + (cls || ""), onclick: () => guard(async () => { if (editorInst && editorInst.isDirty()) await editorInst.save(); await fn(); })}, label);
@@ -616,10 +617,15 @@ async function viewImport() {
   }
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); }); drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); up([...e.dataTransfer.files].filter((f) => /\.(docx|drawio)$/i.test(f.name))); });
-  const lib = (await GET("/api/library?status=imported")).processes, src = await GET("/api/sources");
+  const lib = (await GET("/api/library?status=imported")).processes, src = await GET("/api/sources"), pend = await GET("/api/sources/pending");
   const rows = lib.map((p) => ({click: () => reviewWorkspace(p.process_id, out), cells: [p.process_id, p.name, p.department, p.kind, p.diagram_validation === "requires_validation" ? "flowchart to validate" : (p.has_diagram ? "ok" : "no flowchart")]}));
   return h("div", {class: "page"}, h("h1", null, "Import & Sources"), h("div", {class: "sub"}, src.sources.length + " source document(s) preserved unchanged. Imported content is never published automatically."),
     can("admin", "controller") ? h("div", {class: "card"}, drop, fi) : null,
+    pend.files.length ? h("div", {class: "card"}, h("h3", null, pend.files.length + " source file" + (pend.files.length > 1 ? "s" : "") + " delivered with this version " + (pend.files.length > 1 ? "are" : "is") + " not in this library yet"),
+      h("p", {class: "muted"}, "New or corrected files in the program's source_documents folder: " + pend.files.slice(0, 8).join(", ") + (pend.files.length > 8 ? " … (" + (pend.files.length - 8) + " more)" : "") +
+        ". Importing adds new flows as a further revision of the existing flowchart; nothing is published and no existing revision is removed."),
+      pend.can ? h("button", {class: "btn pri", onclick: () => guard(async () => { toast("Importing " + pend.files.length + " file(s)…"); const r = await POST("/api/sources/import-shipped", {});
+        toast(r.sources.length + " file(s) imported"); await reloadTree(); viewImport().then((n) => clear($("#main")).append(n)); })}, "Import them now") : h("p", {class: "muted"}, "The Document Controller can import them.")) : null,
     h("div", {class: "card"}, h("h3", null, "Import Review Workspace – " + lib.length + " process(es) Imported / Unverified"), h("p", {class: "muted"}, "Select a process to compare the original extraction (left) with the generated record (right)."), rows.length ? table(["ID", "Name", "Department", "Type", "Flowchart"], rows) : h("p", null, "Everything imported has been accepted or edited.")), out);
 }
 async function reviewWorkspace(pid, out) {
@@ -698,7 +704,18 @@ async function viewAdmin(tab) {
     const s = await GET("/api/settings"), f = {org_name: h("input", {type: "text", value: s.org_name}), export_footer: h("input", {type: "text", value: s.export_footer}), classification: h("input", {type: "text", value: s.classification || "Internal"}), region_label: h("input", {type: "text", value: s.region_label || "Region MEA"}), default_review_months: h("input", {type: "number", value: s.default_review_months}),
       allow_self_approval: h("select", null, h("option", {value: "0", selected: s.allow_self_approval !== "1"}, "No – enforce separation of duties (recommended)"), h("option", {value: "1", selected: s.allow_self_approval === "1"}, "Yes – single-user / pilot mode"))};
     const dc = h("input", {type: "text", placeholder: "Code e.g. HSE", style: "width:140px"}), dn = h("input", {type: "text", placeholder: "Department name"});
-    body = h("div", null, h("div", {class: "card"}, h("h3", null, "Departments"), h("p", {class: "muted"}, S.tree.map((d) => d.code + " " + d.name).join(" · ")),
+    const lg = (await GET("/api/legend")).roles.map((r) => Object.assign({}, r)), lgBox = h("div");
+    const drawLegend = () => clear(lgBox).append(h("div", {class: "legendgrid"}, lg.map((r, i) => h("div", {class: "row"},
+        h("input", {type: "color", value: /^#[0-9A-Fa-f]{6}$/.test(r.color) ? r.color : "#888888", style: "width:44px;padding:2px", oninput: (e) => { r.color = e.target.value.toUpperCase(); }}),
+        h("input", {type: "text", value: r.role, maxlength: 60, placeholder: "Role name", oninput: (e) => { r.role = e.target.value; }}),
+        h("button", {class: "btn sm", title: "Remove this role from the legend", onclick: () => { lg.splice(i, 1); drawLegend(); }}, "✕")))),
+      h("div", {class: "row", style: "margin-top:8px"}, h("button", {class: "btn", onclick: () => { lg.push({role: "", color: "#888888"}); drawLegend(); }}, "+ Add role"),
+        h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await PUT("/api/legend", {roles: lg}); S.cfg.flow_roles = r.roles.map((x) => x.role); toast("Legend saved: " + r.roles.length + " roles"); })}, "Save legend")));
+    drawLegend();
+    body = h("div", null, h("div", {class: "card"}, h("h3", null, "Master legend – roles and outline colours (" + lg.length + ")"),
+        h("p", {class: "muted"}, "Used for new flows (role names in “New flow from steps”), the dormakaba MEA shapes in Flow Studio and the legend page of exports. A flow that already exists keeps the legend drawn inside it until it is built again; two roles may share a colour, but the flow reader can then tell them apart only on shapes placed from the shape panel."),
+        lgBox),
+      h("div", {class: "card"}, h("h3", null, "Departments"), h("p", {class: "muted"}, S.tree.map((d) => d.code + " " + d.name).join(" · ")),
       h("div", {class: "row"}, dc, dn, h("button", {class: "btn pri", onclick: () => guard(async () => { await POST("/api/departments", {code: dc.value, name: dn.value}); await reloadTree(); toast("Department added"); route(); })}, "+ Add department"))),
     h("div", {class: "card"}, h("div", {class: "fields"}, [["Organisation name", f.org_name], ["Export footer text", f.export_footer], ["Classification label (cover, footers)", f.classification], ["Region label (footers)", f.region_label], ["Default review frequency (months)", f.default_review_months], ["Author may review/approve own revision", f.allow_self_approval]].map(([l, e]) => h("div", null, h("label", null, l), e))),
       h("button", {class: "btn pri", style: "margin-top:10px", onclick: () => guard(async () => { const b = {}; Object.entries(f).forEach(([k, e]) => b[k] = e.value); await PUT("/api/settings", b); toast("Saved"); })}, "Save settings"),

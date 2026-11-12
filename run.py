@@ -75,6 +75,10 @@ def main():
             from mea_hub import drafts
             r1, r2 = drafts.generate_all_raci(drafts.SYSTEM), drafts.generate_sap_instructions(drafts.SYSTEM)
             print(f"  draft RACI for {r1['processes']} processes ({r1['rows']} rows), {len(r2['created'])} draft SAP work instructions")
+    if not first_start:
+        newer = importer.pending_shipped()
+        if newer:
+            print(f"  {len(newer)} source file(s) delivered with this version are not in this library yet: Import & Sources > Import them now")
     mapping = os.path.join(config.app_root(), "source_documents", "_canvas", "canvas_mapping.json")
     if os.path.isfile(mapping):                                          # recorded ID decisions also reach an existing data folder (idempotent)
         try:

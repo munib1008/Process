@@ -70,6 +70,8 @@ ID inside a collection file – `SC-M-VS-01_Level1_Value_Stream.drawio` (41 shap
 `mea_hub/flowpic.py` cuts the document picture out of the sheet picture that draw.io rendered – nothing is redrawn, so the document cannot differ from the flow.
 * No export area: the region inside the frame, below the title bar and clear of the master legend, with white margins trimmed.
 * Export areas (style key `meaExport=1`, shape "Export area" in the dormakaba MEA library): one picture per area, in reading order, cut 3 units inside the dashed outline.
+* A flow much taller than a page is cut into consecutive parts (`flowpic.split_tall`): only when the parts print at least 1.4 times larger, at rows between
+  shapes as close to an even division as possible; never where an export area was drawn.
 * Position on the sheet: Flow Studio stores the graph bounds reported by draw.io with every saved picture (`diagram_versions.preview_box`); for the supplied flow files the
   frame gives the position. If neither fits the picture's proportions the whole sheet is used and the preview says so – a picture is never cut blindly.
 * Three purchasing flows (`PP-M-GS-01`, `PP-M-OC-01`, `PP-M-PC-01`) carried a "Yes" label about 2,700 units above their connector on the canvas, which made their sheet

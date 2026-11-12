@@ -11,7 +11,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import config, db, drawio, drafts, exporter, flowpic, importer, queries, service as svc
+from . import __version__, config, db, drawio, drafts, exporter, flowpic, importer, queries, service as svc
 
 COOKIE = "mea_session"
 ROUTES = []
@@ -280,7 +280,7 @@ def r_password(c):
 @route("GET", "/api/health", auth=False)
 def r_health(c):
     """For a reverse proxy / monitoring: answers without a session and touches the database."""
-    return dict(ok=bool(db.one("SELECT 1 ok")), version="1.0.0")
+    return dict(ok=bool(db.one("SELECT 1 ok")), version=__version__)
 
 
 @route("GET", "/api/config", auth=False)
@@ -288,7 +288,7 @@ def r_config(c):
     return dict(embeddable=bool(config.embed_origins()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
                 templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
-                comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version="1.0.0",
+                comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version=__version__,
                 flow_roles=[r["role"] for r in svc.master_legend().get("roles", [])])
 
 
@@ -703,6 +703,24 @@ def r_source_dl(c, sid):
         return file_resp(f.read(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", s["filename"])
 
 
+@route("GET", "/api/sources/pending")
+def r_sources_pending(c):
+    svc.need(c.user, "view_all")
+    return dict(files=[os.path.basename(p) for p in importer.pending_shipped()], can=svc.can(c.user, "import"))
+
+
+@route("POST", "/api/sources/import-shipped")
+def r_sources_import_shipped(c):
+    """Import the source files that came with a newer version of the tool into this data folder."""
+    svc.need(c.user, "import")
+    files = importer.pending_shipped()
+    if not files:
+        return dict(sources=[], skipped=[])
+    res = importer.import_paths(files, c.user["username"])
+    svc.audit(c.user, "shipped_sources_imported", "source", "*", f"{len(res['sources'])} files")
+    return res
+
+
 @route("POST", "/api/import")
 def r_import(c):
     svc.need(c.user, "import")
@@ -875,6 +893,37 @@ def r_settings(c):
             if k in d:
                 svc.set_cfg(k, str(d[k])[:300])
         svc.audit(c.user, "settings_changed", "config", None, json.dumps(d)[:500])
+
+
+@route("GET", "/api/legend")
+def r_legend_get(c):
+    svc.need(c.user, "view_all")
+    return dict(roles=svc.master_legend().get("roles", []))
+
+
+@route("PUT", "/api/legend")
+def r_legend_put(c):
+    """Master legend: the roles and their outline colours used for new flows, the shape library and the legend page of exports."""
+    svc.need(c.user, "admin")
+    rows, seen, out = c.json().get("roles"), set(), []
+    if not isinstance(rows, list) or len(rows) > 120:
+        raise svc.Invalid("The legend must be a list of at most 120 roles.")
+    for r in rows:
+        role, color = re.sub(r"\s+", " ", str((r or {}).get("role", ""))).strip(), str((r or {}).get("color", "")).strip().upper()
+        if not role and not color:
+            continue
+        if not role or len(role) > 60 or re.search(r"[:;=<>\"]", role):
+            raise svc.Invalid(f"Role name “{role[:60]}” is empty, longer than 60 characters or contains one of : ; = < > \".")
+        if not re.fullmatch(r"#[0-9A-F]{6}", color):
+            raise svc.Invalid(f"Colour of “{role}” must look like #1E90FF.")
+        if role.lower() in seen:
+            raise svc.Invalid(f"Role “{role}” is listed twice.")
+        seen.add(role.lower())
+        out.append(dict(role=role, color=color))
+    with db.tx():
+        svc.set_cfg("master_legend", json.dumps(dict(svc.master_legend(), roles=out)))
+        svc.audit(c.user, "legend_changed", "config", "master_legend", f"{len(out)} roles")
+    return dict(roles=out)
 
 
 @route("GET", "/api/settings")
