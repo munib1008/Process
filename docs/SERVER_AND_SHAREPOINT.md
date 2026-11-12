@@ -49,8 +49,8 @@ The app has no TLS of its own. Do not expose port 8765 to the network; always pu
    `processhub.example.com`**. Without this the Embed web part refuses the address.
 3. Edit the page ▸ add a one-column (full-width) section ▸ **Embed** web part ▸ paste the address or the snippet from
    `deploy/sharepoint/embed_snippet.html`.
-4. Users sign in inside the frame with their MEA Process Hub user name. **There is no single sign-on with Microsoft 365** –
-   the tool has its own users and roles.
+4. Users sign in inside the frame: with their MEA Process Hub user name, or with **Sign in with Microsoft** once single sign-on is
+   configured ([SSO_ENTRA.md](SSO_ENTRA.md)).
 
 ### Browser behaviour inside the frame
 The tool is a "third party" inside a SharePoint page, so the browser applies its third-party cookie rules.
@@ -73,7 +73,7 @@ For a Microsoft Teams channel tab see [TEAMS.md](TEAMS.md).
 ## 4. Limits and risks – decide with IT before go-live
 | Risk | Why it matters | Mitigation |
 |---|---|---|
-| Own user names and passwords, no Entra ID / SSO, no MFA | Accounts must be created, disabled and reset in the tool; a leaver is not removed automatically | Keep the site reachable from the corporate network only; name an account owner; review users quarterly |
+| Own user names and passwords unless single sign-on is configured | Without it, accounts must be created, disabled and reset in the tool and a leaver is not removed automatically | Configure sign-in with Microsoft Entra ID ([SSO_ENTRA.md](SSO_ENTRA.md)); until then keep the site on the corporate network and review users quarterly |
 | One server, SQLite database | No fail-over; suitable for tens of concurrent users, not hundreds of simultaneous editors | Server backup; restore test; accept a short outage for maintenance |
 | Embedding widens the attack surface | With embedding on, the cookie is sent on cross-site requests | Changes need the CSRF header (tested); list only the exact SharePoint origin; leave embedding off if it is not needed |
 | Viewer needs line-of-sight | A SharePoint page opened outside the corporate network / VPN shows an empty frame | State this on the page; or publish through the company's application proxy |

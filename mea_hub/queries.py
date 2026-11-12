@@ -317,7 +317,7 @@ def sources_register():
 
 
 def users_list():
-    return q("SELECT u.id,u.username,u.display_name,u.role,u.department_id,u.active,u.created_at,d.name AS department FROM users u LEFT JOIN departments d ON d.id=u.department_id ORDER BY u.id")
+    return q("SELECT u.id,u.username,u.display_name,u.role,u.department_id,u.active,u.created_at,u.auth,u.last_login,d.name AS department FROM users u LEFT JOIN departments d ON d.id=u.department_id ORDER BY u.id")
 
 
 # ------------------------------------------------------------------ Excel register

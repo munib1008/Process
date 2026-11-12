@@ -11,7 +11,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import __version__, config, db, drawio, drafts, exporter, flowpic, importer, queries, service as svc
+from . import __version__, config, db, drawio, drafts, exporter, flowpic, importer, queries, service as svc, sso
 
 COOKIE = "mea_session"
 ROUTES = []
@@ -146,6 +146,8 @@ class Handler(BaseHTTPRequestHandler):
             path = unquote(u.path)
             if path.startswith("/api/"):
                 return self.api(path, parse_qs(u.query))
+            if path in ("/auth/login", "/auth/callback"):
+                return self.auth(path, parse_qs(u.query))
             if path.startswith("/drawio/") or path == "/drawio":
                 return self.serve_drawio(path)
             return self.serve_static(path)
@@ -182,6 +184,35 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_bytes(404, b"Local draw.io copy not installed. Run fetch_drawio.py (see docs/ADMIN_GUIDE.md).", "text/plain")
         rel = path[len("/drawio/"):] if path.startswith("/drawio/") else "index.html"
         self.serve_file(config.DRAWIO_DIR, rel, csp=False, cache="private, max-age=86400")      # the editor is static: let the browser keep it
+
+    # ---------------------------------------------------------------- single sign-on (Entra ID)
+    def auth(self, path, qs):
+        arg = lambda k: (qs.get(k) or [""])[0]
+        page = lambda title, text: self.send_bytes(400, (
+            f"<!doctype html><meta charset='utf-8'><title>MEA Process Hub</title><link rel='stylesheet' href='/style.css'>"
+            f"<div style='max-width:560px;margin:60px auto;padding:0 18px'><h2>{title}</h2><p>{text}</p><p><a class='btn' href='/'>Back to MEA Process Hub</a></p></div>").encode(),
+            "text/html; charset=utf-8")
+        esc = lambda s: str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        if self.command != "GET":
+            return self.send_bytes(405, b"Method not allowed", "text/plain")
+        try:
+            if path == "/auth/login":
+                return self.send_bytes(302, b"", "text/plain", {"Location": sso.begin(popup=arg("popup") == "1")})
+            if arg("error"):
+                raise sso.SsoError(f"Microsoft sign-in was not completed: {arg('error_description') or arg('error')}"[:300])
+            user, popup = sso.finish(arg("code"), arg("state"))
+            if popup:                                        # sign-in window of a framed page: pass a one-time code back, the frame gets its own session
+                return self.send_bytes(302, b"", "text/plain", {"Location": "/auth/done.html#h=" + sso.handoff_create(user["id"])})
+            tok, _, _ = svc.start_session(user, "single sign-on")
+            https = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower() == "https"
+            cookie = session_cookie(f"{COOKIE}={tok}; Path=/; HttpOnly; SameSite=Strict; Max-Age={config.SESSION_HOURS * 3600}", https)
+            # SameSite=Strict cookies are not sent on the request that follows a cross-site redirect chain, so the session starts on a page of our own
+            return self.send_bytes(200, b"<!doctype html><meta charset='utf-8'><meta http-equiv='refresh' content='0;url=/'><title>MEA Process Hub</title><a href='/'>Continue</a>",
+                                   "text/html; charset=utf-8", {"Set-Cookie": cookie})
+        except sso.SsoError as e:
+            return page("Sign-in with Microsoft did not work", esc(e))
+        except svc.Forbidden as e:
+            return page("Sign-in is not possible", esc(e))
 
     # ---------------------------------------------------------------- API
     def api(self, path, qs):
@@ -256,6 +287,23 @@ def r_login(c):
     return dict(user=user, csrf=csrf, _set_cookie=cookie)
 
 
+@route("POST", "/api/auth/handoff", auth=False, csrf=False)
+def r_handoff(c):
+    """A framed page (SharePoint, Teams) redeems the one-time code its sign-in window received."""
+    user = sso.handoff_redeem(c.json().get("token"))
+    if not user:
+        raise svc.Forbidden("Sign-in is not possible.")
+    tok, csrf, pub = svc.start_session(user, "single sign-on (window)")
+    cookie = f"{COOKIE}={tok}; Path=/; HttpOnly; SameSite=Strict; Max-Age={config.SESSION_HOURS * 3600}"
+    return dict(user=pub, csrf=csrf, _set_cookie=cookie)
+
+
+@route("GET", "/api/admin/sso")
+def r_sso_status(c):
+    svc.need(c.user, "admin")
+    return sso.status()
+
+
 @route("POST", "/api/logout")
 def r_logout(c):
     svc.logout(c.token)
@@ -285,7 +333,7 @@ def r_health(c):
 
 @route("GET", "/api/config", auth=False)
 def r_config(c):
-    return dict(embeddable=bool(config.embed_origins()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
+    return dict(embeddable=bool(config.embed_origins()), sso=dict(enabled=sso.enabled(), only=sso.passwords_restricted()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
                 templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
                 comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version=__version__,

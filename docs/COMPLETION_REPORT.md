@@ -22,6 +22,14 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Single sign-on with Microsoft Entra ID (2026-11-12, version 1.1.0).** *Done, tested:* OpenID Connect authorization code flow with PKCE (`mea_hub/sso.py`): one-time
+state, ID-token signature (RS256, key from the tenant's key set, verified in the tool without an extra library), issuer, audience, tenant, validity and nonce; roles and
+department scope from Entra app roles at every sign-in, or kept in the tool; automatic creation of the user; local administrators as break-glass; passwords can be switched
+off; framed pages sign in through a sign-in window with a one-time hand-over. Automated test against a stand-in identity provider (accepts genuine answers, refuses
+forged, altered, expired, replayed, wrong-application and wrong-tenant ones) and a run in Chromium for both paths. *Not tested:* a real Entra tenant, Conditional Access,
+guest users, the Teams desktop client (its sign-in windows are not handled yet). *Limits:* client secret only (no certificate), a session stays valid up to 12 hours
+after the account is disabled in Entra, no automatic provisioning or removal of users. Guide: `docs/SSO_ENTRA.md`.
+
 **Library hosted in SharePoint without a server (2026-11-12).** *Done, tested:* new export format *SharePoint publication* (`mea_hub/publish.py`): `handbook.json`,
 flow pictures and text pictures in one folder; a reader (`deploy/teams/spfx/src/viewer/viewer.ts`) compiled into the SharePoint web part and into `viewer.js` for other
 web hosts: department navigation, search, process pages with flows in parts, RACI, SAP, relations, draft banner. Tested in Chromium against a real export of 130

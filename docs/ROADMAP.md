@@ -7,7 +7,7 @@ Status of this document: proposal for the tool owner, 2026-11-12. Figures marked
 1. **The limiting factor is content, not software.** *Measured:* 100 processes, **0 published**, **0 with a named owner**,
    308 open findings (18 high), 42 provisional IDs, accountable role known for 4 of 1,068 RACI rows, transaction code written
    in 5 of 30 SAP steps. A handbook in which nothing is approved is a draft archive. More features do not change that.
-2. **The tool is not yet an approved company system.** It has its own passwords (no single sign-on, no MFA), has had no
+2. **The tool is not yet an approved company system.** Sign-in with the company account is built (version 1.1.0) but not yet proven on the tenant, it has had no
    security review, the EXE is unsigned, and the source repository with company documents is public.
 3. **It is custom software with one maintainer.** No vendor, no support contract. Whoever sponsors it must also name who
    maintains it, or keep the exit route open (section 6).
@@ -66,7 +66,7 @@ handful of people must *edit* in one shared installation. Do the SharePoint publ
 | # | Item | Why | Effort (estimate) | Confidence |
 |---|---|---|---|---|
 | 2a | Internal server behind HTTPS, service account, backup and one restore test | One shared library instead of copies | 2–3 days IT, files are in `deploy/` | High |
-| 2b | **Single sign-on with Microsoft Entra ID (OpenID Connect), groups mapped to roles** | Removes separate passwords, gives MFA and automatic leaver handling; precondition for IT approval | 8–12 days development + IT app registration | Medium |
+| 2b | **Single sign-on with Microsoft Entra ID (OpenID Connect), app roles mapped to roles** – *built in version 1.1.0 and tested against a stand-in identity provider; to be proven on the tenant (`docs/SSO_ENTRA.md`)* | Removes separate passwords, gives MFA and automatic leaver handling; precondition for IT approval | 8–12 days development + IT app registration | Medium |
 | 2c | IT Security review / penetration test, fix findings | No company data in an unreviewed system | 5–10 days fixing, depends on findings | Low |
 | 2d | Code-signed EXE, or retire the EXE for end users once the server runs | No SmartScreen warnings, no shadow copies of the library | 2 days + certificate | Medium |
 | 2e | Teams tab and SharePoint page in two pilot departments | Put the library where people already work | 1–2 days with the admins | Medium (tenant untested) |

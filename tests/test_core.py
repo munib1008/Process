@@ -946,6 +946,218 @@ def test_read_only_publication_for_sharepoint(admin, users):
     assert viewer.call("POST", "/api/exports", {"scope": "process", "ids": ["ZZ-M-PB-01"], "fmt": "site"})[0] in (400, 403)
 
 
+# ------------------------------------------------------------------ single sign-on (Entra ID) against a stand-in identity provider
+def _rsa_key(bits=2048):
+    """Test key only (pure Python, Miller-Rabin)."""
+    import random
+    rnd = random.SystemRandom()
+
+    def prime(nbits):
+        while True:
+            c = rnd.getrandbits(nbits) | (1 << (nbits - 1)) | 1
+            if any(c % q == 0 for q in (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)):
+                continue
+            d, r = c - 1, 0
+            while d % 2 == 0:
+                d, r = d // 2, r + 1
+            for _ in range(12):
+                x = pow(rnd.randrange(2, c - 1), d, c)
+                if x in (1, c - 1):
+                    continue
+                for _ in range(r - 1):
+                    x = pow(x, 2, c)
+                    if x == c - 1:
+                        break
+                else:
+                    break
+            else:
+                return c
+    while True:
+        p_, q_ = prime(bits // 2), prime(bits // 2)
+        n, e = p_ * q_, 65537
+        if n.bit_length() == bits and (p_ - 1) % e and (q_ - 1) % e:
+            return n, e, pow(e, -1, (p_ - 1) * (q_ - 1))
+
+
+class FakeEntra:
+    """Answers like the Entra endpoints the tool uses: configuration document, key set, token endpoint."""
+    TENANT = "11111111-2222-3333-4444-555555555555"
+
+    def __init__(self):
+        import base64, hashlib, threading, time
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from urllib.parse import parse_qs
+        self.n, self.e, self.d = _rsa_key()
+        self.codes, self.auto, me = {}, {}, self
+        b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+        self.b64 = b64
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def _send(self, obj, status=200):
+                data = json.dumps(obj).encode()
+                self.send_response(status); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+
+            def do_GET(self):
+                if self.path.endswith("/.well-known/openid-configuration"):
+                    return self._send(dict(issuer=me.authority, authorization_endpoint=me.base + "/authorize", token_endpoint=me.base + "/token", jwks_uri=me.base + "/keys"))
+                if self.path.startswith("/authorize?"):          # the person signs in and is sent back to the tool
+                    from urllib.parse import urlparse
+                    code, state = me.sign_in(me.base + self.path, **me.auto)
+                    back = parse_qs(urlparse(self.path).query)["redirect_uri"][0]
+                    self.send_response(302); self.send_header("Location", f"{back}?code={code}&state={state}"); self.send_header("Content-Length", "0"); self.end_headers()
+                    return
+                if self.path == "/keys":
+                    return self._send(dict(keys=[dict(kty="RSA", kid="k1", use="sig", n=b64(me.n.to_bytes(256, "big")), e=b64(me.e.to_bytes(3, "big")))]))
+                self._send({}, 404)
+
+            def do_POST(self):
+                form = {k: v[0] for k, v in parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode()).items()}
+                c = me.codes.pop(form.get("code"), None)
+                if not c or form.get("client_secret") != "s3cret" or form.get("redirect_uri") != c["redirect_uri"]:
+                    return self._send(dict(error="invalid_grant", error_description="code or secret wrong"), 400)
+                if b64(hashlib.sha256(form.get("code_verifier", "").encode()).digest()) != c["challenge"]:
+                    return self._send(dict(error="invalid_grant", error_description="PKCE verifier does not match"), 400)
+                self._send(dict(token_type="Bearer", id_token=me.token(c["claims"], c.get("tamper"))))
+        self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self.base = f"http://127.0.0.1:{self.srv.server_address[1]}"
+        self.authority = f"{self.base}/{self.TENANT}/v2.0"
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.time = time
+
+    def token(self, claims, tamper=None):
+        import hashlib
+        head = dict(alg="none" if tamper == "alg" else "RS256", kid="k1", typ="JWT")
+        signing = self.b64(json.dumps(head).encode()) + "." + self.b64(json.dumps(claims).encode())
+        di = bytes.fromhex("3031300d060960864801650304020105000420") + hashlib.sha256(signing.encode()).digest()
+        em = b"\x00\x01" + b"\xff" * (256 - 3 - len(di)) + b"\x00" + di
+        sig = pow(int.from_bytes(em, "big"), self.d, self.n).to_bytes(256, "big")
+        if tamper == "payload":                                # content changed after signing
+            signing = signing.split(".")[0] + "." + self.b64(json.dumps(dict(claims, roles=["admin"])).encode())
+        return signing + "." + self.b64(sig)
+
+    def sign_in(self, login_url, tamper=None, **over):
+        """The person signs in at the identity provider: returns the code it would send back to the tool."""
+        from urllib.parse import parse_qs, urlparse
+        q = {k: v[0] for k, v in parse_qs(urlparse(login_url).query).items()}
+        assert q["response_type"] == "code" and q["code_challenge_method"] == "S256" and "openid" in q["scope"] and login_url.startswith(self.base + "/authorize?")
+        claims = dict(iss=self.authority, aud=q["client_id"], tid=self.TENANT, exp=int(self.time.time()) + 600, nbf=int(self.time.time()) - 5, nonce=q["nonce"],
+                      oid="aaaaaaaa-0000-0000-0000-000000000001", name="Layla Hassan", preferred_username="Layla.Hassan@example.com")
+        claims.update(over)
+        code = "code" + str(len(self.codes) + int(self.time.time() * 1000))
+        self.codes[code] = dict(claims=claims, challenge=q["code_challenge"], redirect_uri=q["redirect_uri"], tamper=tamper)
+        return code, q["state"]
+
+
+def test_single_sign_on_with_entra_id(server, admin, users, monkeypatch):
+    """Authorization code flow with PKCE: the token is verified, roles come from app roles, forged or replayed answers are refused."""
+    import http.cookiejar
+    import urllib.request
+    from mea_hub import sso
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    def browser():
+        return urllib.request.build_opener(NoRedirect, urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+    def get(op, path):
+        try:
+            r = op.open(server + path)
+            return r.status, r.headers, r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers, e.read().decode()
+
+    assert json.loads(urllib.request.urlopen(server + "/api/config").read())["sso"] == {"enabled": False, "only": False}
+    assert get(browser(), "/auth/login")[0] == 400 and admin.call("GET", "/api/admin/sso")[1]["enabled"] is False
+    idp = FakeEntra()
+    for k, v in dict(MEA_HUB_OIDC_AUTHORITY=idp.authority, MEA_HUB_OIDC_TENANT=idp.TENANT, MEA_HUB_OIDC_CLIENT_ID="client-123", MEA_HUB_OIDC_CLIENT_SECRET="s3cret", MEA_HUB_PUBLIC_URL=server).items():
+        monkeypatch.setenv(k, v)
+    st = admin.call("GET", "/api/admin/sso")[1]
+    assert st["enabled"] and st["reachable"] and st["has_secret"] and st["redirect_uri"] == server + "/auth/callback" and "s3cret" not in json.dumps(st)
+
+    def attempt(b, popup=False, tamper=None, state=None, **over):
+        s, h, _ = get(b, "/auth/login" + ("?popup=1" if popup else ""))
+        assert s == 302
+        code, st_ = idp.sign_in(h["Location"], tamper, **over)
+        return get(b, f"/auth/callback?code={code}&state={state or st_}")
+
+    # 1. first sign-in: the person is created with the role and department named in the app roles
+    b = browser()
+    s, h, body = attempt(b, roles=["ProcessHub.editor.LOG", "viewer"])
+    assert s == 200 and "HttpOnly" in h["Set-Cookie"] and "url=/" in body
+    me = json.loads(get(b, "/api/me")[2])
+    log = db.one("SELECT id FROM departments WHERE code='LOG'")["id"]
+    assert me["user"]["username"] == "layla.hassan@example.com" and me["user"]["display_name"] == "Layla Hassan" and me["user"]["role"] == "editor" and me["user"]["department_id"] == log and me["csrf"]
+    row = db.one("SELECT * FROM users WHERE username='layla.hassan@example.com'")
+    assert row["auth"] == "entra" and row["external_id"].endswith("0001") and not row["must_change"] and row["last_login"]
+    # 2. the directory decides at every sign-in: role changed there, same person here
+    assert attempt(browser(), roles=["controller"])[0] == 200
+    again = db.one("SELECT id,role,department_id FROM users WHERE external_id=?", (row["external_id"],))
+    assert again == {"id": row["id"], "role": "controller", "department_id": None}
+    assert attempt(browser())[0] == 200 and db.one("SELECT role FROM users WHERE id=?", (row["id"],))["role"] == "viewer"      # no app role: default role
+    # 3. her password cannot be used, and she never had one
+    c = Client(server)
+    assert c.call("POST", "/api/login", {"username": "layla.hassan@example.com", "password": "anything"}, csrf=False)[0] == 403
+    # 4. everything that is not a genuine, fresh answer of this directory for this application is refused
+    for kw, why in ((dict(tamper="payload"), "signature"), (dict(tamper="alg"), "signature method"), (dict(aud="other-app"), "another application"), (dict(nonce="x"), "sign-in attempt"),
+                    (dict(exp=1), "expired"), (dict(iss="https://login.microsoftonline.com/other/v2.0"), "another directory"), (dict(tid="99999999-2222-3333-4444-555555555555"), "another tenant"),
+                    (dict(state="unknown"), "unknown or older")):
+        s, _, body = attempt(browser(), **kw)
+        assert s == 400 and why in body, (kw, body[-200:])
+    b = browser()
+    s, h, _ = get(b, "/auth/login")
+    code, state = idp.sign_in(h["Location"])
+    assert get(b, f"/auth/callback?code={code}&state={state}")[0] == 200
+    assert get(b, f"/auth/callback?code={code}&state={state}")[0] == 400                                   # an answer cannot be replayed
+    assert get(browser(), "/auth/callback?error=access_denied&error_description=User+cancelled")[0] == 400
+    # 5. a person without an app role can be kept out entirely
+    monkeypatch.setenv("MEA_HUB_OIDC_DEFAULT_ROLE", "none")
+    s, _, body = attempt(browser(), oid="aaaaaaaa-0000-0000-0000-000000000002", preferred_username="omar@example.com", name="Omar")
+    assert s == 400 and "no role" in body and not db.one("SELECT 1 FROM users WHERE username='omar@example.com'")
+    monkeypatch.delenv("MEA_HUB_OIDC_DEFAULT_ROLE")
+    # 6. deactivated in the tool: no entry even with a valid Microsoft sign-in
+    db.db().execute("UPDATE users SET active=0 WHERE id=?", (row["id"],))
+    s, _, body = attempt(browser(), roles=["admin"])
+    assert s == 400 and "deactivated" in body
+    db.db().execute("UPDATE users SET active=1 WHERE id=?", (row["id"],))
+    # 7. roles kept in the tool instead of the directory
+    monkeypatch.setenv("MEA_HUB_OIDC_ROLE_SOURCE", "tool")
+    db.db().execute("UPDATE users SET role='reviewer' WHERE id=?", (row["id"],))
+    assert attempt(browser(), roles=["admin"])[0] == 200 and db.one("SELECT role FROM users WHERE id=?", (row["id"],))["role"] == "reviewer"
+    monkeypatch.delenv("MEA_HUB_OIDC_ROLE_SOURCE")
+    # 8. framed page (SharePoint, Teams): the sign-in window hands a one-time code to the frame
+    b = browser()
+    s, h, _ = attempt(b, popup=True, roles=["approver"])
+    assert s == 302 and h["Location"].startswith("/auth/done.html#h=") and "Set-Cookie" not in h
+    token = h["Location"].split("#h=")[1]
+    frame = Client(server)
+    s, r = frame.call("POST", "/api/auth/handoff", {"token": token}, csrf=False)
+    assert s == 200 and r["user"]["role"] == "approver" and r["csrf"]
+    frame.csrf = r["csrf"]
+    assert frame.call("GET", "/api/library")[0] == 200
+    assert Client(server).call("POST", "/api/auth/handoff", {"token": token}, csrf=False)[0] == 403        # single use
+    # 9. single sign-on only: passwords remain for local administrators
+    monkeypatch.setenv("MEA_HUB_OIDC_ONLY", "1")
+    assert json.loads(urllib.request.urlopen(server + "/api/config").read())["sso"] == {"enabled": True, "only": True}
+    assert Client(server).call("POST", "/api/login", {"username": "demo_editor", "password": "ChangeMe!123"}, csrf=False)[0] == 403
+    assert Client(server).call("POST", "/api/login", {"username": "admin", "password": "Str0ng!Admin#1"}, csrf=False)[0] == 200
+    # the signature check itself
+    n, e, d = idp.n, idp.e, idp.d
+    import hashlib
+    di = bytes.fromhex("3031300d060960864801650304020105000420") + hashlib.sha256(b"msg").digest()
+    sig = pow(int.from_bytes(b"\x00\x01" + b"\xff" * (256 - 3 - len(di)) + b"\x00" + di, "big"), d, n).to_bytes(256, "big")
+    assert sso.rsa_verify(n, e, sig, b"msg") and not sso.rsa_verify(n, e, sig, b"msg2") and not sso.rsa_verify(n, e, sig[:-1] + bytes([sig[-1] ^ 1]), b"msg")
+    assert not sso.rsa_verify(n >> 1100, e, sig, b"msg")                                                    # short keys are not accepted
+    assert sso.settings()["only"] and sso.settings()["redirect_uri"] == server + "/auth/callback"
+    monkeypatch.setenv("MEA_HUB_OIDC_TENANT", "common")
+    monkeypatch.delenv("MEA_HUB_OIDC_AUTHORITY")
+    assert sso.settings() is None                                                                           # one named tenant only
+
+
 def test_teams_tab_package_and_pages(server, admin, users, monkeypatch, tmp_path):
     """The Teams app package points Teams at the hosted tool; the server lets the Teams hosts frame it only when asked to."""
     import importlib.util

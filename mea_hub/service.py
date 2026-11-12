@@ -164,13 +164,25 @@ def login(username, password):
     pw = password or ""
     if u and not verify_password(pw, u["pw_hash"]) and pw != pw.strip():
         pw = pw.strip()                                   # tolerate spaces picked up when copying from the console
-    if not u or not verify_password(pw, u["pw_hash"]):
+    if not u or u.get("auth") == "entra" or not verify_password(pw, u["pw_hash"]):
         audit(uname, "login_failed")
+        if u and u.get("auth") == "entra":
+            raise Forbidden("This account signs in with Microsoft. Use “Sign in with Microsoft”.")
         return None
+    from . import sso
+    if sso.passwords_restricted() and u["role"] != "admin":  # single sign-on only: passwords remain for local administrators (break-glass)
+        audit(uname, "login_failed", "user", u["id"], "password sign-in is switched off")
+        raise Forbidden("Password sign-in is switched off. Use “Sign in with Microsoft”.")
+    return start_session(u, "password")
+
+
+def start_session(u, method):
+    """New session for a user whose identity has been proven (password or single sign-on). -> (token, csrf, public user)"""
     tok, csrf = new_token(), new_token()
     exp = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=config.SESSION_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ")
     db.db().execute("INSERT INTO sessions(token,csrf,user_id,created_at,expires_at) VALUES(?,?,?,?,?)", (tok, csrf, u["id"], now(), exp))
-    audit(u["username"], "login")
+    db.db().execute("UPDATE users SET last_login=? WHERE id=?", (now(), u["id"]))
+    audit(u["username"], "login", "user", u["id"], method)
     return tok, csrf, public_user(u)
 
 

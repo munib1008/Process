@@ -66,7 +66,7 @@ Steps 4 to 6 need your tenant and could not be carried out here.
 | Risk | Why it matters | Mitigation |
 |---|---|---|
 | Line-of-sight to the server | Teams loads the tool from the user's device. Outside the corporate network / VPN (typically Teams mobile) the tab stays empty | State it in the tab name or channel description; or publish the server through the company's application proxy |
-| Separate sign-in | The tool has its own users; Microsoft 365 sign-in is not reused, and there is no MFA | Reachable from the corporate network only; user review; single sign-on would be a separate development |
+| Sign-in | Without single sign-on the tool has its own users. With it ([SSO_ENTRA.md](SSO_ENTRA.md)) people use their Microsoft account, but the Teams desktop client may block the sign-in window | Configure single sign-on; in the Teams desktop client use *Full window ↗* or the SharePoint publication for readers |
 | Browser rules for framed content | Inside Teams the tool is third-party content. The cookie is set so that Edge/Chrome (and the Teams desktop client, which uses the same engine) keep it [High Confidence]; other engines are untested | *Full window ↗* in the top bar opens the tool in the browser |
 | One address per web part instance (route 2) | A page editor could enter another https address in the web part settings | Fix the address in the source (see `deploy/teams/spfx/README.md`) before deployment |
 | Admin dependency | Custom app upload (route 1) and App Catalog (route 2) are often restricted | Ask the Teams / SharePoint administrators early; route 3 as a stop-gap |

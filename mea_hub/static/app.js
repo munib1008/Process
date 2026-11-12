@@ -19,13 +19,31 @@ function render() {
 function loginView() {
   const u = h("input", {type: "text", autocomplete: "username", autofocus: true}), p = h("input", {type: "password", autocomplete: "current-password", onkeydown: (e) => { if (e.key === "Enter") go(); }}), err = h("div", {class: "banner bad", style: "display:none"});
   const go = async () => { try { const r = await api("POST", "/api/login", {username: u.value, password: p.value}); S.user = r.user; S.csrf = r.csrf; location.hash = "#/dashboard"; render(); } catch (e) { err.style.display = ""; err.textContent = e.message; } };
+  const sso = S.cfg.sso && S.cfg.sso.enabled, framed = window.top !== window.self;
+  const fail = (m) => { err.style.display = ""; err.textContent = m; };
+  const microsoft = () => {
+    if (!framed) { location.href = "/auth/login"; return; }
+    // inside SharePoint or Teams the Microsoft sign-in page may not be framed: it opens in a window and hands a one-time code back
+    const w = window.open("/auth/login?popup=1", "meaProcessHubSignIn", "width=520,height=680");
+    if (!w) return fail("The sign-in window was blocked. Allow pop-ups for this page, or open MEA Process Hub in a full browser window.");
+    const onMsg = async (ev) => {
+      if (ev.origin !== location.origin || !ev.data || typeof ev.data.meaHandoff !== "string") return;
+      window.removeEventListener("message", onMsg);
+      try { const r = await api("POST", "/api/auth/handoff", {token: ev.data.meaHandoff}); S.user = r.user; S.csrf = r.csrf; if (!location.hash) location.hash = "#/dashboard"; render(); } catch (e) { fail(e.message); }
+    };
+    window.addEventListener("message", onMsg);
+  };
+  const localForm = [h("label", null, "Username"), u, h("label", null, "Password"), h("input", {type: "password", style: "display:none"}), p,
+    h("div", {style: "margin-top:16px"}, h("button", {class: "btn" + (sso ? "" : " pri"), onclick: go}, "Sign in"))];
   return h("div", {class: "login"}, h("div", {class: "loginbox"},
     h("div", {class: "panel"}, h("img", {src: "/brand/dormakaba_logo_white.png", alt: "dormakaba"}),
       h("div", null, h("div", {class: "title"}, "MEA Process Hub"), h("ul", {style: "margin-top:14px"}, ["Master Process Handbook", "Process Library & Flow Studio", "Governance & Approvals", "Word / PDF Export Center"].map((x) => h("li", null, x))),
         h("p", {style: "margin:16px 0 0;font-weight:bold"}, "Classification: " + (S.cfg.classification || "Internal")))),
     h("div", {class: "form"}, h("div", {class: "kicker"}, S.cfg.org || "dormakaba MEA"), h("h1", null, "Sign in"), err,
-      h("label", null, "Username"), u, h("label", null, "Password"), h("input", {type: "password", style: "display:none"}), p,
-      h("div", {style: "margin-top:16px"}, h("button", {class: "btn pri", onclick: go}, "Sign in")),
+      sso ? h("div", null, h("button", {class: "btn pri", style: "margin:8px 0 6px", onclick: microsoft}, "Sign in with Microsoft"),
+          h("p", {class: "muted", style: "font-size:12px"}, "Use your company account. Your role in the tool comes from your organisation's directory."),
+          h("details", {style: "margin-top:14px"}, h("summary", {class: "muted", style: "cursor:pointer;font-size:12px"}, S.cfg.sso.only ? "Local administrator account" : "Local account (user name and password)"), localForm))
+        : localForm,
       h("p", {class: "muted", style: "font-size:12px;margin-top:18px"}, "First start: user ", h("b", null, "admin"), " with the one-time password shown in the console window (also in ", h("code", null, "data\\FIRST_RUN_ADMIN_PASSWORD.txt"), "). Forgot it? Run ", h("b", null, "Reset admin password.bat"), " next to the EXE.")),
     h("div", {class: "band"}, h("span", null, "Process & Document Management"), h("span", null, S.cfg.region || "Region MEA"))));
 }
@@ -666,10 +684,28 @@ async function viewExport() {
 async function viewAdmin(tab) {
   if (!can("admin")) throw new Error("Administrator access required.");
   tab = tab || "users";
-  const tabs = [["users", "Users & roles"], ["settings", "Settings"], ["backup", "Backup & restore"], ["teams", "Teams & SharePoint"], ["audit", "Audit log"]];
+  const tabs = [["users", "Users & roles"], ["settings", "Settings"], ["backup", "Backup & restore"], ["sso", "Single sign-on"], ["teams", "Teams & SharePoint"], ["audit", "Audit log"]];
   const bar = h("div", {class: "tabs"}, tabs.map(([k, l]) => h("a", {class: "tab" + (k === tab ? " on" : ""), href: "#/admin/" + k}, l)));
   let body;
-  if (tab === "teams") {
+  if (tab === "sso") {
+    const s = await GET("/api/admin/sso");
+    const row = (k, v) => h("tr", null, h("td", {style: "font-weight:600;white-space:nowrap"}, k), h("td", null, v));
+    body = h("div", {class: "grid g2"},
+      h("div", {class: "card"}, h("h3", null, "Sign-in with Microsoft Entra ID"),
+        s.enabled ? h("div", {class: "banner " + (s.reachable && s.has_secret ? "ok" : "warn")}, s.reachable ? (s.has_secret ? "Switched on. The directory answers." : "Switched on, but no client secret is configured – Microsoft will refuse the sign-in.") : "Switched on, but the directory does not answer: " + s.error)
+          : h("div", {class: "banner info"}, "Not configured. People sign in with the tool's own user names and passwords. Missing: " + s.missing.join(", ") + "."),
+        s.enabled ? h("table", null, h("tbody", null, row("Redirect URI to register", h("code", null, s.redirect_uri)), row("Directory", s.issuer || s.authority), row("Application (client) ID", s.client_id),
+          row("Roles come from", s.role_source === "entra" ? "Entra app roles, at every sign-in" : "this tool (Users & roles)"), row("Person without a role", s.default_role === "none" ? "no access" : "gets the role " + s.default_role),
+          row("Passwords", s.only ? "only local administrators (break-glass)" : "still accepted for local accounts"))) : null,
+        h("p", {class: "muted", style: "margin-top:10px"}, "Single sign-on is switched on in the server's start settings, not on this page, and the client secret is never shown here. Steps: docs/SSO_ENTRA.md.")),
+      h("div", {class: "card"}, h("h3", null, "App role values for the Entra app registration"),
+        h("p", {class: "muted"}, "Create one app role per row you need and assign people or groups to it under Enterprise applications ▸ Users and groups. The highest role wins."),
+        h("table", null, h("thead", null, h("tr", null, h("th", null, "Value"), h("th", null, "Role in the tool"))), h("tbody", null,
+          [["admin", "Administrator"], ["controller", "Document Controller"], ["approver", "Approver"], ["reviewer", "Reviewer"], ["dept_owner.<DEPT>", "Department Owner of one department, e.g. dept_owner.LOG"], ["editor.<DEPT>", "Editor of one department, e.g. editor.LOG"], ["editor", "Editor for all departments"], ["viewer", "Reader"]]
+            .map(([v, t]) => h("tr", null, h("td", null, h("code", null, v)), h("td", null, t))))),
+        h("p", {class: "muted"}, "Department codes: " + S.tree.map((d) => d.code).join(", ") + ".")));
+  }
+  else if (tab === "teams") {
     const t = await GET("/api/admin/teams"), https = location.protocol === "https:";
     const url = h("input", {type: "text", value: https ? location.origin : "", placeholder: "https://processhub.example.com"}), name = h("input", {type: "text", value: "MEA Process Hub", maxlength: 100});
     body = h("div", {class: "grid g2"},

@@ -17,6 +17,13 @@ REM 3. Sites that may show the tool inside a page (SharePoint Embed web part). L
 REM    Example: https://contoso.sharepoint.com
 set "MEA_HUB_EMBED_ORIGINS="
 
+REM 3b. Single sign-on with Microsoft Entra ID (docs\SSO_ENTRA.md). Leave empty to use the tool's own user names and passwords.
+set "MEA_HUB_PUBLIC_URL="
+set "MEA_HUB_OIDC_TENANT="
+set "MEA_HUB_OIDC_CLIENT_ID="
+set "MEA_HUB_OIDC_CLIENT_SECRET_FILE="
+REM    Optional: MEA_HUB_OIDC_DEFAULT_ROLE (viewer | none), MEA_HUB_OIDC_ROLE_SOURCE (entra | tool), MEA_HUB_OIDC_ONLY (1 = no passwords except local admins)
+
 REM 4. Port on this server. The reverse proxy forwards to http://127.0.0.1:8765
 set "MEA_HUB_PORT=8765"
 
