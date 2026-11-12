@@ -42,9 +42,23 @@ class Ctx:
         return v[0] if v else default
 
 
+def frame_ancestors():
+    """Who may show the app in a frame: the app itself, plus the sites named in MEA_HUB_EMBED_ORIGINS."""
+    return "frame-ancestors 'self'" + "".join(" " + o for o in config.embed_origins())
+
+
 def csp_header(drawio_origin):
     return ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
-            f"frame-src 'self' {drawio_origin}; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'")
+            f"frame-src 'self' {drawio_origin}; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; " + frame_ancestors())
+
+
+def session_cookie(cookie, https):
+    """Cookie attributes for the way the app is reached. Embedded in another site (SharePoint) the browser treats the
+    cookie as third-party: it must be SameSite=None + Secure, and Partitioned so that browsers which block third-party
+    cookies keep it for that one embedding site. State-changing requests stay protected by the X-CSRF-Token header."""
+    if config.embed_origins():
+        return cookie.replace("SameSite=Strict", "SameSite=None; Secure; Partitioned")
+    return cookie + ("; Secure" if https or os.environ.get("MEA_HUB_SECURE_COOKIE") == "1" else "")
 
 
 def local_drawio():
@@ -93,13 +107,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Accept-Encoding")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        embed = config.embed_origins()
+        if embed:                                            # framing is governed by frame-ancestors (X-Frame-Options cannot name other sites)
+            self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        else:
+            self.send_header("X-Frame-Options", "SAMEORIGIN")
         self.send_header("Cache-Control", cache)
         if etag:
             self.send_header("ETag", etag)
         if csp:
             origin = "" if local_drawio() else config.DRAWIO_REMOTE
             self.send_header("Content-Security-Policy", csp_header(origin))
+        elif embed and not (extra or {}).get("Content-Security-Policy"):
+            self.send_header("Content-Security-Policy", frame_ancestors())      # e.g. the draw.io editor nested inside the embedded app
         for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -192,10 +212,8 @@ class Handler(BaseHTTPRequestHandler):
                                                etag=res[4] if len(res) > 4 else None)
                     if isinstance(res, dict) and "_set_cookie" in res:
                         cookie = res.pop("_set_cookie")
-                        https = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower() == "https"
-                        if https or os.environ.get("MEA_HUB_SECURE_COOKIE") == "1":      # hosted behind an HTTPS proxy
-                            cookie += "; Secure"
-                        extra = {"Set-Cookie": cookie}
+                        https = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower() == "https"      # behind an HTTPS proxy
+                        extra = {"Set-Cookie": session_cookie(cookie, https)}
                         return self.send_json(res, 200, extra)
                     return self.send_json(res)
                 except svc.Forbidden as e:
@@ -259,9 +277,15 @@ def r_password(c):
     svc.change_password(c.user, d.get("old"), d.get("new"))
 
 
+@route("GET", "/api/health", auth=False)
+def r_health(c):
+    """For a reverse proxy / monitoring: answers without a session and touches the database."""
+    return dict(ok=bool(db.one("SELECT 1 ok")), version="1.0.0")
+
+
 @route("GET", "/api/config", auth=False)
 def r_config(c):
-    return dict(drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
+    return dict(embeddable=bool(config.embed_origins()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
                 templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
                 comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version="1.0.0",

@@ -43,7 +43,8 @@ jobs:
           Copy-Item README.md dist/MEA_Process_Hub/
           Set-Content -Encoding ascii "dist/MEA_Process_Hub/Reset admin password.bat" "@echo off`r`n""%~dp0MEA_Process_Hub.exe"" --reset-admin`r`npause"
           Copy-Item docs dist/MEA_Process_Hub/docs -Recurse
-      - name: Smoke-test the EXE (first-start import, login, library, DOCX + PDF export, flow builder)
+          Copy-Item deploy dist/MEA_Process_Hub/deploy -Recurse
+      - name: Smoke-test the EXE (first-start import, drafts, login, library, DOCX + PDF export, flow builder)
         shell: pwsh
         run: |
           $data = "$PWD/smoke_data"
@@ -77,6 +78,10 @@ jobs:
                       -Body (@{ title = 'Smoke flow'; steps = "Logistics: Create delivery (VL01N)`nStock available?`nNo: End`nWarehouse: Post goods issue" } | ConvertTo-Json)
             Write-Host "Flow built from text: $($flow.steps) steps, $($flow.warnings.Count) remarks"
             if ($flow.steps -ne 3 -or $flow.warnings.Count -ne 0) { throw "Flow builder failed" }
+            $health = Invoke-RestMethod "$base/api/health"
+            $dr = Invoke-RestMethod "$base/api/drafts" -WebSession $sess
+            Write-Host "Health: $($health.ok); draft SAP work instructions: $($dr.sap_drafts); processes still without draft RACI: $($dr.raci_missing)"
+            if (-not $health.ok -or $dr.sap_drafts -lt 20 -or $dr.raci_missing -gt 3) { throw "First-start drafts are missing" }
             $shapes = Invoke-RestMethod "$base/api/flow-library" -WebSession $sess
             Write-Host "Shape library: $($shapes.entries.Count) shapes"
             if ($shapes.entries.Count -lt 20) { throw "Shape library is incomplete" }

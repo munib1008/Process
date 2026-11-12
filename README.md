@@ -64,7 +64,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 33 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 34 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)
@@ -77,3 +77,6 @@ The editor is `contenteditable` (not Tiptap) to avoid a JS build chain.
 
 ## Run it from GitHub for a review (no installation)
 Open the repository in **GitHub Codespaces** – the app installs, imports the source documents and starts by itself. Steps, sharing and limits: [docs/HOSTING.md](docs/HOSTING.md).
+
+## Internal server and SharePoint
+One shared installation behind IIS or nginx, optionally shown inside a SharePoint page (Embed web part): [docs/SERVER_AND_SHAREPOINT.md](docs/SERVER_AND_SHAREPOINT.md). Ready-made files are in `deploy/`.

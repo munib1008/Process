@@ -21,6 +21,12 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Internal server and SharePoint embedding (2026-11-12).** *Done, tested:* embedding is opt-in per site (`MEA_HUB_EMBED_ORIGINS` → `frame-ancestors`, cookie
+`SameSite=None; Secure; Partitioned`, CSRF header still required), host allow-list and `--allow-hosts` / `--embed-origins` options, `/api/health`, *Full window* link inside a
+frame; checked in Chromium with a page on another site (sign-in, library, nested draw.io editor; unlisted site refused). *Built, not run:* `deploy/` files for a Windows
+service task, IIS, nginx and the SharePoint snippet – no Windows server, IIS, nginx or SharePoint tenant was available here. *Limits:* no single sign-on (own users), one
+server with SQLite, Safari behaviour inside a frame unverified. Guide: `docs/SERVER_AND_SHAREPOINT.md`.
+
 **Draft RACI and draft SAP work instructions (2026-11-12).** *Done, tested:* `mea_hub/drafts.py` derives a RACI for every process that has steps (84 processes, 1,068 rows
 on a fresh import) and one draft work instruction per distinct step that names SAP or a transaction (30 drafts); both are created on first start, can be created later from
 the RACI tab / Governance, are editable and go through the normal review. **What the drafts contain, measured:** R is filled in 899 rows (84 %), I in 346, **A in 4

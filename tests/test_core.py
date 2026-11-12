@@ -838,6 +838,38 @@ def test_hosted_mode_secure_cookie_and_login_throttle(server, users):
     assert login("demo_reviewer", "ChangeMe!123")[0] == 200
 
 
+def test_embedding_in_sharepoint_is_opt_in(server, users, monkeypatch):
+    """By default no other site may frame the app. Named https sites may, and then the session cookie works inside their frame."""
+    import urllib.request
+    from mea_hub import config
+
+    def get(path, data=None):
+        req = urllib.request.Request(server + path, data=data, headers={"Content-Type": "application/json"}, method="POST" if data else "GET")
+        r = urllib.request.urlopen(req)
+        return r.status, r.headers
+    body = json.dumps({"username": "demo_editor", "password": "ChangeMe!123"}).encode()
+    s, h = get("/")
+    assert h["X-Frame-Options"] == "SAMEORIGIN" and "frame-ancestors 'self';" not in h["Content-Security-Policy"] and h["Content-Security-Policy"].endswith("frame-ancestors 'self'")
+    assert "SameSite=Strict" in get("/api/login", body)[1]["Set-Cookie"]
+    s, h = get("/api/health")                                                # reverse proxy / monitoring probe, no session needed
+    assert s == 200
+    assert json.loads(urllib.request.urlopen(server + "/api/config").read())["embeddable"] is False
+    # invalid entries never open the door: plain http, a path, a bare wildcard
+    monkeypatch.setenv("MEA_HUB_EMBED_ORIGINS", "http://evil.example, https://contoso.sharepoint.com/sites/x, *, javascript:alert(1)")
+    assert config.embed_origins() == [] and get("/")[1]["X-Frame-Options"] == "SAMEORIGIN"
+    monkeypatch.setenv("MEA_HUB_EMBED_ORIGINS", "https://contoso.sharepoint.com, https://*.sharepoint.com/ ,https://contoso.sharepoint.com")
+    assert config.embed_origins() == ["https://contoso.sharepoint.com", "https://*.sharepoint.com"]
+    s, h = get("/")
+    assert h["X-Frame-Options"] is None and h["Cross-Origin-Resource-Policy"] == "same-origin"
+    assert h["Content-Security-Policy"].endswith("frame-ancestors 'self' https://contoso.sharepoint.com https://*.sharepoint.com")
+    cookie = get("/api/login", body)[1]["Set-Cookie"]
+    assert "SameSite=None; Secure; Partitioned" in cookie and "HttpOnly" in cookie and "SameSite=Strict" not in cookie
+    assert json.loads(urllib.request.urlopen(server + "/api/config").read())["embeddable"] is True
+    # the cookie now travels with cross-site requests, so changes still need the CSRF header
+    ed = users["editor"]
+    assert ed.call("POST", "/api/process", {"name": "x", "department": "LOG"}, csrf=False)[0] == 403
+
+
 def test_one_time_password_file_and_admin_reset(server, admin):
     import conftest
     path = os.path.join(conftest._tmp, svc.ADMIN_FILE)

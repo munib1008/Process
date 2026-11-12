@@ -43,4 +43,4 @@ passwords. The content is classified *Internal*. Check with IT Security / the do
 
 ## After the review
 Download a backup, build the Windows EXE from the same branch (GitHub Actions ▸ *Build Windows EXE*), restore the backup in the EXE.
-For permanent multi-user hosting use a company server or the company's Azure tenant, not Codespaces.
+For permanent multi-user hosting use a company server or the company's Azure tenant, not Codespaces: see [SERVER_AND_SHAREPOINT.md](SERVER_AND_SHAREPOINT.md).

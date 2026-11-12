@@ -30,6 +30,21 @@ DRAWIO_DIR = os.environ.get("MEA_HUB_DRAWIO_DIR") or os.path.join(app_root(), "d
 # exchanged with it via postMessage, so diagram content is visible to that host.
 DRAWIO_REMOTE = os.environ.get("MEA_HUB_DRAWIO_URL", "https://embed.diagrams.net")
 
+_ORIGIN = __import__("re").compile(r"https://(\*\.)?[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(:\d{1,5})?|http://localhost(:\d{1,5})?")
+
+
+def embed_origins():
+    """Sites that may show the app inside a frame (e.g. a SharePoint page): MEA_HUB_EMBED_ORIGINS, comma-separated
+    https origins such as https://contoso.sharepoint.com (a leading *. is allowed). Empty = the app refuses to be framed
+    by other sites. http://localhost is accepted for testing only."""
+    out = []
+    for o in os.environ.get("MEA_HUB_EMBED_ORIGINS", "").split(","):
+        o = o.strip().rstrip("/")
+        if o and _ORIGIN.fullmatch(o) and o not in out:
+            out.append(o)
+    return out
+
+
 MAX_UPLOAD_BYTES = 80 * 1024 * 1024
 MAX_JSON_BYTES = 40 * 1024 * 1024
 SESSION_HOURS = 12

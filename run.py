@@ -27,6 +27,9 @@ def main():
     ap.add_argument("--host", default=os.environ.get("MEA_HUB_HOST", "127.0.0.1"), help="bind address (default 127.0.0.1 = this PC only; env MEA_HUB_HOST)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("MEA_HUB_PORT") or os.environ.get("PORT") or 8765), help="env MEA_HUB_PORT or PORT")
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--embed-origins", metavar="ORIGINS", help="sites that may show the app in a frame, comma-separated, e.g. https://contoso.sharepoint.com "
+                                                              "(env MEA_HUB_EMBED_ORIGINS). Needs HTTPS in front of the app.")
+    ap.add_argument("--allow-hosts", metavar="HOSTS", help="host names under which the app is reached through a proxy, comma-separated (env MEA_HUB_ALLOW_HOSTS)")
     ap.add_argument("--import", dest="imports", nargs="*", help=".docx / .drawio files to import")
     ap.add_argument("--demo-users", action="store_true", help="create demo_<role> users (password ChangeMe!123) for evaluation")
     ap.add_argument("--backup", action="store_true")
@@ -34,6 +37,10 @@ def main():
     ap.add_argument("--reconcile-report", metavar="FILE", help="write the source reconciliation report (markdown) and exit")
     args = ap.parse_args()
 
+    if args.embed_origins is not None:
+        os.environ["MEA_HUB_EMBED_ORIGINS"] = args.embed_origins
+    if args.allow_hosts is not None:
+        os.environ["MEA_HUB_ALLOW_HOSTS"] = args.allow_hosts
     config.ensure_dirs()
     if args.reset_admin:
         pw, path = svc.reset_admin()
@@ -90,6 +97,11 @@ def main():
     print(" Forgot the admin password? Close this window and run 'Reset admin password.bat'.")
     if args.host not in ("127.0.0.1", "localhost"):
         print(" WARNING: listening on the network. Use only on a trusted LAN or behind an HTTPS proxy; the app itself has no TLS.")
+    if config.embed_origins():
+        print(" Embedding allowed for:", ", ".join(config.embed_origins()))
+        print("   The session cookie is now Secure + SameSite=None: sign-in works only over HTTPS (reverse proxy in front of the app).")
+    elif os.environ.get("MEA_HUB_EMBED_ORIGINS"):
+        print(" WARNING: MEA_HUB_EMBED_ORIGINS is set but contains no valid https origin - embedding stays blocked.")
     print(" Press Ctrl+C (or close this window) to stop.")
     print("=" * 66)
     if not args.no_browser and args.host in ("127.0.0.1", "localhost"):

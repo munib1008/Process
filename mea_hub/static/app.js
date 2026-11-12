@@ -40,6 +40,7 @@ function layout() {
   return h("div", {class: "layout"},
     h("div", {class: "top"}, h("a", {class: "brand", href: "#/dashboard", "aria-label": "dormakaba MEA Process Hub"}, h("img", {class: "logo-c", src: "/brand/dormakaba_logo.png", alt: "dormakaba"}), h("img", {class: "logo-w", src: "/brand/dormakaba_logo_white.png", alt: ""}), h("span", {class: "prod"}, "MEA Process Hub")), h("div", {class: "search"}, q),
       h("div", {class: "userbox"}, h("span", null, S.user.display_name, " · ", h("span", {class: "chip"}, S.user.role)), h("button", {class: "btn sm", onclick: () => passwordModal()}, "Password"),
+        window.top !== window.self ? h("a", {class: "btn sm", href: location.href, target: "_blank", rel: "noopener", title: "Open MEA Process Hub in its own browser tab"}, "Full window ↗") : null,
         h("button", {class: "btn sm", onclick: async () => { await POST("/api/logout"); S.user = null; render(); }}, "Sign out"))),
     h("nav", {class: "nav", "aria-label": "Primary"}, NAV.filter((n) => n[0] !== "#/admin" || can("admin")).map(([href, label, ic]) => h("a", {href, "data-nav": href}, ic, h("span", null, label)))),
     h("main", {class: "main", id: "main"}));
