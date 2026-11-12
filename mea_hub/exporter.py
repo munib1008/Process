@@ -116,6 +116,9 @@ def diagram_image(diagram):
         return None
 
 
+RACI_DRAFT_NOTE = "Draft RACI derived from the flowchart – not yet confirmed by the process owner."
+
+
 def diagram_pictures(diagram, mode="flow"):
     """Pictures of a flow for a document: [dict(png, label, scale)] - the export areas drawn in Flow Studio, else the
     flow without frame and master legend (mode "sheet": the whole sheet)."""
@@ -517,6 +520,9 @@ def build_docx(snap) -> bytes:
                 if c.get(key):
                     doc.add_paragraph(label, style="Heading 3")
                     table(heads, [list(r.values()) for r in c[key]])
+                    if key == "raci" and c.get("raci_draft"):
+                        np_ = doc.add_paragraph(RACI_DRAFT_NOTE)
+                        np_.runs[0].italic = True; np_.runs[0].font.size = Pt(8.5)
             for label, key in (("Risks and controls", "risks"), ("Required evidence", "evidence"), ("Forms and templates", "forms"), ("Notes", "notes")):
                 if c.get(key):
                     doc.add_paragraph(label, style="Heading 3")
@@ -747,6 +753,8 @@ def build_pdf(snap) -> bytes:
                     ("Escalation & SLA", "escalation", ["Stage", "Task / reminder to", "Time period", "Escalation", "Previous SLA"], [2 * cm, 4 * cm, 3.6 * cm, 4.2 * cm, 3.2 * cm])):
                 if c.get(key):
                     story += [Paragraph(label, sH3), tbl(heads, [list(r.values()) for r in c[key]], widths)]
+                    if key == "raci" and c.get("raci_draft"):
+                        story.append(Paragraph(RACI_DRAFT_NOTE, sSmall))
             for label, key in (("Risks and controls", "risks"), ("Required evidence", "evidence"), ("Forms and templates", "forms"), ("Notes", "notes")):
                 if c.get(key):
                     story += [Paragraph(label, sH3), Paragraph(esc(c[key]), sN)]
@@ -810,6 +818,8 @@ def build_html(snap) -> bytes:
                 if c.get(key):
                     out.append(f"<h3>{label}</h3><table><tr>" + "".join(f"<th>{h}</th>" for h in heads) + "</tr>" +
                                "".join("<tr>" + "".join(f"<td>{e(v)}</td>" for v in r.values()) + "</tr>" for r in c[key]) + "</table>")
+                    if key == "raci" and c.get("raci_draft"):
+                        out.append(f"<p><small><i>{RACI_DRAFT_NOTE}</i></small></p>")
             for s in c.get("sections", []):
                 html = re.sub(r'src="/api/assets/(\d+)"', lambda m: _data_uri(int(m.group(1))), s["html"])
                 out.append(f"<h3>{e(s['title'])}</h3>{html}")

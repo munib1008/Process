@@ -751,6 +751,68 @@ def test_document_picture_is_the_flow_only_or_the_export_areas(users):
         assert s == 200 and e["export"]["status"] == "done"
 
 
+def test_draft_raci_and_sap_work_instructions_use_only_the_flow(users):
+    """Drafts take roles, order and wording from the flow; what the sources do not say stays empty or is written as an open point."""
+    from mea_hub import drafts
+    roles = ["Sales", "Logistics", "Warehouse", "Customer Service", "Financial Controller"]
+    acts = [dict(no="1", activity="Receive order", role="Sales", sap="", output="→ Stock available?"),
+            dict(no="2", activity="Decision: Stock available?", role="Logistics", sap="", output="→ Yes: Post goods issue in SAP (VL02N); No: Notify Sales with comments"),
+            dict(no="3", activity="Notify Sales with comments", role="Logistics", sap="", output=""),
+            dict(no="4", activity="Customer Service to get approval from Logistics Head", role="Customer Service", sap="", output="→ Post goods issue in SAP (VL02N)"),
+            dict(no="5", activity="Post goods issue in SAP (VL02N)", role="Warehouse", sap="VL02N", output="→ Share the report with Financial Controller"),
+            dict(no="6", activity="Share the report with Financial Controller", role="Warehouse", sap="", output=""),
+            dict(no="7", activity="Align with the Shop Drawing and Share it", role="", sap="", output=""),
+            dict(no="8", activity="Linked process: WL-M-OB-01 Dispatch", role="", sap="", output="")]
+    rows = {r["activity"]: r for r in drafts.raci_rows(acts, "", roles)}
+    assert len(rows) == 7 and "Linked process: WL-M-OB-01 Dispatch" not in rows                       # a reference is not a step
+    assert rows["Receive order"] == dict(activity="Receive order", R="Sales", A="", C="", I="Logistics")       # I = role of the next step
+    assert rows["Decision: Stock available?"]["I"] == "Warehouse" and rows["Notify Sales with comments"]["I"] == "Sales"
+    assert rows["Customer Service to get approval from Logistics Head"]["A"] == "Logistics Head"       # as written, not shortened to the role "Logistics"
+    assert rows["Share the report with Financial Controller"]["I"] == "Financial Controller"
+    assert rows["Align with the Shop Drawing and Share it"] == dict(activity="Align with the Shop Drawing and Share it", R="", A="", C="", I="")   # nothing guessed
+    assert all(r["A"] == "Jane Doe" for r in drafts.raci_rows(acts[:3], "Jane Doe", roles))              # the recorded process owner is accountable
+    # through the application
+    ed, ctl, viewer = users["editor"], users["controller"], users["viewer"]
+    svc.set_cfg("master_legend", json.dumps(dict(roles=[dict(role=r, color="#1E90FF") for r in roles])))
+    assert ed.call("POST", "/api/process", {"name": "Order to shipment", "department": "LOG", "process_id": "ZZ-M-RA-01"})[0] == 200
+    steps = "Sales: Receive order\nLogistics: Stock available?\nNo: Logistics: Notify Sales with comments\nNo: End\nWarehouse: Post goods issue in SAP (VL02N)\nWarehouse: Update stock report in SAP"
+    assert ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-RA-01", "steps": steps})[0] == 200
+    assert viewer.call("POST", "/api/drafts/raci", {"process_id": "ZZ-M-RA-01"})[0] == 403 and ed.call("POST", "/api/drafts/raci", {})[0] == 403
+    s, r = ed.call("POST", "/api/drafts/raci", {"process_id": "ZZ-M-RA-01"})
+    assert s == 200 and r["rows"] == 5
+    c = ed.call("GET", "/api/process/ZZ-M-RA-01")[1]["version"]["content"]
+    assert c["raci_draft"] and [x["R"] for x in c["raci"]] == ["Sales", "Logistics", "Logistics", "Warehouse", "Warehouse"] and not any(x["A"] or x["C"] for x in c["raci"])
+    assert ed.call("POST", "/api/drafts/raci", {"process_id": "ZZ-M-RA-01"})[1]["rows"] == 0             # an existing RACI is not overwritten unless asked
+    # editing something else keeps the draft mark, editing the RACI removes it
+    d = ed.call("GET", "/api/process/ZZ-M-RA-01")[1]
+    assert ed.call("PUT", "/api/process/ZZ-M-RA-01/draft", {"content": dict(c, objective="Ship orders"), "base_updated_at": None})[0] == 200
+    c = ed.call("GET", "/api/process/ZZ-M-RA-01")[1]["version"]["content"]
+    assert c["raci_draft"] and c["objective"] == "Ship orders"
+    c["raci"][0]["A"] = "Sales Manager"
+    assert ed.call("PUT", "/api/process/ZZ-M-RA-01/draft", {"content": c, "base_updated_at": None})[0] == 200
+    c = ed.call("GET", "/api/process/ZZ-M-RA-01")[1]["version"]["content"]
+    assert not c.get("raci_draft") and c["raci"][0]["A"] == "Sales Manager"
+    # SAP work instructions: one draft per distinct SAP step, editable, linked to the process, never created twice
+    info = ctl.call("GET", "/api/drafts")[1]
+    assert info["can"] and info["sap_steps"] >= 2
+    assert ed.call("POST", "/api/drafts/sap", {})[0] == 403
+    s, r = ctl.call("POST", "/api/drafts/sap", {})
+    mine = [p_ for p_ in r["created"] if p_.startswith("ZZ-M-RA-01-WI-")]
+    assert s == 200 and len(mine) == 2
+    assert ctl.call("POST", "/api/drafts/sap", {})[1]["created"] == []
+    wi = ed.call("GET", f"/api/process/{mine[0]}")[1]
+    w = wi["version"]["content"]
+    assert wi["process"]["kind"] == "work_instruction" and wi["version"]["status"] == "draft" and wi["perms"]["edit"]
+    assert w["sap"] == [dict(transaction="VL02N", purpose="Change Outbound Delivery (standard SAP name)")] and w["responsible"] == ["Warehouse"]
+    assert "Decision: Stock available?" in w["activities"][0]["activity"] and "Update stock report in SAP" in w["activities"][4]["activity"]
+    assert "[to be completed by the process owner]" in w["activities"][2]["activity"] and "Nothing was assumed" in w["notes"]
+    w2 = ed.call("GET", f"/api/process/{mine[1]}")[1]["version"]["content"]
+    assert w2["sap"] == [] and "do not name it" in w2["activities"][1]["activity"]                        # no transaction in the source: left open
+    assert any(x["process_id"] == "ZZ-M-RA-01" for x in wi["relationships"])
+    w["activities"][2]["activity"] = "Enter delivery number, post goods issue"
+    assert ed.call("PUT", f"/api/process/{mine[0]}/draft", {"content": w, "base_updated_at": None})[0] == 200          # the draft is the user's to complete
+
+
 def test_hosted_mode_secure_cookie_and_login_throttle(server, users):
     import urllib.request
     def login(user, pw, proto=None):

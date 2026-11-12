@@ -86,6 +86,26 @@ shapes so that the document can read role and step type. To change the role of a
 **Flow check** (process page and Flow Studio, after every save) lists what a reviewer would raise: no start or end, steps that cannot be reached, steps without a next step,
 decisions with one branch or unlabelled branches, activities without a role. It informs only – nothing is corrected automatically.
 
+## Draft RACI and draft SAP work instructions (derived from the flows)
+The tool can prepare two kinds of drafts. Both use **only** what the flows and the process records say; what the sources do not say stays empty or is written as an open point.
+
+**Draft RACI** – *RACI* tab of a process ▸ **Create draft RACI from the flow** (Editor), or **Governance ▸ RACI ▸ Create draft RACI for all of them** (Document Controller).
+| Column | Filled from |
+|---|---|
+| R | the role of the step (outline colour / lane in the flow) |
+| A | the process owner recorded for the process; or the approver the step names ("approval from Logistics Head") – written as in the step |
+| C | a party the step names for coordination ("coordinate with …", "consult …", "clarification from …") |
+| I | the role of the next step (it receives the result) and recipients the step names ("notify …", "share … with …") |
+A yellow note marks the table as *draft – not confirmed* in the tool and in exports. It disappears as soon as someone edits the RACI. To fill column A for a whole process,
+record its owner (*Governance ▸ Ownership*) and derive the draft again. Published versions are never changed in bulk.
+
+**Draft SAP work instructions** – **Governance ▸ RACI ▸ Create missing draft work instructions** (Document Controller). One draft (type *Work instruction*, status *Draft*)
+per distinct step that names SAP or a transaction code. It contains the step, its role, the steps before and after it and the transaction if the step names one; the
+transaction name is the SAP standard name. Screen sequence, entries, organisational data and checks are marked **[to be completed by the process owner]**.
+Open a draft, choose **Edit draft**, complete it and send it for review like any other document. The second button extends this to steps that name an SAP *document*
+(PO, SO, PGI, GRN, invoice …) without naming SAP – whether those steps are done in SAP is for the owners to confirm.
+On the first start of a new installation both kinds of drafts are created automatically.
+
 ## Change a process ID (Document Controller / Administrator)
 Open the process and choose **Change ID**. Enter the new ID and the reason (mandatory). The versions, flowchart, relationships, comments and change log stay with the
 process; the diagram code (`DG-<ID>`) and links from other flows follow; the open "provisional ID" finding is closed with your reason. The chart ID stated in the source

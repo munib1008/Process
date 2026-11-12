@@ -11,7 +11,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import config, db, drawio, exporter, flowpic, importer, queries, service as svc
+from . import config, db, drawio, drafts, exporter, flowpic, importer, queries, service as svc
 
 COOKIE = "mea_session"
 ROUTES = []
@@ -732,6 +732,28 @@ def r_findings_bulk(c):
 def r_register(c):
     svc.need(c.user, "view_all")
     return file_resp(queries.register_xlsx(c.user), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "MEA_Master_Process_Register.xlsx")
+
+
+# ---- drafts derived from the flows (RACI per process, work instruction per SAP task)
+@route("GET", "/api/drafts")
+def r_drafts_info(c):
+    svc.need(c.user, "view_all")
+    todo, no_steps = drafts.raci_candidates()
+    return dict(raci_missing=len(todo), raci_no_steps=no_steps, sap_steps=len(drafts.sap_steps()), sap_steps_extended=len(drafts.sap_steps(True)),
+                sap_drafts=db.one("SELECT count(*) n FROM processes WHERE gen_key LIKE 'SAPWI:%'")["n"], can=svc.can(c.user, "generate_drafts"))
+
+
+@route("POST", "/api/drafts/raci")
+def r_drafts_raci(c):
+    d = c.json()
+    if d.get("process_id"):
+        return dict(rows=drafts.generate_raci(c.user, d["process_id"], bool(d.get("force"))))
+    return drafts.generate_all_raci(c.user)
+
+
+@route("POST", "/api/drafts/sap")
+def r_drafts_sap(c):
+    return drafts.generate_sap_instructions(c.user, bool(c.json().get("extended")))
 
 
 # ---- exports

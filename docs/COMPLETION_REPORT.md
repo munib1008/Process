@@ -21,6 +21,14 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Draft RACI and draft SAP work instructions (2026-11-12).** *Done, tested:* `mea_hub/drafts.py` derives a RACI for every process that has steps (84 processes, 1,068 rows
+on a fresh import) and one draft work instruction per distinct step that names SAP or a transaction (30 drafts); both are created on first start, can be created later from
+the RACI tab / Governance, are editable and go through the normal review. **What the drafts contain, measured:** R is filled in 899 rows (84 %), I in 346, **A in 4
+rows and C in none** – the flows say who does a step and who receives it, they do not say who is accountable or consulted, and no value was assumed. Only 8 transaction
+codes are written in the supplied flows (MM01, MM02, VK11, VK12, ME11, ME12, LS24, PP1); 25 of the 30 work instructions therefore have the transaction as an open point,
+and all have screen sequence, entries and checks open. *Limits:* a further 96 distinct steps name an SAP document (PO, SO, PGI, GRN, invoice …) without naming SAP – drafts
+for them are optional (second button) because "done in SAP" is an assumption; the library grows from 100 to 130 records; 5 processes get no RACI because they have no steps of their own (2 without a flow, 3 overviews that only link to other processes).
+
 **No picture flows left (2026-11-12).** *Done, tested:* the 13 processes that still showed a flowchart picture now carry editable flows: five project phases cut as
 sections out of the project E2E flow on the canvas, seven records that show the same steps as an existing canvas flow (twins), and one flow that is not on the canvas
 (earlier Stock Correction version) redrawn step by step from its picture and flagged for confirmation. Fresh import: 100 processes as before, **90 with native editable

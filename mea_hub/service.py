@@ -226,6 +226,7 @@ def can(user, action, proc=None) -> bool:
         "manage_relationships": {"controller", "dept_owner", "editor"},
         "assign_owner": {"controller", "dept_owner"},
         "rename_id": {"controller"},
+        "generate_drafts": {"controller"},
         "comment": {"controller", "dept_owner", "editor", "reviewer", "approver"},
         "import": {"controller"},
         "export_draft": {"controller", "dept_owner", "editor", "reviewer", "approver"},
@@ -464,6 +465,8 @@ def save_draft(pid_text, user, data: dict):
         if base_updated and v["updated_at"] != base_updated and data.get("autosave_check", True):
             raise Conflict("This draft was changed by someone else since you opened it. Reload to see the latest.")
         content = clean_content(data.get("content", v["content"]))
+        if v["content"].get("raci_draft") and content["raci"] == v["content"].get("raci", []):
+            content["raci_draft"] = True                     # a generated RACI stays marked as draft until someone edits it
         meta = data.get("meta", {})
         sets, args = [], []
         for k in ("name", "owner", "reviewer", "countries", "category"):

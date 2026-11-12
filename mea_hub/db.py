@@ -106,7 +106,8 @@ MIGRATIONS = {   # table -> columns added after the first release (applied with 
     "comments": [("category", "TEXT NOT NULL DEFAULT 'comment'"), ("severity", "TEXT NOT NULL DEFAULT 'info'"), ("status", "TEXT NOT NULL DEFAULT 'open'"),
                  ("version_label", "TEXT NOT NULL DEFAULT ''"), ("section", "TEXT NOT NULL DEFAULT ''"), ("parent_id", "INTEGER"),
                  ("resolution", "TEXT NOT NULL DEFAULT ''"), ("resolved_by", "TEXT"), ("resolved_at", "TEXT")],
-    "diagram_versions": [("preview_box", "TEXT")],   # graph bounds [x, y, w, h] of the stored draw.io preview (locates document pictures exactly)
+    "diagram_versions": [("preview_box", "TEXT")],
+    "processes": [("gen_key", "TEXT")],              # identifies a generated draft (e.g. the SAP step a work instruction was drafted for)   # graph bounds [x, y, w, h] of the stored draw.io preview (locates document pictures exactly)
 }
 
 

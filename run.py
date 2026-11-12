@@ -54,7 +54,8 @@ def main():
         print("Report written:", args.reconcile_report)
         return
     files = list(args.imports or [])
-    if not db.one("SELECT 1 FROM sources LIMIT 1"):                     # first start: auto-import ./source_documents
+    first_start = not db.one("SELECT 1 FROM sources LIMIT 1")
+    if first_start:                                                      # first start: auto-import ./source_documents
         files += sorted(glob.glob(os.path.join(config.app_root(), "source_documents", "*.docx")) + glob.glob(os.path.join(config.app_root(), "source_documents", "*.drawio")) + glob.glob(os.path.join(config.app_root(), "source_documents", "flows", "*.drawio")))
     if files:
         print(f"Importing {len(files)} document(s)…")
@@ -63,6 +64,10 @@ def main():
             print(f"  {s['filename']}: {len(s['new'])} new processes, {len(s['merged'])} duplicate mappings")
         for f in res["skipped"]:
             print("  skipped (already imported):", f)
+        if first_start:                                                  # drafts derived from the flows: a RACI per process, a work instruction per SAP task
+            from mea_hub import drafts
+            r1, r2 = drafts.generate_all_raci(drafts.SYSTEM), drafts.generate_sap_instructions(drafts.SYSTEM)
+            print(f"  draft RACI for {r1['processes']} processes ({r1['rows']} rows), {len(r2['created'])} draft SAP work instructions")
     mapping = os.path.join(config.app_root(), "source_documents", "_canvas", "canvas_mapping.json")
     if os.path.isfile(mapping):                                          # recorded ID decisions also reach an existing data folder (idempotent)
         try:
