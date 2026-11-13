@@ -11,25 +11,53 @@ from . import config, db, service as svc
 from .db import jloads, one, q
 
 
+def _in(ids, n=400):
+    ids = list(ids)
+    for i in range(0, len(ids), n):
+        yield ids[i:i + n], ",".join("?" * len(ids[i:i + n]))
+
+
 def _summary_rows(user):
+    """One row per process with the version this user sees. Built from a handful of bulk queries: one query per process
+    made every list page (dashboard, library, tree, search) slow as soon as several people used the tool at once."""
     rows = q("""SELECT p.id, p.process_id, p.chart_id, p.name, p.kind, p.category, p.countries, p.owner, p.reviewer, p.next_review, p.validation,
                        p.department_id, d.name AS department, d.code AS dept_code, p.parent_id, p.sort_order
                 FROM processes p LEFT JOIN departments d ON d.id=p.department_id ORDER BY d.sort, p.sort_order, p.id""")
-    out = []
     staff = svc.can(user, "view_all")
+    latest, pub = {}, {}                                     # process -> (sort key, version id); same order as svc.latest_version / published_version
+    for v in q("SELECT id,process_id,major,minor,status FROM process_versions"):
+        k = (v["major"], v["minor"], v["id"])
+        if v["process_id"] not in latest or k > latest[v["process_id"]][0]:
+            latest[v["process_id"]] = (k, v["id"])
+        if v["status"] == "published" and (v["process_id"] not in pub or k[:2] > pub[v["process_id"]][0]):
+            pub[v["process_id"]] = (k[:2], v["id"])
+    shown_id = {pid: (latest if staff else pub).get(pid, (None, None))[1] for pid in (latest if staff else pub)}
+    ver = {}
+    for ids, marks in _in({i for i in shown_id.values() if i} | {i for _, i in pub.values()}):
+        for v in q(f"SELECT id,version,status,diagram_version_id,updated_at FROM process_versions WHERE id IN ({marks})", ids):
+            ver[v["id"]] = v
+    flags = {}
+    for ids, marks in _in(i for i in shown_id.values() if i):
+        for v in q(f"SELECT id,content FROM process_versions WHERE id IN ({marks})", ids):
+            c = jloads(v["content"], {})
+            flags[v["id"]] = (bool(c.get("kpis")), bool(c.get("raci")))
+    dvs = {}
+    for ids, marks in _in({v["diagram_version_id"] for v in ver.values() if v["diagram_version_id"]}):
+        for r in q(f"SELECT id,validation,diagram_id FROM diagram_versions WHERE id IN ({marks})", ids):
+            dvs[r["id"]] = r
+    out = []
     for r in rows:
-        lv = svc.latest_version(r["id"])
-        pv = svc.published_version(r["id"])
+        pv = ver.get(pub[r["id"]][1]) if r["id"] in pub else None
         if not staff and not pv:
             continue
-        shown = lv if staff else pv
-        dv = shown.get("diagram_version_id") if shown else None
-        dvr = one("SELECT validation, diagram_id FROM diagram_versions WHERE id=?", (dv,)) if dv else None
-        content = shown["content"] if shown else {}
+        shown = ver.get(shown_id.get(r["id"]))
+        if not shown:                                        # a process without any version cannot be shown
+            continue
+        dvr = dvs.get(shown["diagram_version_id"])
+        kpi, raci = flags.get(shown["id"], (False, False))
         r.update(status=shown["status"], status_label=svc.STATUS_LABEL[shown["status"]], version=shown["version"], version_id=shown["id"],
-                 published_version=pv["version"] if pv else None, has_diagram=bool(dv), diagram_validation=dvr["validation"] if dvr else None,
-                 diagram_id=dvr["diagram_id"] if dvr else None, has_kpi=bool(content.get("kpis")), has_raci=bool(content.get("raci")),
-                 updated_at=shown["updated_at"])
+                 published_version=pv["version"] if pv else None, has_diagram=bool(shown["diagram_version_id"]), diagram_validation=dvr["validation"] if dvr else None,
+                 diagram_id=dvr["diagram_id"] if dvr else None, has_kpi=kpi, has_raci=raci, updated_at=shown["updated_at"])
         out.append(r)
     return out
 
@@ -502,6 +530,117 @@ def restore_backup(zip_path: str):
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 with z.open(n) as src, open(target, "wb") as out:
                     shutil.copyfileobj(src, out)
+
+
+def restore_drill(user="system", fresh=True):
+    """Prove that a backup can be restored – without touching the live library. The backup (a new one, or the newest in
+    the backup folder) is unpacked into a temporary folder and checked: database integrity, row counts against the live
+    library, every asset file present and unchanged, every document and flowchart readable.
+    -> dict(ok, backup, created, age_days, size, counts, problems, seconds). The result is kept as the last drill."""
+    import hashlib
+    import tempfile
+    import time
+    from lxml import etree
+    t0 = time.time()
+    path = make_backup() if fresh else None
+    if not path:
+        zips = sorted(f for f in (os.listdir(config.BACKUP_DIR) if os.path.isdir(config.BACKUP_DIR) else []) if f.startswith("mea_hub_backup_") and f.endswith(".zip"))
+        if not zips:
+            raise svc.Invalid("There is no backup in the backup folder yet. Make a backup first.")
+        path = os.path.join(config.BACKUP_DIR, zips[-1])
+    problems, counts = [], {}
+    tables = ["processes", "process_versions", "diagrams", "diagram_versions", "assets", "sources", "users", "comments", "findings", "audit", "signatures"]
+    created = ""
+    with tempfile.TemporaryDirectory(prefix="mea_drill_") as td:
+        try:
+            with zipfile.ZipFile(path) as z:
+                names = set(z.namelist())
+                bad = z.testzip()
+                if bad:
+                    problems.append(f"The backup file is damaged (first bad entry: {bad}).")
+                if "mea_hub.sqlite3" not in names or "MANIFEST.json" not in names:
+                    raise svc.Invalid("Not a MEA Process Hub backup.")
+                created = json.loads(z.read("MANIFEST.json")).get("created", "")
+                z.extract("mea_hub.sqlite3", td)
+                con = sqlite3.connect(os.path.join(td, "mea_hub.sqlite3"))
+                con.row_factory = sqlite3.Row
+                try:
+                    res = [r[0] for r in con.execute("PRAGMA integrity_check")]
+                    if res != ["ok"]:
+                        problems.append("Database integrity check failed: " + "; ".join(res[:3]))
+                    fk = con.execute("PRAGMA foreign_key_check").fetchall()
+                    if fk:
+                        problems.append(f"{len(fk)} broken references between tables.")
+                    have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                    for t in tables:
+                        if t not in have:
+                            continue                         # table added by a later version than the backup
+                        n = con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                        live = one(f"SELECT COUNT(*) AS n FROM {t}")["n"]
+                        counts[t] = dict(backup=n, live=live)
+                        if fresh and t != "audit" and n != live:
+                            problems.append(f"Table {t}: {n} rows in the backup, {live} in the live library.")
+                    if not counts.get("processes", {}).get("backup") and one("SELECT COUNT(*) AS n FROM processes")["n"]:
+                        problems.append("The backup contains no processes.")
+                    missing = changed = 0
+                    for a in con.execute("SELECT path,sha256 FROM assets"):
+                        arc = "assets/" + os.path.basename(a["path"])
+                        if arc not in names:
+                            missing += 1
+                        elif a["sha256"] and hashlib.sha256(z.read(arc)).hexdigest() != a["sha256"]:
+                            changed += 1
+                    if missing or changed:
+                        problems.append(f"Pictures and attachments: {missing} missing in the backup, {changed} not identical to what the database recorded.")
+                    counts["asset_files"] = dict(backup=sum(1 for n in names if n.startswith("assets/") and not n.endswith("/")), live=len(os.listdir(config.ASSET_DIR)))
+                    src_missing = sum(1 for s in con.execute("SELECT stored_path FROM sources") if "sources/" + os.path.basename(s["stored_path"]) not in names)
+                    if src_missing:
+                        problems.append(f"{src_missing} imported source documents are missing in the backup.")
+                    unreadable = 0
+                    for v in con.execute("SELECT content FROM process_versions"):
+                        try:
+                            json.loads(v["content"])
+                        except ValueError:
+                            unreadable += 1
+                    if unreadable:
+                        problems.append(f"{unreadable} document versions cannot be read.")
+                    broken = 0
+                    for d in con.execute("SELECT xml FROM diagram_versions"):
+                        try:
+                            etree.fromstring(d["xml"].encode("utf-8"), etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=True))
+                        except (etree.XMLSyntaxError, ValueError):
+                            broken += 1
+                    if broken:
+                        problems.append(f"{broken} flowcharts cannot be read.")
+                    counts["document_versions_read"] = dict(backup=counts.get("process_versions", {}).get("backup", 0) - unreadable, live=counts.get("process_versions", {}).get("live", 0))
+                finally:
+                    con.close()
+        except (zipfile.BadZipFile, sqlite3.DatabaseError, KeyError, ValueError) as e:
+            problems.append(f"The backup could not be opened: {e}")
+    age = None
+    try:
+        age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)).days
+    except ValueError:
+        pass
+    res = dict(ok=not problems, backup=os.path.basename(path), created=created, age_days=age, size=os.path.getsize(path), counts=counts, problems=problems,
+               seconds=round(time.time() - t0, 1), run_at=svc.now(), by=user if isinstance(user, str) else user["username"])
+    with db.tx():
+        svc.set_cfg("restore_drill_last", json.dumps(res))
+        svc.audit(user, "restore_drill", "system", None, f"{res['backup']}: {'OK' if res['ok'] else 'FAILED – ' + '; '.join(problems)[:300]}")
+    return res
+
+
+DRILL_EVERY_DAYS = 183
+
+
+def drill_status():
+    last = jloads(svc.cfg("restore_drill_last", ""), None)
+    due = True
+    if last and last.get("ok"):
+        try:
+            due = (dt.datetime.now(dt.timezone.utc) - dt.datetime.strptime(last["run_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)).days > DRILL_EVERY_DAYS
+        except (KeyError, ValueError):
+            pass
+    return dict(last=last, due=due, every_days=DRILL_EVERY_DAYS)
 
 
 # ------------------------------------------------------------------ reconciliation report (markdown)

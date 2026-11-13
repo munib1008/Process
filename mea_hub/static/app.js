@@ -93,6 +93,14 @@ async function route() {
   } catch (e) { if (seq !== routeSeq) return; clear(main).append(h("div", {class: "banner bad"}, e.message)); }
   main.scrollTop = 0;
 }
+// Decisions (review, approval, release, review confirmation) are signed. When the administrator has switched on "ask again",
+// a local user types the password again; a single sign-on user must have signed in recently (checked by the server).
+async function signed(what, body) {
+  body = body || {};
+  if (!S.cfg.signature_reauth || S.user.auth === "entra") return body;
+  const pw = await promptBox("Sign – " + what, "Your password. It confirms that it is you who takes this decision; the decision is recorded with your name, the time and a fingerprint of the content.", {required: true, password: true, ok: "Sign"});
+  return pw === null ? null : Object.assign({password: pw}, body);
+}
 const reloadTree = async () => { S.tree = (await GET("/api/tree")).departments; };
 const pLink = (id, text) => h("a", {href: "#/process/" + encodeURIComponent(id)}, text || id);
 
@@ -214,11 +222,11 @@ async function processPage(pid, versionId, editing) {
   } else {
     if (isLatest && perms.edit && (!ov || ["imported", "draft", "changes_requested"].includes(ov.status))) bar.append(h("button", {class: "btn pri", onclick: async () => { clear($("#main")).append(await processPage(pid, null, true)); }}, ov ? "Edit draft" : "Edit (creates draft)"));
     if (ov && ov.status === "imported" && perms.accept_import) bar.append(act("Accept import", async () => { await POST("/api/process/" + pid + "/accept-import", {}); toast("Import accepted – now a Draft"); await reload(); }));
-    if (ov && ov.status === "under_review" && perms.review) bar.append(act("Approve review", async () => { await POST("/api/process/" + pid + "/review", {decision: "approve_review"}); await reload(); }, "pri"),
+    if (ov && ov.status === "under_review" && perms.review) bar.append(act("Approve review", async () => { const b = await signed("review of " + pid, {decision: "approve_review"}); if (!b) return; await POST("/api/process/" + pid + "/review", b); await reload(); }, "pri"),
       act("Request changes", async () => { const n = await promptBox("Request changes", "What must change?", {multiline: true, required: true}); if (n === null) return; await POST("/api/process/" + pid + "/review", {decision: "request_changes", note: n}); await reload(); }, "bad"));
-    if (ov && ov.status === "pending_approval" && perms.approve) bar.append(act("Approve", async () => { await POST("/api/process/" + pid + "/approve", {decision: "approve"}); toast("Approved"); await reload(); }, "pri"),
+    if (ov && ov.status === "pending_approval" && perms.approve) bar.append(act("Approve", async () => { const b = await signed("approval of " + pid, {decision: "approve"}); if (!b) return; await POST("/api/process/" + pid + "/approve", b); toast("Approved"); await reload(); }, "pri"),
       act("Reject", async () => { const n = await promptBox("Reject", "Reason", {multiline: true, required: true}); if (n === null) return; await POST("/api/process/" + pid + "/approve", {decision: "reject", note: n}); await reload(); }, "bad"));
-    if (ov && ov.status === "approved" && perms.publish) bar.append(act("Publish", async () => { await POST("/api/process/" + pid + "/publish", {}); toast("Published"); await reload(); }, "pri"));
+    if (ov && ov.status === "approved" && perms.publish) bar.append(act("Publish", async () => { const b = await signed("release of " + pid); if (!b) return; await POST("/api/process/" + pid + "/publish", b); toast("Published"); await reload(); }, "pri"));
     if (ov && ["under_review", "pending_approval", "approved"].includes(ov.status) && (perms.review || perms.edit)) bar.append(act("Withdraw to draft", async () => { await POST("/api/process/" + pid + "/withdraw", {}); await reload(); }));
     if (!isLatest && perms.edit && !ov) bar.append(act("Restore this version (new draft)", async () => { if (await confirmBox("Create a new draft containing the content of version " + v.version + "? History is preserved.", "Create draft")) { await POST("/api/process/" + pid + "/restore", {version_id: v.id}); toast("New draft created from v" + v.version); await reload(true); } }));
   }
@@ -440,6 +448,10 @@ function tabsView(d, pid, reload) {
       const cnt = (vid) => d.comments.filter((x) => x.version_id === vid && !x.parent_id).length;
       area.append(table(["Version", "Status", "Author", "Created", "Reviewed", "Approved", "Published", "Version comment (change summary)", "Audit comments", ""], d.versions.map((v) => [h("a", {href: "javascript:void 0", onclick: () => reloadVersion(pid, v.id)}, "v" + v.version), chipS(v.status), v.author, fmtDate(v.created_at), v.reviewed_by || "", v.approved_by || "", fmtDate(v.published_at), v.change_summary + (v.review_note ? " · Reviewer: " + v.review_note : ""), cnt(v.id) || "",
         d.versions.length > 1 && v.id !== d.version.id ? h("button", {class: "btn sm", onclick: () => compareModal(pid, v.id, d.version.id)}, "Compare with shown") : ""])));
+      const sg = (await GET("/api/process/" + encodeURIComponent(pid) + "/signatures")).rows;
+      if (sg.length) area.append(h("h3", null, "Signed decisions"), h("p", {class: "muted"}, "Each decision is recorded with the person, the time and a fingerprint (SHA-256) of the content and flowchart it was taken on. “Content unchanged” means the version still has exactly that content."),
+        table(["Version", "Decision", "Signed by", "Role", "When", "Identity proven by", "Fingerprint", "Check"], sg.map((x) => ["v" + x.version, x.meaning_label, x.signer_name + " (" + x.signer + ")", x.signer_role, fmtDate(x.signed_at), x.method,
+          h("span", {class: "mono", title: x.fingerprint}, x.fingerprint.slice(0, 16) + "…"), x.current ? h("span", {class: "chip ok"}, "content unchanged") : h("span", {class: ["published", "superseded"].includes(x.status) && ["approved", "published"].includes(x.meaning) ? "chip bad" : "chip", title: "The revision was edited after this decision. For a released version this must never happen."}, "content changed later")])));
       const log = await GET("/api/changelog?process=" + encodeURIComponent(pid));
       area.append(h("h3", null, "Change log"), table(["When", "Who", "Action", "Detail"], log.rows.map((r) => [fmtDate(r.ts), r.username, r.action, r.detail])));
     }
@@ -565,7 +577,8 @@ async function viewGovernance(tab) {
       h("div", {class: "grid g4"}, tile(n("overdue"), "Overdue", n("overdue") ? "bad" : ""), tile(n("soon"), "Due within 30 days", n("soon") ? "warn" : ""), tile(n("ok"), "Later"), tile(r.length, "Published processes")),
       r.length ? table(["Process", "Department", "Owner", "Version", "Last review", "Next review", "State", ""], r.map((x) => [pLink(x.process_id, x.process_id + " – " + x.name), x.department, x.owner || "—", "v" + x.version, x.last_review || "—", x.next_review || "—", chip(x),
         x.in_revision ? h("span", {class: "muted"}, "revision in work") : x.can_confirm ? h("button", {class: "btn sm", onclick: async () => { const note = await promptBox("Confirm review of " + x.process_id, "Reviewed, no change needed. Optional remark (logged with your name):", {multiline: true}); if (note === null) return;
-          await guard(async () => { const d = await POST("/api/process/" + encodeURIComponent(x.process_id) + "/confirm-review", {note}); toast("Review confirmed. Next review " + d.next_review); route(); }); }}, "Confirm – no change") : ""]))
+          const b = await signed("review of " + x.process_id + " without change", {note}); if (!b) return;
+          await guard(async () => { const d = await POST("/api/process/" + encodeURIComponent(x.process_id) + "/confirm-review", b); toast("Review confirmed. Next review " + d.next_review); route(); }); }}, "Confirm – no change") : ""]))
         : h("p", {class: "muted"}, "No process is published yet. Review dates start when a process is published."));
   }
   else if (tab === "ownership") body = await ownershipView();
@@ -897,7 +910,8 @@ async function viewAdmin(tab) {
         ["editor", "Edit drafts and diagrams (own department if scoped), submit for review"], ["reviewer", "Review and comment (cannot review own changes)"], ["approver", "Approve / reject pending revisions (separation of duties enforced)"], ["viewer", "Read published content only"]])));
   } else if (tab === "settings") {
     const s = await GET("/api/settings"), f = {org_name: h("input", {type: "text", value: s.org_name}), export_footer: h("input", {type: "text", value: s.export_footer}), classification: h("input", {type: "text", value: s.classification || "Internal"}), region_label: h("input", {type: "text", value: s.region_label || "Region MEA"}), default_review_months: h("input", {type: "number", value: s.default_review_months}),
-      allow_self_approval: h("select", null, h("option", {value: "0", selected: s.allow_self_approval !== "1"}, "No – enforce separation of duties (recommended)"), h("option", {value: "1", selected: s.allow_self_approval === "1"}, "Yes – single-user / pilot mode"))};
+      allow_self_approval: h("select", null, h("option", {value: "0", selected: s.allow_self_approval !== "1"}, "No – enforce separation of duties (recommended)"), h("option", {value: "1", selected: s.allow_self_approval === "1"}, "Yes – single-user / pilot mode")),
+      signature_reauth: h("select", null, h("option", {value: "0", selected: s.signature_reauth !== "1"}, "No – the signed-in session is enough"), h("option", {value: "1", selected: s.signature_reauth === "1"}, "Yes – password again (single sign-on: sign-in within the last 15 minutes)"))};
     const dc = h("input", {type: "text", placeholder: "Code e.g. HSE", style: "width:140px"}), dn = h("input", {type: "text", placeholder: "Department name"});
     const lg = (await GET("/api/legend")).roles.map((r) => Object.assign({}, r)), lgBox = h("div");
     const drawLegend = () => clear(lgBox).append(h("div", {class: "legendgrid"}, lg.map((r, i) => h("div", {class: "row"},
@@ -912,14 +926,26 @@ async function viewAdmin(tab) {
         lgBox),
       h("div", {class: "card"}, h("h3", null, "Departments"), h("p", {class: "muted"}, S.tree.map((d) => d.code + " " + d.name).join(" · ")),
       h("div", {class: "row"}, dc, dn, h("button", {class: "btn pri", onclick: () => guard(async () => { await POST("/api/departments", {code: dc.value, name: dn.value}); await reloadTree(); toast("Department added"); route(); })}, "+ Add department"))),
-    h("div", {class: "card"}, h("div", {class: "fields"}, [["Organisation name", f.org_name], ["Export footer text", f.export_footer], ["Classification label (cover, footers)", f.classification], ["Region label (footers)", f.region_label], ["Default review frequency (months)", f.default_review_months], ["Author may review/approve own revision", f.allow_self_approval]].map(([l, e]) => h("div", null, h("label", null, l), e))),
-      h("button", {class: "btn pri", style: "margin-top:10px", onclick: () => guard(async () => { const b = {}; Object.entries(f).forEach(([k, e]) => b[k] = e.value); await PUT("/api/settings", b); toast("Saved"); })}, "Save settings"),
+    h("div", {class: "card"}, h("div", {class: "fields"}, [["Organisation name", f.org_name], ["Export footer text", f.export_footer], ["Classification label (cover, footers)", f.classification], ["Region label (footers)", f.region_label], ["Default review frequency (months)", f.default_review_months], ["Author may review/approve own revision", f.allow_self_approval], ["Ask for the password again when a review, approval or release is signed", f.signature_reauth]].map(([l, e]) => h("div", null, h("label", null, l), e))),
+      h("button", {class: "btn pri", style: "margin-top:10px", onclick: () => guard(async () => { const b = {}; Object.entries(f).forEach(([k, e]) => b[k] = e.value); await PUT("/api/settings", b); S.cfg.signature_reauth = b.signature_reauth === "1"; toast("Saved"); })}, "Save settings"),
       h("p", {class: "muted"}, "draw.io editor: " + (S.cfg.drawio_local ? "self-hosted copy at /drawio/ (offline)" : "online host " + S.cfg.drawio_url + " – run fetch_drawio.py for a local copy."))));
   } else if (tab === "backup") {
-    const fi = h("input", {type: "file", accept: ".zip"});
-    body = h("div", {class: "grid g2"}, h("div", {class: "card"}, h("h3", null, "Backup"), h("p", {class: "muted"}, "Consistent ZIP of database, imported source documents and assets."), h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await api("POST", "/api/backup", {}, {raw: true}); const b = await r.blob(); const a = h("a", {href: URL.createObjectURL(b), download: "mea_hub_backup.zip"}); document.body.append(a); a.click(); a.remove(); toast("Backup downloaded"); })}, "Create & download backup")),
-      h("div", {class: "card"}, h("h3", null, "Restore"), h("div", {class: "banner bad"}, "Restoring REPLACES all current data and signs everyone out."), fi, h("button", {class: "btn bad", style: "margin-top:8px", onclick: () => guard(async () => { if (!fi.files[0]) throw new Error("Choose a backup ZIP first."); if (!(await confirmBox("Replace ALL current data with this backup?", "Restore"))) return; const buf = await readFile(fi.files[0]); await api("POST", "/api/restore", new Blob([buf])); toast("Restored – signing out"); S.user = null; render(); })}, "Restore from backup")));
-  } else { const r = await GET("/api/audit"); body = table(["When", "User", "Action", "Entity", "Detail"], r.rows.map((x) => [fmtDate(x.ts), x.username, x.action, (x.entity || "") + " " + (x.entity_id || ""), x.detail])); }
+    const fi = h("input", {type: "file", accept: ".zip"}), ds = await GET("/api/admin/restore-drill"), drillBox = h("div");
+    const showDrill = (r) => clear(drillBox).append(r ? h("div", null, h("div", {class: "banner " + (r.ok ? "ok" : "bad")}, (r.ok ? "Last drill passed: " : "Last drill FAILED: ") + fmtDate(r.run_at) + " by " + r.by + " · " + r.backup + " (" + Math.round(r.size / 1024) + " KB, checked in " + r.seconds + " s)"),
+        r.problems.length ? h("ul", null, r.problems.map((p) => h("li", null, p))) : null,
+        table(["Checked", "In the restored backup", "In the live library"], Object.entries(r.counts).map(([k, c]) => [k.replace(/_/g, " "), c.backup, c.live]))) : h("div", {class: "banner warn"}, "No restore drill has been run yet."));
+    showDrill(ds.last);
+    const drill = h("div", {class: "card"}, h("h3", null, "Restore drill"), h("p", {class: "muted"}, "Proves that a backup can really be restored, without touching the live library: a new backup is unpacked into a temporary folder and checked (database integrity, row counts, every picture and source document, every document version and flowchart readable). Run it at least every " + Math.round(ds.every_days / 30.5) + " months; it is logged."),
+      ds.due && ds.last && ds.last.ok ? h("div", {class: "banner warn"}, "The last successful drill is older than " + Math.round(ds.every_days / 30.5) + " months.") : null, drillBox,
+      h("button", {class: "btn pri", style: "margin-top:8px", onclick: () => guard(async () => { toast("Drill running…"); const r = await POST("/api/admin/restore-drill", {}); showDrill(r); toast(r.ok ? "Restore drill passed" : "Restore drill FAILED", !r.ok); })}, "Run restore drill now"));
+    body = h("div", null, h("div", {class: "grid g2"}, h("div", {class: "card"}, h("h3", null, "Backup"), h("p", {class: "muted"}, "Consistent ZIP of database, imported source documents and assets."), h("button", {class: "btn pri", onclick: () => guard(async () => { const r = await api("POST", "/api/backup", {}, {raw: true}); const b = await r.blob(); const a = h("a", {href: URL.createObjectURL(b), download: "mea_hub_backup.zip"}); document.body.append(a); a.click(); a.remove(); toast("Backup downloaded"); })}, "Create & download backup")),
+      h("div", {class: "card"}, h("h3", null, "Restore"), h("div", {class: "banner bad"}, "Restoring REPLACES all current data and signs everyone out."), fi, h("button", {class: "btn bad", style: "margin-top:8px", onclick: () => guard(async () => { if (!fi.files[0]) throw new Error("Choose a backup ZIP first."); if (!(await confirmBox("Replace ALL current data with this backup?", "Restore"))) return; const buf = await readFile(fi.files[0]); await api("POST", "/api/restore", new Blob([buf])); toast("Restored – signing out"); S.user = null; render(); })}, "Restore from backup"))), drill);
+  } else { const r = await GET("/api/audit"); const sigOut = h("div");
+    body = h("div", null, h("div", {class: "card"}, h("h3", null, "Signed decisions"), h("p", {class: "muted"}, "Every review, approval, release and review confirmation is recorded with a fingerprint of the content. The check proves that no record was removed or altered and that every released version still has the approved content."),
+      h("button", {class: "btn", onclick: () => guard(async () => { const v = await GET("/api/admin/signatures/verify");
+        clear(sigOut).append(h("div", {class: "banner " + (v.chain_ok && !v.changed.length ? "ok" : "bad"), style: "margin-top:8px"}, v.total + " records checked. " + (v.chain_ok ? "The register is complete and unaltered. " : v.broken.length + " record(s) were altered or a record before them was removed. ") + (v.changed.length ? v.changed.length + " released version(s) no longer have the approved content." : "Every released version has the content that was approved.")),
+          v.broken.concat(v.changed).length ? table(["Record", "Process", "Version", "Decision", "Signed"], v.broken.concat(v.changed).map((x) => ["#" + x.id, pLink(x.process_id), x.version, x.meaning, fmtDate(x.signed_at)])) : null); })}, "Check the register now"), sigOut),
+      table(["When", "User", "Action", "Entity", "Detail"], r.rows.map((x) => [fmtDate(x.ts), x.username, x.action, (x.entity || "") + " " + (x.entity_id || ""), x.detail]))); }
   return h("div", {class: "page"}, h("h1", null, "Administration"), bar, body);
 }
 boot();

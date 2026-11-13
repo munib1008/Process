@@ -952,6 +952,118 @@ def test_parallel_steps_swimlanes_and_landscape(users):
     assert viewer.call("GET", "/api/landscape/ZZ-M-LO-01")[0] == 403
 
 
+def test_signed_decisions_and_register_check(admin, users):
+    """Every review, approval and release is recorded with a fingerprint of the content; the register shows tampering."""
+    from mea_hub import exporter
+    ed, rev, app, ctl, viewer = users["editor"], users["reviewer"], users["approver"], users["controller"], users["viewer"]
+    pid = "ZZ-M-SG-01"
+    assert ed.call("POST", "/api/process", {"name": "Signature demo", "department": "LOG", "process_id": pid, "objective": "Signed content"})[0] == 200
+    assert ed.call("POST", f"/api/process/{pid}/submit", {"change_summary": "first"})[0] == 200
+    assert rev.call("POST", f"/api/process/{pid}/review", {"decision": "request_changes", "note": "Add the scope"})[0] == 200
+    assert ed.call("GET", f"/api/process/{pid}/signatures")[1]["rows"] == []                              # sending back is not a signature
+    assert ed.call("PUT", f"/api/process/{pid}/draft", {"content": {"scope": "From order to delivery"}})[0] == 200
+    _publish(users, pid, "scope added")
+    rows = viewer.call("GET", f"/api/process/{pid}/signatures")[1]["rows"]
+    assert [(r["meaning"], r["signer"]) for r in rows] == [("reviewed", "demo_reviewer"), ("approved", "demo_approver"), ("published", "demo_controller")]
+    assert all(r["current"] and r["method"] == "signed-in session" and r["version"] == "1.0" and len(r["fingerprint"]) == 64 for r in rows) and len({r["fingerprint"] for r in rows}) == 1
+    proc = db.one("SELECT id FROM processes WHERE process_id=?", (pid,))
+    vid = svc.published_version(proc["id"])["id"]
+    line = exporter.signed_line(proc["id"], vid)
+    assert "Approved: " in line and "Released for use: " in line and rows[0]["fingerprint"][:16] in line
+    assert viewer.call("GET", "/api/admin/signatures/verify")[0] == 403
+    ok = ctl.call("GET", "/api/admin/signatures/verify")[1]
+    assert ok["chain_ok"] and ok["changed"] == [] and ok["total"] >= 3
+    # somebody alters a record directly in the database: the chain shows it
+    first = db.one("SELECT id,signer FROM signatures WHERE process_id=? ORDER BY id LIMIT 1", (proc["id"],))
+    db.db().execute("UPDATE signatures SET signer='somebody_else' WHERE id=?", (first["id"],))
+    bad = ctl.call("GET", "/api/admin/signatures/verify")[1]
+    assert not bad["chain_ok"] and first["id"] in [b["id"] for b in bad["broken"]]
+    db.db().execute("UPDATE signatures SET signer=? WHERE id=?", (first["signer"], first["id"]))
+    # somebody alters the released text directly in the database: the fingerprint shows it
+    original = db.one("SELECT content FROM process_versions WHERE id=?", (vid,))["content"]
+    db.db().execute("UPDATE process_versions SET content=? WHERE id=?", (json.dumps(dict(json.loads(original), notes="<p>Changed after approval</p>")), vid))
+    bad = ctl.call("GET", "/api/admin/signatures/verify")[1]
+    assert bad["chain_ok"] and {c["process_id"] for c in bad["changed"]} == {pid}
+    assert not any(r["current"] for r in ed.call("GET", f"/api/process/{pid}/signatures")[1]["rows"]) and exporter.signed_line(proc["id"], vid) == ""
+    db.db().execute("UPDATE process_versions SET content=? WHERE id=?", (original, vid))
+    assert ctl.call("GET", "/api/admin/signatures/verify")[1]["changed"] == []
+    # "ask again": the decision needs the password at that moment
+    assert admin.call("PUT", "/api/settings", {"signature_reauth": "1"})[0] == 200 and admin.call("GET", "/api/config")[1]["signature_reauth"] is True
+    try:
+        assert ed.call("PUT", f"/api/process/{pid}/draft", {"content": {"scope": "From order to invoice"}})[0] == 200
+        assert ed.call("POST", f"/api/process/{pid}/submit", {"change_summary": "scope changed"})[0] == 200
+        assert rev.call("POST", f"/api/process/{pid}/review", {"decision": "approve_review"})[0] == 403
+        assert rev.call("POST", f"/api/process/{pid}/review", {"decision": "approve_review", "password": "wrong"})[0] == 403
+        assert rev.call("POST", f"/api/process/{pid}/review", {"decision": "request_changes", "note": "no password needed to send it back"})[0] == 200
+        assert ed.call("POST", f"/api/process/{pid}/submit", {"change_summary": "scope changed"})[0] == 200
+        assert rev.call("POST", f"/api/process/{pid}/review", {"decision": "approve_review", "password": "ChangeMe!123"})[0] == 200
+        assert app.call("POST", f"/api/process/{pid}/approve", {"decision": "approve", "password": "ChangeMe!123"})[0] == 200
+        assert ctl.call("POST", f"/api/process/{pid}/publish", {})[0] == 403
+        assert ctl.call("POST", f"/api/process/{pid}/publish", {"password": "ChangeMe!123"})[0] == 200
+        new = [r for r in ed.call("GET", f"/api/process/{pid}/signatures")[1]["rows"] if r["version"] == "1.1"]
+        assert [r["meaning"] for r in new] == ["reviewed", "approved", "published"] and all(r["method"] == "password entered again" and r["current"] for r in new)
+        assert ctl.call("POST", f"/api/process/{pid}/confirm-review", {"note": "still right"})[0] == 403
+        assert ctl.call("POST", f"/api/process/{pid}/confirm-review", {"note": "still right", "password": "ChangeMe!123"})[0] == 200
+    finally:
+        assert admin.call("PUT", "/api/settings", {"signature_reauth": "0"})[0] == 200
+    assert ctl.call("GET", "/api/admin/signatures/verify")[1]["chain_ok"]
+    assert any(x["action"] == "login_failed" and "signing" in (x["detail"] or "") for x in db.q("SELECT action,detail FROM audit WHERE username='demo_reviewer'"))
+
+
+def test_restore_drill_and_many_people_at_once(server, admin, users):
+    import shutil
+    import threading
+    from mea_hub import config, queries, server as srv
+    # the drill restores into a temporary folder and compares with the live library
+    assert users["controller"].call("POST", "/api/admin/restore-drill", {})[0] == 403
+    s, r = admin.call("POST", "/api/admin/restore-drill", {})
+    assert s == 200 and r["ok"] and r["problems"] == [] and r["counts"]["processes"]["backup"] == r["counts"]["processes"]["live"] > 0
+    assert r["counts"]["asset_files"]["backup"] == r["counts"]["asset_files"]["live"]
+    st = admin.call("GET", "/api/admin/restore-drill")[1]
+    assert st["last"]["ok"] and not st["due"] and db.one("SELECT 1 FROM audit WHERE action='restore_drill'")
+    # a backup that lost its pictures and its database rows is reported, and the live library is untouched
+    live = db.one("SELECT COUNT(*) AS n FROM processes")["n"]
+    good = os.path.join(config.BACKUP_DIR, r["backup"])
+    broken = os.path.join(config.BACKUP_DIR, "mea_hub_backup_99991231-235959.zip")
+    with zipfile.ZipFile(good) as zin, zipfile.ZipFile(broken, "w") as zout:
+        dropped = False
+        for n in zin.namelist():
+            if n.startswith("assets/") and not dropped:
+                dropped = True
+                continue
+            zout.writestr(n, zin.read(n))
+    try:
+        res = queries.restore_drill("system", fresh=False)
+        assert not res["ok"] and any("missing in the backup" in p for p in res["problems"]) and res["backup"].endswith("235959.zip")
+        assert admin.call("GET", "/api/admin/restore-drill")[1]["due"]
+    finally:
+        os.remove(broken)
+    assert db.one("SELECT COUNT(*) AS n FROM processes")["n"] == live
+    assert queries.restore_drill("system")["ok"]
+    # short requests pass a gate one at a time, long jobs stay outside; 24 people at once all get the same, complete answer
+    assert srv.SLOW.match("/api/exports") and srv.SLOW.match("/api/login") and srv.SLOW.match("/api/admin/restore-drill") and not srv.SLOW.match("/api/process/X") and not srv.SLOW.match("/api/dashboard")
+    out, ed = [], users["editor"]
+    def go(i):
+        c = users[["editor", "reviewer", "controller"][i % 3]]
+        out.append((c.call("GET", "/api/dashboard")[0], c.call("GET", "/api/library")[1] and len(c.call("GET", "/api/library")[1]["processes"]), c.call("GET", "/api/process/TST-W-001")[0]))
+    th = [threading.Thread(target=go, args=(i,)) for i in range(24)]
+    [t.start() for t in th]
+    [t.join(timeout=60) for t in th]
+    assert len(out) == 24 and {o[0] for o in out} == {200} and {o[2] for o in out} == {200} and len({o[1] for o in out}) == 1
+    assert len(ed.call("GET", "/api/library")[1]["processes"]) == out[0][1]
+
+
+def test_release_notes_exist_for_this_version():
+    import re
+    from mea_hub import __version__
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    log = open(os.path.join(root, "CHANGELOG.md"), encoding="utf-8").read()
+    m = re.search(r"(?ms)^## %s\b[^\n]*\n(.*?)(?=^## |\Z)" % re.escape(__version__), log)
+    assert m and len(m.group(1).strip()) > 200                  # the build publishes this section as the release text
+    pins = open(os.path.join(root, "requirements-lock.txt")).read()
+    assert all(re.search(r"(?mi)^%s==\d" % re.escape(name), pins) for name in ("python-docx", "lxml", "reportlab", "openpyxl", "Pillow"))
+
+
 def test_hosted_mode_secure_cookie_and_login_throttle(server, users):
     import urllib.request
     def login(user, pw, proto=None):

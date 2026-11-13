@@ -15,6 +15,17 @@ from .db import jloads, one, q
 from .security import strip_tags
 
 # ------------------------------------------------------------------ snapshot
+
+def signed_line(pid, version_id):
+    """Signed decisions of a version for the document header – only records that still match the content."""
+    rows = [r for r in svc.signatures(pid, version_id) if r["current"] and r["meaning"] in ("reviewed", "approved", "published")]
+    if not rows:
+        return ""
+    last = {r["meaning"]: r for r in rows}                   # a reworked revision is signed again: the latest record of each kind
+    parts = [f"{r['meaning_label']}: {r['signer_name']} ({r['signer']}), {r['signed_at'].replace('T', ' ').replace('Z', ' UTC')}" for r in last.values()]
+    return " · ".join(parts) + f" · content fingerprint {rows[-1]['fingerprint'][:16]}"
+
+
 def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=True, version_id=None, flow_picture="flow"):
     staff = svc.can(user, "view_all")
     if include_unapproved and not svc.can(user, "export_draft"):
@@ -58,7 +69,7 @@ def build_snapshot(user, scope: str, ids=None, dept=None, include_unapproved=Tru
             item = dict(process_id=p["process_id"], chart_id=p["chart_id"], name=p["name"], kind=p["kind"], dept_id=p["department_id"],
                         owner=p["owner"], reviewer=p["reviewer"], countries=p["countries"], category=p["category"],
                         version=v["version"], version_id=v["id"], status=v["status"], status_label=svc.STATUS_LABEL[v["status"]],
-                        reviewed_by=v["reviewed_by"], approved_by=v["approved_by"], approved_at=v["approved_at"], published_at=v["published_at"],
+                        reviewed_by=v["reviewed_by"], approved_by=v["approved_by"], approved_at=v["approved_at"], published_at=v["published_at"], signed=signed_line(p["id"], v["id"]),
                         change_summary=v["change_summary"], author=v["author"], content=v["content"], diagram=None)
             if v.get("diagram_version_id"):
                 dv = one("SELECT dv.*,d.code FROM diagram_versions dv JOIN diagrams d ON d.id=dv.diagram_id WHERE dv.id=?", (v["diagram_version_id"],))
@@ -504,7 +515,8 @@ def build_docx(snap) -> bytes:
             kv_table([("Process ID", pr["process_id"]), ("Source chart ID", pr["chart_id"]), ("Type", pr["kind"]), ("Department", g["name"]),
                       ("Owner", pr["owner"]), ("Reviewer", pr["reviewer"]), ("Countries / region", pr["countries"]),
                       ("Version / status", f"{pr['version']} · {pr['status_label']}"),
-                      ("Approved by", f"{pr['approved_by']} ({pr['approved_at']})" if pr["approved_by"] else None)])
+                      ("Approved by", f"{pr['approved_by']} ({pr['approved_at']})" if pr["approved_by"] else None),
+                      ("Signed decisions", pr.get("signed") or None)])
             for label, key in (("Objective", "objective"), ("Scope", "scope"), ("Trigger", "trigger"), ("Inputs", "inputs"), ("Outputs", "outputs")):
                 if c.get(key):
                     doc.add_paragraph(label, style="Heading 3")
@@ -755,7 +767,8 @@ def build_pdf(snap) -> bytes:
             story.append(Paragraph(esc(f"{pr['process_id']} – {pr['name']}"), sH2))
             story.append(kv([("Process ID", pr["process_id"]), ("Source chart ID", pr["chart_id"]), ("Type", pr["kind"]), ("Owner", pr["owner"]), ("Reviewer", pr["reviewer"]),
                              ("Countries / region", pr["countries"]), ("Version / status", f"{pr['version']} · {pr['status_label']}"),
-                             ("Approved by", f"{pr['approved_by']} ({pr['approved_at']})" if pr["approved_by"] else None)]))
+                             ("Approved by", f"{pr['approved_by']} ({pr['approved_at']})" if pr["approved_by"] else None),
+                             ("Signed decisions", pr.get("signed") or None)]))
             for label, key in (("Objective", "objective"), ("Scope", "scope"), ("Trigger", "trigger"), ("Inputs", "inputs"), ("Outputs", "outputs")):
                 if c.get(key):
                     story += [Paragraph(label, sH3), Paragraph(esc(c[key]), sN)]

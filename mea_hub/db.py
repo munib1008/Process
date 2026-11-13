@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS exports(
   id INTEGER PRIMARY KEY, ts TEXT NOT NULL, username TEXT, scope TEXT NOT NULL, fmt TEXT NOT NULL, status TEXT NOT NULL,
   filename TEXT, sha256 TEXT, size INTEGER, snapshot_hash TEXT, snapshot TEXT, error TEXT);
 CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS signatures(id INTEGER PRIMARY KEY, process_id INTEGER NOT NULL, version_id INTEGER NOT NULL, meaning TEXT NOT NULL, signer TEXT NOT NULL, signer_name TEXT NOT NULL, signer_role TEXT NOT NULL, method TEXT NOT NULL, signed_at TEXT NOT NULL, fingerprint TEXT NOT NULL, prev_hash TEXT NOT NULL, sig_hash TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS views(process_id INTEGER NOT NULL, day TEXT NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY(process_id, day, user_id));
 CREATE TABLE IF NOT EXISTS kpi_values(id INTEGER PRIMARY KEY, process_id INTEGER NOT NULL REFERENCES processes(id), kpi TEXT NOT NULL, period TEXT NOT NULL, value REAL NOT NULL, note TEXT NOT NULL DEFAULT '', entered_by TEXT NOT NULL, entered_at TEXT NOT NULL, UNIQUE(process_id, kpi, period));
 CREATE TABLE IF NOT EXISTS notified(user_id INTEGER NOT NULL, key TEXT NOT NULL, sent_at TEXT NOT NULL, PRIMARY KEY(user_id, key));
@@ -91,6 +92,7 @@ def connect(path=None):
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys = ON")
     c.execute("PRAGMA journal_mode = WAL")
+    c.execute("PRAGMA synchronous = NORMAL")   # WAL: safe against application crashes; only a power cut can lose the very last commits, never corrupt the file
     return c
 
 
@@ -134,9 +136,39 @@ def init():
 
 
 @contextmanager
-def tx():
-    """Transactional write block. Re-entrant: an inner block becomes a SAVEPOINT of the outer one."""
+def snapshot():
+    """Read block: every query inside sees the same state and shares one read transaction. A page that runs hundreds of
+    small queries (dashboard, library) otherwise starts hundreds of read transactions and stalls behind writers."""
     c = db()
+    if getattr(_local, "depth", 0) or getattr(_local, "snap", False):
+        yield c
+        return
+    c.execute("BEGIN")
+    _local.snap = True
+    try:
+        yield c
+    finally:
+        _local.snap = False
+        if c.in_transaction:
+            c.execute("COMMIT")
+
+
+@contextmanager
+def tx():
+    """Transactional write block. Re-entrant: an inner block becomes a SAVEPOINT of the outer one.
+    Inside a read block the read transaction ends first and a new one starts after the write."""
+    c = db()
+    if getattr(_local, "snap", False) and not getattr(_local, "depth", 0):
+        if c.in_transaction:
+            c.execute("COMMIT")
+        _local.snap = False
+        try:
+            with tx() as inner:
+                yield inner
+        finally:
+            c.execute("BEGIN")
+            _local.snap = True
+        return
     depth = getattr(_local, "depth", 0)
     if depth:
         name = f"sp{depth}"

@@ -64,8 +64,18 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 43 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 46 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
+
+Further checks (all run by the build before the Windows package is made):
+
+```bash
+python tools/load_test.py                       # simulated users on a throw-away library – docs/LOAD_TEST.md
+cd tests/e2e && npm ci && npx playwright install chromium && node run.js   # browser journey with five roles + accessibility check
+pip-audit -r requirements-lock.txt              # known vulnerabilities in the pinned dependencies
+python run.py --restore-drill                   # proves that a backup can be restored (live data untouched)
+```
+Release notes: `CHANGELOG.md`.
 
 ## Architecture (deliberate deviations from the brief)
 

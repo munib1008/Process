@@ -162,6 +162,16 @@ A published process gets a review date (default every 12 months; set per process
 * Something changed: open the process and revise it through the normal workflow; publishing sets the next date.
 Owners are reminded 30 days before and when the date has passed (Dashboard, and by e-mail if notifications are switched on).
 
+## Signed decisions
+Approving a review, approving a revision, publishing it and confirming a periodic review are **signed**: the tool records who decided, when,
+and a fingerprint of exactly the content and flowchart the decision was taken on.
+- **History** tab ▸ *Signed decisions* lists them. *Content unchanged* means the version still has exactly the signed content.
+- Word and PDF exports print the signed decisions of the exported version in the process header.
+- If the administrator has switched on *ask for the password again*, you type your password at the moment of the decision. With company
+  sign-in the tool instead requires that you signed in within the last 15 minutes; otherwise sign out and in again, then decide.
+- Sending a revision back (request changes, reject) is logged but is not a signature.
+This is a record for audits. It is not a qualified electronic signature in the legal sense.
+
 ## Exchange with other tools (BPMN)
 **BPMN** on the process page downloads the flow in BPMN 2.0 for process platforms and modelling tools. What is and is not carried over: `docs/FLOWS.md`.
 

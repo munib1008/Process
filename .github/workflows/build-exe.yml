@@ -10,7 +10,7 @@ on:
     tags: ["v*"]
     branches: ["claude/**"]
   pull_request:
-    paths: ["mea_hub/**", "build/**", "run.py", "requirements*.txt", "tests/**"]
+    paths: ["mea_hub/**", "build/**", "run.py", "requirements*.txt", "tests/**", "tools/**", ".github/workflows/**"]
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -20,8 +20,42 @@ jobs:
         with: {python-version: "3.12"}
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest tests -q
+      - name: Load test (20 and 60 simulated users; fails above 2 s at the 95th percentile or above 1 % errors)
+        run: python tools/load_test.py --levels 20,60 --seconds 15 --max-p95 2.0 --max-errors 1.0
+  browser:
+    name: Browser journey and accessibility check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: pip install -r requirements-lock.txt
+      - run: npm ci
+        working-directory: tests/e2e
+      - run: npx playwright install --with-deps chromium
+        working-directory: tests/e2e
+      - name: Five roles through the real pages in headless Chromium, axe-core WCAG 2.1 A/AA on the main pages
+        run: node run.js
+        working-directory: tests/e2e
+  dependencies:
+    name: Known vulnerabilities in dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install pip-audit
+      - name: Python packages the tool is built from
+        run: pip-audit -r requirements-lock.txt
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Test tooling (never shipped)
+        run: npm audit --audit-level=high
+        working-directory: tests/e2e
   windows-exe:
-    needs: test
+    needs: [test, browser, dependencies]
     runs-on: windows-latest
     permissions:
       contents: write   # needed only by the release step
@@ -136,7 +170,15 @@ jobs:
           $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
           $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
           Write-Host "Package: $zip ($mb MB)  SHA256 $sha"
+          $ver = $env:TAG.TrimStart('v')
+          $m = [regex]::Match((Get-Content CHANGELOG.md -Raw), "(?ms)^## $([regex]::Escape($ver))\b[^\n]*\n(.*?)(?=^## |\z)")
+          if (-not $m.Success) { throw "CHANGELOG.md has no section for version $ver - write the release notes first" }
           $notes = @(
+            "**What is new in $($env:TAG)**",
+            "",
+            $m.Groups[1].Value.Trim(),
+            "",
+            "---",
             "Windows package of MEA Process Hub, built and smoke-tested by GitHub Actions from commit $($env:GITHUB_SHA.Substring(0, 7)).",
             "",
             "**Use**",

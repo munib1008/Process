@@ -1,0 +1,16 @@
+# Weekly proposals for newer versions of what the tool is built from. Each proposal runs the full build (tests, browser journey,
+# accessibility check, load test, vulnerability scan) before anybody merges it.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: "/tests/e2e"
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 3
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 3

@@ -79,10 +79,11 @@ function confirmBox(msg, label) {
 function promptBox(title, label, opts) {
   opts = opts || {};
   return new Promise((res) => {
-    const inp = opts.multiline ? h("textarea", {value: opts.value || ""}) : h("input", {type: "text", value: opts.value || ""});
+    const inp = opts.multiline ? h("textarea", {value: opts.value || ""}) : h("input", {type: opts.password ? "password" : "text", value: opts.value || "", autocomplete: opts.password ? "current-password" : "off", onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); ok(); } }});
+    const ok = () => { if (opts.required && !inp.value.trim()) { toast("This field is required", true); return; } m.close(); res(inp.value); };
     const m = modal(title, h("div", null, h("label", null, label), inp,
       h("div", {class: "row", style: "margin-top:12px"},
-        h("button", {class: "btn pri", onclick: () => { if (opts.required && !inp.value.trim()) { toast("This field is required", true); return; } m.close(); res(inp.value); }}, opts.ok || "OK"),
+        h("button", {class: "btn pri", onclick: () => ok()}, opts.ok || "OK"),
         h("button", {class: "btn", onclick: () => { m.close(); res(null); }}, "Cancel"))));
     inp.focus();
   });
@@ -98,3 +99,29 @@ function table(headers, rows, opts) {
   return h("table", {class: "t"}, h("thead", null, h("tr", null, headers.map((x) => h("th", null, x)))),
     h("tbody", null, rows.map((r) => { const cells = r.cells || r; return h("tr", {class: r.click ? "click" : "", onclick: r.click}, cells.map((c) => h("td", null, c))); })));
 }
+
+/* Accessibility: every form field gets a name for screen readers. A <label> is tied to the field that follows it;
+   a field without a label is named by its placeholder or title. Runs after every change of the page. */
+(function () {
+  let seq = 0, queued = false;
+  const isField = (e) => e && /^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName) && e.type !== "hidden" && e.style.display !== "none";
+  function link(root) {
+    root.querySelectorAll("label:not([for])").forEach((l) => {
+      if (l.querySelector("input,select,textarea")) return;                 // the label wraps its field
+      let c = l.nextElementSibling;
+      while (c && c.tagName !== "LABEL" && !isField(c)) { const inner = c.querySelector && !/^(BUTTON|TABLE)$/.test(c.tagName) && c.style.display !== "none" ? Array.from(c.querySelectorAll("input,select,textarea")).find(isField) : null; if (inner) { c = inner; break; } c = c.nextElementSibling; }
+      if (isField(c)) { if (!c.id) c.id = "fld" + (++seq); l.htmlFor = c.id; }
+      else if (c && c.tagName !== "LABEL" && c.isContentEditable && !c.getAttribute("aria-label")) c.setAttribute("aria-label", l.textContent);
+    });
+    root.querySelectorAll("input,select,textarea").forEach((c) => {
+      if (c.type === "hidden" || c.getAttribute("aria-label") || c.getAttribute("aria-labelledby") || (c.labels && c.labels.length)) return;
+      const cell = c.closest("td"), head = cell && cell.closest("table") ? cell.closest("table").querySelectorAll("th")[cell.cellIndex] : null;
+      const name = c.getAttribute("placeholder") || c.title || (head && head.textContent) || (c.tagName === "SELECT" && c.options.length ? c.options[0].textContent : "") || (c.type === "file" ? "Choose a file" : c.type === "checkbox" ? "Select" : "");
+      if (name) c.setAttribute("aria-label", name.trim().slice(0, 80));
+    });
+    root.querySelectorAll("table.t:not([tabindex])").forEach((t) => { if (t.scrollWidth > t.clientWidth + 1) { t.tabIndex = 0; t.setAttribute("role", "region"); t.setAttribute("aria-label", "Table – scroll sideways"); } });   // reachable by keyboard when it scrolls
+  }
+  const run = () => { queued = false; try { link(document.body); } catch (e) { /* never break the page */ } };
+  const start = () => new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(run); } }).observe(document.body, {childList: true, subtree: true});
+  if (document.body) start(); else document.addEventListener("DOMContentLoaded", start);
+})();

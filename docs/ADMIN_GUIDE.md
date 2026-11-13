@@ -50,3 +50,32 @@ The report under *Reports ▸ Reading statistics* shows counts only. Whoever hol
 user opened a process – treat the database file as before (access for administrators only). If the works council or data protection officer
 requires it, the counting can be stopped by deleting the rows (`DELETE FROM views`) and blocking the report for the roles concerned; ask before
 rolling the tool out widely.
+
+## Restore drill (version 1.5.0)
+A backup is only worth something if it can be restored. *Administration ▸ Backup & restore ▸ Run restore drill now* makes a new backup,
+unpacks it into a temporary folder – the live library is never touched – and checks: database integrity, references between tables, row
+counts against the live library, every picture and source document present and identical, every document version and flowchart readable.
+The result is shown, kept as "last drill" and written to the audit log; a reminder appears when the last successful drill is older than six months.
+
+From the command line (for a scheduled task; exit code 1 when the check fails):
+```
+MEA_Process_Hub.exe --restore-drill
+python run.py --restore-drill
+```
+What the drill does not prove: that the backup files are copied to another machine, and that a new server can be set up from them.
+Do one full restore on a second machine before go-live and after every change of server (`docs/SERVER_AND_SHAREPOINT.md`).
+
+## Signed decisions (version 1.5.0)
+- Every review approval, approval, release and review confirmation writes a record into the table `signatures`: person, role, time, how the
+  identity was proven, a SHA-256 fingerprint of the content and flowchart, and the hash of the record before it.
+- *Administration ▸ Settings ▸ Ask for the password again…* makes local users type their password at each decision; single sign-on users
+  must have signed in within the last 15 minutes. Wrong passwords count towards the sign-in lock (8 in 15 minutes).
+- *Administration ▸ Audit log ▸ Check the register now* (also for the Document Controller through the address `/api/admin/signatures/verify`)
+  recomputes the chain and compares every released version with its approved fingerprint. A change made directly in the database file is found.
+- Limits: whoever can write to the database file **and** recompute the whole chain could forge it – keep file access to administrators and
+  keep backups off the server. It is not a qualified electronic signature (eIDAS) and the tool is not validated for regulated records.
+
+## Capacity (version 1.5.0)
+Measured: 400 simultaneous users answered within 0.09 s on a 4-core machine (`docs/LOAD_TEST.md`). Before go-live run
+`python tools/load_test.py --from-data <copy of your data folder>` on the real server. Exclude the data folder from on-access virus scanning
+if IT allows it; scanning every database write can slow the tool considerably.

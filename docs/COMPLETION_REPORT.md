@@ -22,6 +22,19 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Phase 4 – scale and assurance (2026-11-13, version 1.5.0).** *Done, tested (45 automated tests, a 10-step browser journey, load test):*
+**load test** with a finding that mattered – answers went from 0.02 s to more than 10 s between 50 and 100 simultaneous users because
+overlapping requests slowed each other down inside one Python process; fixed by passing short requests one at a time, bulk queries for list
+pages and a longer connection queue; measured afterwards 400 simultaneous users within 0.09 s, no errors (`docs/LOAD_TEST.md`).
+**Signed decisions** (review, approval, release, review confirmation) with content fingerprint, chained register, register check, optional
+password at the decision, shown in History and exports. **Restore drill** into a temporary folder with integrity, count and file-hash checks,
+logged, reminder after six months, also as a command. **Browser journey and accessibility check in the build** (five roles, nine pages, axe-core
+WCAG 2.1 A/AA, all findings fixed: field names, contrast, link marking, keyboard access to scrolling tables). **Dependency scanning** (pinned
+versions, pip-audit, Dependabot) and **release notes** enforced by the build.
+*Not built, on purpose:* PostgreSQL and a second node – the measured limit was not the database. *Limits:* load test on one machine with 183
+processes; the signature is an audit record, not a qualified electronic signature, and tamper-evident rather than tamper-proof; the automated
+accessibility check does not replace a manual check with keyboard and screen reader; nothing of this was run on the company server.
+
 **Phase 3, remaining items 4–10 (2026-11-13, version 1.4.0).** *Done, tested (43 automated tests, browser checks on desktop and an emulated phone):*
 (4) **change requests from readers** – every signed-in user can send a suggestion on the version they read (optionally on one step); it becomes a task
 for owner, department owner and Document Controller and is answered in the audit thread; the reader sees status and answer on the dashboard; at most 25

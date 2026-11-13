@@ -6,6 +6,7 @@ import mimetypes
 import os
 import re
 import tempfile
+import threading
 import traceback
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -224,45 +225,64 @@ class Handler(BaseHTTPRequestHandler):
         if length > limit:
             return self.send_json({"error": "Request too large."}, 413)
         raw = self.rfile.read(length) if length else b""
+        # Short requests run one at a time: several threads working on the database at once make every one of them slower
+        # in one Python process (measured: 95 dashboards per second one by one, 12 per second with 48 at once).
+        # Long jobs (exports, imports, sign-in hashing, administration) stay outside so that they hold nobody up.
+        if SLOW.match(path):
+            kind, args = self.api_call(method, path, qs, raw)
+        else:
+            with GATE:
+                kind, args = self.api_call(method, path, qs, raw)
+        return self.send_json(*args) if kind == "json" else self.send_bytes(*args[0], **args[1])
+
+    def api_call(self, method, path, qs, raw):
+        """-> ("json", (obj, status, extra headers)) or ("bytes", (positional, keyword) arguments of send_bytes). Nothing is sent here."""
+        J = lambda obj, status=200, extra=None: ("json", (obj, status, extra))
         user, tok = self.current_user()
         for m, rx, fn, auth, csrf in ROUTES:
             mt = rx.match(path)
             if m == method and mt:
                 try:
                     if auth and not user:
-                        return self.send_json({"error": "Login required."}, 401)
+                        return J({"error": "Login required."}, 401)
                     if csrf and auth and self.headers.get("X-CSRF-Token") != user["csrf"]:
-                        return self.send_json({"error": "Missing or invalid CSRF token."}, 403)
+                        return J({"error": "Missing or invalid CSRF token."}, 403)
                     if user and user["must_change"] and path not in ("/api/password", "/api/me", "/api/logout"):
-                        return self.send_json({"error": "You must change your password first.", "must_change": True}, 403)
+                        return J({"error": "You must change your password first.", "must_change": True}, 403)
                     ctx = Ctx(self, user, qs, raw)
                     ctx.token = tok
-                    res = fn(ctx, *mt.groups())
+                    if method == "GET":                      # one consistent read for the whole page
+                        with db.snapshot():
+                            res = fn(ctx, *mt.groups())
+                    else:
+                        res = fn(ctx, *mt.groups())
                     if res is None:
                         res = {"ok": True}
                     if isinstance(res, tuple):          # (bytes, ctype, extra headers[, cache-control, etag])
-                        return self.send_bytes(200, res[0], res[1], res[2] if len(res) > 2 else None, cache=res[3] if len(res) > 3 else "no-store",
-                                               etag=res[4] if len(res) > 4 else None)
+                        return ("bytes", ((200, res[0], res[1], res[2] if len(res) > 2 else None), dict(cache=res[3] if len(res) > 3 else "no-store", etag=res[4] if len(res) > 4 else None)))
                     if isinstance(res, dict) and "_set_cookie" in res:
                         cookie = res.pop("_set_cookie")
                         https = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower() == "https"      # behind an HTTPS proxy
-                        extra = {"Set-Cookie": session_cookie(cookie, https)}
-                        return self.send_json(res, 200, extra)
-                    return self.send_json(res)
+                        return J(res, 200, {"Set-Cookie": session_cookie(cookie, https)})
+                    return J(res)
                 except svc.Forbidden as e:
-                    return self.send_json({"error": str(e)}, 403)
+                    return J({"error": str(e)}, 403)
                 except svc.NotFound as e:
-                    return self.send_json({"error": str(e)}, 404)
+                    return J({"error": str(e)}, 404)
                 except svc.Conflict as e:
-                    return self.send_json({"error": str(e), "conflict": True}, 409)
+                    return J({"error": str(e), "conflict": True}, 409)
                 except (svc.Invalid, drawio.DiagramError, importer.ImportError_) as e:
-                    return self.send_json({"error": str(e)}, 400)
+                    return J({"error": str(e)}, 400)
                 except Exception as e:  # noqa
                     if os.environ.get("MEA_HUB_DEBUG"):
                         traceback.print_exc()
                     svc_log_error(e)
-                    return self.send_json({"error": "Internal error. See data/error.log."}, 500)
-        self.send_json({"error": "Unknown API endpoint."}, 404)
+                    return J({"error": "Internal error. See data/error.log."}, 500)
+        return J({"error": "Unknown API endpoint."}, 404)
+
+
+GATE = threading.Lock()
+SLOW = re.compile(r"^/api/(login|password|auth/|admin/|exports|import|restore|backup|register-import|register\.xlsx|audit-comments\.xlsx|sources/import-shipped|drafts/)")
 
 
 def svc_log_error(e):
@@ -360,7 +380,7 @@ def r_health(c):
 
 @route("GET", "/api/config", auth=False)
 def r_config(c):
-    return dict(embeddable=bool(config.embed_origins()), notifications=notify.mail_ready(), sso=dict(enabled=sso.enabled(), only=sso.passwords_restricted()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
+    return dict(embeddable=bool(config.embed_origins()), signature_reauth=svc.reauth_required(), notifications=notify.mail_ready(), sso=dict(enabled=sso.enabled(), only=sso.passwords_restricted()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
                 templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, flow_layouts=flowbuild.LAYOUTS, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
                 comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version=__version__,
@@ -420,19 +440,38 @@ def r_withdraw(c, pid):
 @route("POST", "/api/process/([^/]+)/review")
 def r_review(c, pid):
     d = c.json()
-    return dict(status=svc.review_decision(pid, c.user, d.get("decision"), d.get("note", ""))["status"])
+    return dict(status=svc.review_decision(pid, c.user, d.get("decision"), d.get("note", ""), d.get("password"))["status"])
 
 
 @route("POST", "/api/process/([^/]+)/approve")
 def r_approve(c, pid):
     d = c.json()
-    return dict(status=svc.approval_decision(pid, c.user, d.get("decision"), d.get("note", ""))["status"])
+    return dict(status=svc.approval_decision(pid, c.user, d.get("decision"), d.get("note", ""), d.get("password"))["status"])
 
 
 @route("POST", "/api/process/([^/]+)/publish")
 def r_publish(c, pid):
-    v = svc.publish(pid, c.user)
+    v = svc.publish(pid, c.user, c.json().get("password"))
     return dict(status=v["status"], version=v["version"])
+
+
+@route("GET", "/api/process/([^/]+)/signatures")
+def r_signatures(c, pid):
+    p = svc.get_process(pid)
+    staff = svc.can(c.user, "view_all")
+    rows = svc.signatures(p["id"])
+    if not staff:                                            # readers: the records of what they can read
+        rows = [r for r in rows if r["status"] in ("published", "superseded")]
+    return dict(rows=[{k: r[k] for k in ("id", "version", "status", "meaning", "meaning_label", "signer", "signer_name", "signer_role", "method", "signed_at", "fingerprint", "current")} for r in rows])
+
+
+@route("GET", "/api/admin/signatures/verify")
+def r_signatures_verify(c):
+    if c.user["role"] not in ("admin", "controller"):
+        raise svc.Forbidden("Only the administrator or the Document Controller can verify the signature register.")
+    res = svc.verify_signatures()
+    svc.audit(c.user, "signatures_verified", "system", None, f"{res['total']} records, chain {'ok' if res['chain_ok'] else 'BROKEN'}, {len(res['changed'])} changed")
+    return res
 
 
 @route("POST", "/api/process/([^/]+)/accept-import")
@@ -455,7 +494,8 @@ def r_reviews(c):
 
 @route("POST", "/api/process/([^/]+)/confirm-review")
 def r_confirm_review(c, pid):
-    return svc.confirm_review(pid, c.user, c.json().get("note", ""))
+    d = c.json()
+    return svc.confirm_review(pid, c.user, d.get("note", ""), d.get("password"))
 
 
 @route("GET", "/api/diagram-versions/(\\d+)/bpmn")
@@ -1027,7 +1067,7 @@ def r_settings(c):
     svc.need(c.user, "admin")
     d = c.json()
     with db.tx():
-        for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer", "classification", "region_label"):
+        for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer", "classification", "region_label", "signature_reauth"):
             if k in d:
                 svc.set_cfg(k, str(d[k])[:300])
         svc.audit(c.user, "settings_changed", "config", None, json.dumps(d)[:500])
@@ -1067,7 +1107,7 @@ def r_legend_put(c):
 @route("GET", "/api/settings")
 def r_settings_get(c):
     svc.need(c.user, "admin")
-    return {k: svc.cfg(k) for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer", "classification", "region_label")}
+    return {k: svc.cfg(k) for k in ("org_name", "allow_self_approval", "default_review_months", "export_footer", "classification", "region_label", "signature_reauth")}
 
 
 @route("GET", "/api/audit")
@@ -1085,6 +1125,18 @@ def r_backup(c):
         return file_resp(f.read(), "application/zip", os.path.basename(path))
 
 
+@route("GET", "/api/admin/restore-drill")
+def r_drill_status(c):
+    svc.need(c.user, "admin")
+    return queries.drill_status()
+
+
+@route("POST", "/api/admin/restore-drill")
+def r_drill(c):
+    svc.need(c.user, "admin")
+    return queries.restore_drill(c.user, fresh=c.json().get("fresh", True) is not False)
+
+
 @route("POST", "/api/restore")
 def r_restore_all(c):
     svc.need(c.user, "admin")
@@ -1099,9 +1151,13 @@ def r_restore_all(c):
 
 
 # ====================================================================== run
+class Server(ThreadingHTTPServer):
+    request_queue_size = 256      # waiting connections; the default of 5 made browsers retry for seconds once ~100 people worked at the same time
+    daemon_threads = True
+
+
 def make_server(host="127.0.0.1", port=8765):
     db.init()
-    srv = ThreadingHTTPServer((host, port), Handler)
-    srv.daemon_threads = True
+    srv = Server((host, port), Handler)
     srv.allow_any_host = host not in ("127.0.0.1", "localhost", "::1")
     return srv

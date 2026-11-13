@@ -76,3 +76,17 @@ workflow), `mea_hub/sso.py`, `mea_hub/notify.py`, `deploy/` (proxy samples), `.g
 | Landscape | Readers get published maps only; click areas are computed on the server from the drawing, the page inserts no markup from documents. | `test_parallel_steps_swimlanes_and_landscape` |
 
 Known gap: there is no rate limit per minute on suggestions beyond the cap of 25 open ones.
+
+## Additions in version 1.5.0
+| Area | Control | Test |
+|---|---|---|
+| Signed decisions | Chained records with SHA-256 fingerprint of the approved content; tampering with a record or with a released version is detected; optional re-authentication at the decision; failed attempts count towards the sign-in lock | `test_signed_decisions_and_register_check` |
+| Restore | Drill restores into a temporary folder and verifies integrity, counts, file hashes; never touches live data | `test_restore_drill_and_many_people_at_once` |
+| Availability under load | Short requests serialised, long jobs outside; 400 simulated users without errors; load test in the build | `tools/load_test.py`, `docs/LOAD_TEST.md` |
+| Dependencies | Pinned (`requirements-lock.txt`), scanned by pip-audit in every build, Dependabot weekly. 2026-11-13: no known vulnerability | build job *Known vulnerabilities in dependencies* |
+| Browser behaviour | End-to-end journey with five roles and the Content-Security-Policy active; no script error tolerated | `tests/e2e/run.js` |
+| Accessibility | WCAG 2.1 A/AA automated rules on nine pages, no finding | same |
+
+Known gaps (unchanged or new): no penetration test yet; the signature register is tamper-evident, not tamper-proof against somebody with write
+access to the database file who recomputes the chain; `synchronous = NORMAL` means a power cut can lose the last commits (never corrupt the
+file); a single server process – no failover.

@@ -1,0 +1,12 @@
+{
+  "name": "mea-process-hub-e2e",
+  "private": true,
+  "description": "Browser journey and accessibility check for MEA Process Hub (run by the build)",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "axe-core": "4.10.2",
+    "playwright": "1.63.0"
+  }
+}

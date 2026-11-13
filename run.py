@@ -33,6 +33,7 @@ def main():
     ap.add_argument("--import", dest="imports", nargs="*", help=".docx / .drawio files to import")
     ap.add_argument("--demo-users", action="store_true", help="create demo_<role> users (password ChangeMe!123) for evaluation")
     ap.add_argument("--backup", action="store_true")
+    ap.add_argument("--restore-drill", action="store_true", help="make a backup, restore it into a temporary folder, check it and exit (exit code 1 when the check fails)")
     ap.add_argument("--reset-admin", action="store_true", help="give the 'admin' user a new one-time password and exit")
     ap.add_argument("--reconcile-report", metavar="FILE", help="write the source reconciliation report (markdown) and exit")
     args = ap.parse_args()
@@ -55,6 +56,14 @@ def main():
     if args.backup:
         print("Backup written:", queries.make_backup())
         return
+    if args.restore_drill:
+        res = queries.restore_drill("system")
+        print(f"Restore drill with {res['backup']} ({res['size'] // 1024} KB, {res['seconds']} s): {'OK' if res['ok'] else 'FAILED'}")
+        for t, c in res["counts"].items():
+            print(f"  {t}: {c['backup']} restored, {c['live']} live")
+        for p in res["problems"]:
+            print("  PROBLEM:", p)
+        sys.exit(0 if res["ok"] else 1)
     if args.reconcile_report:
         with open(args.reconcile_report, "w", encoding="utf-8") as f:
             f.write(queries.reconcile_markdown())

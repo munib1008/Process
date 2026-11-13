@@ -86,10 +86,17 @@ handful of people must *edit* in one shared installation. Do the SharePoint publ
 | 9 | Comments pinned to a flow shape – *built in version 1.4.0* | Precise review feedback | 3–4 days |
 | 10 | Read view for phones and tablets – *built in version 1.4.0; checked in an emulated iPhone 13, not on real devices* | Warehouse and site use | 4–5 days |
 
-### Phase 4 – Scale and assurance (after adoption is proven)
-PostgreSQL instead of SQLite and a second node (only above about 50 concurrent editors), electronic signature of approvals if auditors
-require it, automated browser tests and load test in the build, accessibility check, dependency scanning, published release notes,
-restore drill twice a year.
+### Phase 4 – Scale and assurance
+| Item | Status (version 1.5.0) |
+|---|---|
+| PostgreSQL instead of SQLite and a second node | **Not built, not recommended now.** The load test found the real limit (requests slowing each other down above about 50 simultaneous users) and it was removed: 400 simultaneous users are answered within 0.09 s. Remaining reasons would be availability or a group IT rule – see `docs/LOAD_TEST.md` |
+| Load test in the build | *Built:* `tools/load_test.py`; the build fails when 95 % of the actions take longer than 2 s |
+| Automated browser tests in the build | *Built:* `tests/e2e/run.js` – five roles through sign-in, landscape, flow from text, review / approval / release, change request, KPI, restore drill, phone layout |
+| Accessibility check | *Built:* axe-core (WCAG 2.1 A/AA) on nine pages in the build; all findings fixed. An automated check finds roughly a third of the possible problems – a manual check with keyboard and screen reader is still open |
+| Electronic signature of approvals | *Built as a signed decision record* (person, time, content fingerprint, chained register, optional password at the decision). It is **not** a qualified electronic signature in the legal sense (eIDAS) and the tool is not validated for regulated records – ask the auditor what is required |
+| Dependency scanning | *Built:* pinned versions, pip-audit in the build (no known vulnerability on 2026-11-13), Dependabot weekly |
+| Published release notes | *Built:* `CHANGELOG.md`; the build refuses to publish a version without its section |
+| Restore drill twice a year | *Built:* button and command, logged, reminder after six months. The first drill on the real server is still to be done by IT |
 
 ## 5. Analysis – why this order
 - Publishing 20 real processes creates more value than any feature and exposes what is actually missing. Phase 3 is therefore ordered by what phase 1 teaches.

@@ -189,17 +189,18 @@ def start_session(u, method):
 
 def public_user(u):
     return dict(id=u["id"], username=u["username"], display_name=u["display_name"], role=u["role"],
-                department_id=u["department_id"], must_change=bool(u["must_change"]))
+                department_id=u["department_id"], must_change=bool(u["must_change"]), auth=u.get("auth") or "local")
 
 
 def session_user(token):
     if not token:
         return None
-    s = one("SELECT s.*,u.username,u.display_name,u.role,u.department_id,u.must_change,u.active,u.email,u.notify FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?", (token,))
+    s = one("SELECT s.*,u.username,u.display_name,u.role,u.department_id,u.must_change,u.active,u.email,u.notify,u.auth FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?", (token,))
     if not s or not s["active"] or s["expires_at"] < now():
         return None
     return dict(id=s["user_id"], username=s["username"], display_name=s["display_name"], role=s["role"],
-                department_id=s["department_id"], must_change=bool(s["must_change"]), csrf=s["csrf"], email=s["email"] or "", notify=s["notify"] != 0)
+                department_id=s["department_id"], must_change=bool(s["must_change"]), csrf=s["csrf"], email=s["email"] or "", notify=s["notify"] != 0,
+                session_started=s["created_at"], auth=s["auth"] or "local")
 
 
 def logout(token):
@@ -560,9 +561,94 @@ def _sod(user, v, what):
                         "(an administrator can enable self-approval in Administration for single-user deployments).")
 
 
-def review_decision(pid_text, user, decision, note=""):
+# ------------------------------------------------------------------ signed decisions (electronic approval record)
+SIGN_MEANING = {"reviewed": "Reviewed", "approved": "Approved", "published": "Released for use", "review_confirmed": "Periodic review – no change needed"}
+REAUTH_MINUTES = 15
+
+
+def version_fingerprint(v) -> str:
+    """SHA-256 over everything a reader of this version sees: the content and the flowchart."""
+    xml = ""
+    if v.get("diagram_version_id"):
+        row = one("SELECT xml FROM diagram_versions WHERE id=?", (v["diagram_version_id"],))
+        xml = row["xml"] if row else ""
+    canon = json.dumps(v["content"], sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256((canon + "\n" + hashlib.sha256(xml.encode("utf-8")).hexdigest()).encode("utf-8")).hexdigest()
+
+
+def reauth_required() -> bool:
+    return cfg("signature_reauth", "0") == "1"
+
+
+def prove_identity(user, password=None) -> str:
+    """How the signer proved who they are at the moment of the decision. With the setting "ask again" a local user must
+    type the password again and a single sign-on user must have signed in within the last minutes."""
+    if isinstance(user, str) or not reauth_required():
+        return "signed-in session"
+    u = one("SELECT * FROM users WHERE id=?", (user["id"],))
+    if u.get("auth") == "entra":
+        started = dt.datetime.strptime(user.get("session_started") or "1970-01-01T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+        if dt.datetime.now(dt.timezone.utc) - started > dt.timedelta(minutes=REAUTH_MINUTES):
+            raise Forbidden(f"Signing needs a fresh sign-in: sign out, sign in with Microsoft again and repeat the decision within {REAUTH_MINUTES} minutes.")
+        return f"single sign-on, signed in less than {REAUTH_MINUTES} minutes before"
+    if login_blocked(u["username"]):
+        raise Forbidden(f"Too many wrong passwords. Wait {LOGIN_WINDOW_MIN} minutes and try again.")
+    if not password or not (verify_password(password, u["pw_hash"]) or verify_password(password.strip(), u["pw_hash"])):
+        audit(u["username"], "login_failed", "user", u["id"], "wrong password when signing a decision")
+        raise Forbidden("Signing needs your password: it was missing or wrong.")
+    return "password entered again"
+
+
+def _sign(user, proc, version_id, meaning, method):
+    """Record who decided what on exactly which content. Each record carries the hash of the record before it, so a
+    removed or altered record is found by verify_signatures()."""
+    v = get_version(version_id)
+    prev = one("SELECT sig_hash FROM signatures ORDER BY id DESC LIMIT 1")
+    prev_hash = prev["sig_hash"] if prev else ""
+    uname = user if isinstance(user, str) else user["username"]
+    name = uname if isinstance(user, str) else user["display_name"]
+    role = "system" if isinstance(user, str) else user["role"]
+    ts, fp = now(), version_fingerprint(v)
+    sig = hashlib.sha256("|".join([prev_hash, str(proc["id"]), str(version_id), meaning, uname, name, role, method, ts, fp]).encode("utf-8")).hexdigest()
+    db.db().execute("INSERT INTO signatures(process_id,version_id,meaning,signer,signer_name,signer_role,method,signed_at,fingerprint,prev_hash,sig_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    (proc["id"], version_id, meaning, uname, name, role, method, ts, fp, prev_hash, sig))
+
+
+def signatures(pid: int, version_id=None):
+    """Signature records of a process (or of one version) with their check: `current` = the version still has exactly the signed content."""
+    rows = q("SELECT s.*,v.version,v.status FROM signatures s JOIN process_versions v ON v.id=s.version_id WHERE s.process_id=?" + (" AND s.version_id=?" if version_id else "") + " ORDER BY s.id",
+             (pid, version_id) if version_id else (pid,))
+    fps = {}
+    for r in rows:
+        if r["version_id"] not in fps:
+            fps[r["version_id"]] = version_fingerprint(get_version(r["version_id"]))
+        r["current"] = fps[r["version_id"]] == r["fingerprint"]
+        r["meaning_label"] = SIGN_MEANING.get(r["meaning"], r["meaning"])
+    return rows
+
+
+def verify_signatures():
+    """Check the whole register: the chain (nothing removed, nothing altered) and that every released version still has
+    the content that was approved. -> dict(total, chain_ok, broken=[...], changed=[...])"""
+    rows = q("SELECT s.*,p.process_id AS pid_text,v.version,v.status FROM signatures s JOIN processes p ON p.id=s.process_id JOIN process_versions v ON v.id=s.version_id ORDER BY s.id")
+    broken, changed, prev, last = [], [], "", {}
+    for r in rows:
+        want = hashlib.sha256("|".join([prev, str(r["process_id"]), str(r["version_id"]), r["meaning"], r["signer"], r["signer_name"], r["signer_role"], r["method"], r["signed_at"], r["fingerprint"]]).encode("utf-8")).hexdigest()
+        if r["prev_hash"] != prev or r["sig_hash"] != want:
+            broken.append(dict(id=r["id"], process_id=r["pid_text"], version=r["version"], meaning=r["meaning"], signed_at=r["signed_at"]))
+        prev = r["sig_hash"]
+        if r["meaning"] in ("approved", "published"):
+            last[(r["version_id"], r["meaning"])] = r             # a reworked revision is approved again: the latest record counts
+    for r in last.values():
+        if r["status"] in ("published", "superseded") and version_fingerprint(get_version(r["version_id"])) != r["fingerprint"]:
+            changed.append(dict(id=r["id"], process_id=r["pid_text"], version=r["version"], meaning=r["meaning"], signed_at=r["signed_at"]))
+    return dict(total=len(rows), chain_ok=not broken, broken=broken, changed=changed, checked_at=now())
+
+
+def review_decision(pid_text, user, decision, note="", password=None):
     proc = get_process(pid_text)
     need(user, "review", proc)
+    method = prove_identity(user, password) if decision == "approve_review" else ""
     with tx():
         v = open_version(proc["id"])
         if not v or v["status"] != "under_review":
@@ -582,12 +668,15 @@ def review_decision(pid_text, user, decision, note=""):
             db.db().execute("INSERT INTO comments(process_id,version_id,author,body,kind,created_at) VALUES(?,?,?,?,?,?)",
                             (proc["id"], v["id"], user["username"], note[:4000], "review", now()))
         _log(user, pid_text, "review_" + decision, f"v{v['version']} {note[:200]}")
+        if decision == "approve_review":
+            _sign(user, proc, v["id"], "reviewed", method)
     return get_version(v["id"])
 
 
-def approval_decision(pid_text, user, decision, note=""):
+def approval_decision(pid_text, user, decision, note="", password=None):
     proc = get_process(pid_text)
     need(user, "approve", proc)
+    method = prove_identity(user, password) if decision == "approve" else ""
     with tx():
         v = open_version(proc["id"])
         if not v or v["status"] != "pending_approval":
@@ -607,12 +696,14 @@ def approval_decision(pid_text, user, decision, note=""):
         else:
             raise Invalid("Unknown decision.")
         _log(user, pid_text, "approval_" + decision, f"v{v['version']} {note[:200]}")
+        if decision == "approve":
+            _sign(user, proc, v["id"], "approved", method)
         if decision == "approve" and user["role"] == "admin":
-            publish_locked(proc, v, user)
+            publish_locked(proc, v, user, method)
     return get_version(v["id"])
 
 
-def publish_locked(proc, v, user):
+def publish_locked(proc, v, user, method="signed-in session"):
     ts = now()
     c = db.db()
     c.execute("UPDATE process_versions SET status='superseded', updated_at=? WHERE process_id=? AND status='published'", (ts, proc["id"]))
@@ -627,16 +718,18 @@ def publish_locked(proc, v, user):
               (dt.date.today().isoformat(), nxt, months, "approved", proc["id"]))
     reindex(proc["id"])
     _log(user, proc["process_id"], "published", f"v{major}.{minor}")
+    _sign(user, proc, v["id"], "published", method)
 
 
-def publish(pid_text, user):
+def publish(pid_text, user, password=None):
     proc = get_process(pid_text)
     need(user, "publish", proc)
+    method = prove_identity(user, password)
     with tx():
         v = open_version(proc["id"])
         if not v or v["status"] != "approved":
             raise Conflict("Only an approved revision can be published.")
-        publish_locked(proc, v, user)
+        publish_locked(proc, v, user, method)
     return published_version(proc["id"])
 
 
@@ -807,7 +900,7 @@ def _flow_diff(dva, dvb):
 
 
 # ------------------------------------------------------------------ periodic review
-def confirm_review(pid_text, user, note=""):
+def confirm_review(pid_text, user, note="", password=None):
     """Periodic review with the result "no change needed": the published version stays, the next review date moves on."""
     proc = get_process(pid_text)
     me = {user["username"].lower(), user["display_name"].lower()}
@@ -819,6 +912,7 @@ def confirm_review(pid_text, user, note=""):
     ov = open_version(proc["id"])
     if ov and ov["id"] != pv["id"]:
         raise Conflict("A revision of this process is in work. Finish it instead of confirming the published version.")
+    method = prove_identity(user, password)
     months = proc.get("review_months") or int(cfg("default_review_months", "12"))
     today = dt.date.today()
     y, m = divmod(today.month - 1 + months, 12)
@@ -826,6 +920,7 @@ def confirm_review(pid_text, user, note=""):
     with tx():
         db.db().execute("UPDATE processes SET last_review=?, next_review=? WHERE id=?", (today.isoformat(), nxt, proc["id"]))
         _log(user, proc["process_id"], "review_confirmed", f"v{pv['version']} reviewed without change; next review {nxt}. {(note or '').strip()[:300]}")
+        _sign(user, proc, pv["id"], "review_confirmed", method)
     return dict(last_review=today.isoformat(), next_review=nxt)
 
 
