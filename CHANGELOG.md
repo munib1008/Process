@@ -3,6 +3,11 @@
 Every release has a section here; the build publishes the section of a version as the text of its GitHub Release and
 refuses to publish a version that has none. Newest first.
 
+## Not yet released
+Accessibility, found while preparing the manual check (`docs/ACCESSIBILITY_CHECK.md`):
+- A **Skip to main content** link at the top of every page for keyboard and screen-reader users.
+- Each flow has a **Text version of this flow**: the steps in reading order as a list. Branches and loops are not described; it is an aid, not a replacement for the picture.
+
 ## 1.5.1 – 2026-11-13
 Maintenance release: newer versions of the components the tool is built from. No change in functions or data.
 - Shipped in the Windows package: reportlab 5.1.0 (PDF export, was 5.0.1) and charset-normalizer 3.5.2 (was 3.5.1).

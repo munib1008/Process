@@ -148,3 +148,7 @@ a.lstile{display:block;color:var(--ink)}a.lstile:hover{text-decoration:none;bord
 /* ---------------- accessibility: links inside running text are underlined (not marked by colour alone), visible keyboard focus */
 .main a:not(.btn):not(.tab):not(.bm-leaf):not(.lstile):not(.hot):not(.p):not(.brand),.modal a:not(.btn){text-decoration:underline;text-underline-offset:2px}
 a:focus-visible,button:focus-visible,.tab:focus-visible,summary:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
+
+.skip{position:absolute;left:8px;top:-60px;z-index:100;background:var(--card);color:var(--ink);border:2px solid var(--brand2);border-radius:6px;padding:8px 12px}.skip:focus{top:8px}
+.flowtext{margin:8px 0}.flowtext summary{cursor:pointer}.flowtext ol{margin:6px 0 0;padding-left:22px}
+#main:focus{outline:0}

@@ -56,6 +56,7 @@ function passwordView(forced) {
 function layout() {
   const q = h("input", {type: "text", placeholder: "Search processes, IDs, SAP transactions, diagram labels…", "aria-label": "Search", onkeydown: (e) => { if (e.key === "Enter" && q.value.trim()) location.hash = "#/search/" + encodeURIComponent(q.value.trim()); }});
   return h("div", {class: "layout"},
+    h("a", {class: "skip", href: "#/dashboard", onclick: (e) => { e.preventDefault(); const m = $("#main"); m.setAttribute("tabindex", "-1"); m.focus(); }}, "Skip to main content"),
     h("div", {class: "top"}, h("a", {class: "brand", href: "#/dashboard", "aria-label": "dormakaba MEA Process Hub"}, h("img", {class: "logo-c", src: "/brand/dormakaba_logo.png", alt: "dormakaba"}), h("img", {class: "logo-w", src: "/brand/dormakaba_logo_white.png", alt: ""}), h("span", {class: "prod"}, "MEA Process Hub")), h("div", {class: "search"}, q),
       h("div", {class: "userbox"}, h("span", null, S.user.display_name, " · ", h("span", {class: "chip"}, S.user.role)), h("button", {class: "btn sm", onclick: () => passwordModal()}, "Password"),
         window.top !== window.self ? h("a", {class: "btn sm", href: location.href, target: "_blank", rel: "noopener", title: "Open MEA Process Hub in its own browser tab"}, "Full window ↗") : null,
@@ -286,6 +287,9 @@ function flowCard(d, editing, reload) {
   }
   const img = h("img", {src: previewUrl(dg), alt: "Flowchart " + p.process_id, onclick: () => modal("Process Flow – " + p.process_id, h("img", {class: "big", src: previewUrl(dg), alt: ""}), {wide: true})});
   card.append(img);
+  const stepList = (d.diagram && d.diagram.steps) || [];
+  if (stepList.length) card.append(h("details", {class: "flowtext"}, h("summary", null, "Text version of this flow (" + stepList.length + " steps)"),
+    h("p", {class: "muted", style: "font-size:12px"}, "Steps in reading order, top to bottom. Branches and loops are not described here – see the flow."), h("ol", null, stepList.map((n) => h("li", null, n.label)))));
   const links = dg.nodes.filter((n) => n.meta && n.meta.process_ref);
   const bar = h("div", {class: "row"},
     h("button", {class: "btn sm", onclick: () => img.click()}, "View full screen"),
