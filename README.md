@@ -64,7 +64,7 @@ smoke-tested here as a Linux binary (import of the real documents + all exports)
 ```bash
 pip install -r requirements-dev.txt
 python run.py                 # http://127.0.0.1:8765
-python -m pytest tests -q     # 40 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
+python -m pytest tests -q     # 43 tests: import, workflow, immutability, permissions, CSRF, diagram locks, exports, backup/restore
 ```
 
 ## Architecture (deliberate deviations from the brief)

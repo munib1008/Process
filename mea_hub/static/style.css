@@ -115,3 +115,32 @@ table.syntax td{padding:3px 8px;font-size:12px;vertical-align:top}label.check{di
 .legendgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 14px}.legendgrid .row{gap:6px;flex-wrap:nowrap}
 
 .difftext{white-space:pre-wrap;line-height:1.6}.difftext ins{background:#dff3e4;color:#14532d;text-decoration:none}.difftext del{background:#fde2e0;color:#8f1d15}.diff ul.add li{color:#14532d}.diff ul.del li{color:#8f1d15;text-decoration:line-through}
+
+/* ---------------- landscape, KPI trend */
+.crumb{font-size:13px;color:var(--mute);margin:-4px 0 8px}.crumb a{font-weight:600}
+.lswrap{overflow:auto;max-height:78vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+.lsmap{position:relative;display:block;width:100%}.lsmap img{display:block;width:100%;height:auto}.lsmap.full{width:max-content}.lsmap.full img{width:auto;max-width:none}
+.lsmap a.hot{position:absolute;border:2px solid transparent;border-radius:6px}.lsmap.show a.hot{border-color:var(--brand2);background:rgba(0,53,148,.07)}
+.lsmap a.hot:hover,.lsmap a.hot:focus-visible{border-color:var(--red);background:rgba(228,0,43,.12);outline:0}
+a.lstile{display:block;color:var(--ink)}a.lstile:hover{text-decoration:none;border-color:var(--brand2)}
+.spark{color:var(--brand);display:inline-block;vertical-align:middle}
+
+/* ---------------- phones and small tablets: reading comes first */
+@media(max-width:760px){
+  .layout{grid-template-columns:1fr;grid-template-rows:auto auto 1fr;height:100vh;height:100dvh}
+  .top{grid-column:1;flex-wrap:wrap;gap:8px;padding:8px 10px}.top .prod{display:none}.top .brand img{height:20px}
+  .search{order:3;flex:1 1 100%;max-width:none}.userbox{gap:6px}.userbox>span,.userbox>button:first-of-type{display:none}.top .brand img{height:17px}
+  .nav{display:flex;gap:2px;overflow-x:auto;padding:4px 6px;border-right:0;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+  .nav a{flex:0 0 auto;margin:0;padding:9px 10px;border-left:0;border-bottom:3px solid transparent;white-space:nowrap}.nav a span{display:inline}
+  .main{padding:12px 10px}.page h1{font-size:21px}
+  .g2,.two,.hb{grid-template-columns:minmax(0,1fr)}.g4{grid-template-columns:1fr 1fr}
+  .tree{position:static;max-height:50vh}.tree .hd{cursor:pointer}.tree .hd::after{content:"  ▴ hide"}
+  .tree.shut .hd{margin:0}.tree.shut .hd::after{content:"  ▾ browse all processes"}.tree.shut>*:not(.hd){display:none}
+  table.t{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}table.t th{position:static}
+  .card{padding:12px}.btn{min-height:38px}.btn.sm{min-height:34px}
+  .row{flex-wrap:wrap}.row.spread{align-items:flex-start}
+  .modal,.modal.wide{width:96vw;max-height:92vh}
+  .flowpage{grid-template-columns:1fr;height:auto}.flowpage iframe{height:70vh}
+  .branchmap{overflow-x:auto}.lswrap{max-height:70vh}
+  img{max-width:100%}
+}

@@ -22,6 +22,22 @@ Verified here: set-up and start scripts on a clean copy (import of all 82 files,
 `Secure` session cookie behind HTTPS, sign-in throttling. *Not verified:* an actual Codespace on github.com (cannot be created from this session) – in particular the
 automatic start after the Codespace is created; the fallback is `bash tools/codespace_start.sh`. GitHub Pages is not possible (static files only).
 
+**Phase 3, remaining items 4–10 (2026-11-13, version 1.4.0).** *Done, tested (43 automated tests, browser checks on desktop and an emulated phone):*
+(4) **change requests from readers** – every signed-in user can send a suggestion on the version they read (optionally on one step); it becomes a task
+for owner, department owner and Document Controller and is answered in the audit thread; the reader sees status and answer on the dashboard; at most 25
+open suggestions per person. (9) **comments pinned to a flow step** – audit comments and suggestions can name one step of the flow of that version.
+(8) **reading statistics** – one reading per person, process and day, readers stored under a keyed pseudonym, 400 days retention, report with
+30/90-day readers and never-opened processes. (7) **KPI actuals** – values per month / quarter / year, rating against a target that states a direction,
+trend, Excel sheet *KPI Actuals* out and in; actuals never create a document version. (6) **process landscape** – enterprise maps → department overview
+maps → process, with the linked shapes clickable on the draw.io picture (positions verified against the drawing; a picture that does not match the
+drawing gets no click areas). (10) **phone layout** – top menu bar, folding process list, sideways-scrolling tables. (5) **flow builder** – parallel
+steps between split/join bars and a swimlane layout; both read back into the activity table, pass the flow check and export to BPMN (parallel gateways);
+the 84 shipped flows still regenerate byte-identically. Also fixed: a slow page could overwrite the page opened after it.
+*Limits, stated plainly:* the landscape is only as clickable as the maps are linked (measured on the supplied maps: Level 1 value stream 9 of 77 shapes,
+Level 0 none, department overviews 0–8); no imported KPI has a target, so every KPI shows "not rated" until owners write targets with a direction;
+reading in the SharePoint copy and in exports is not counted; the phone layout was checked in an emulated iPhone 13 only; swimlanes are background
+shapes – dragging a step to another lane does not change its role; lanes are not exported as BPMN lanes. *Not built:* BPMN import.
+
 **Phase 3, first three items (2026-11-12, version 1.3.0).** *Done, tested:* (1) **BPMN 2.0 export** (`mea_hub/bpmn.py`): events, tasks with the role as performer,
 gateways with named flows, call activities, annotations, swimlanes as groups, diagram interchange with the layout; button on the process page and `.bpmn` files in the
 Diagrams ZIP. All 90 supplied flows parse without warnings in the bpmn.io parser; two opened in the bpmn.io viewer. (2) **Version comparison**: word-level text changes,

@@ -66,3 +66,13 @@ it falls back to `embed.diagrams.net`; the release package contains the local co
 ## 6. Where to look
 `mea_hub/security.py` (passwords, sanitiser, XML checks), `mea_hub/server.py` (headers, cookies, routes), `mea_hub/service.py` (`can`, `need`,
 workflow), `mea_hub/sso.py`, `mea_hub/notify.py`, `deploy/` (proxy samples), `.github/workflows/build-exe.yml` (build and start-up test).
+
+## Additions in version 1.4.0
+| Area | Control | Test |
+|---|---|---|
+| Suggestions from readers (`POST /api/process/<id>/change-request`) | The only write path of the reader role. Needs a session and the CSRF token; only on a version the user may read; text limited to 4,000 characters and stored as plain text; at most 25 open suggestions per user; recorded in the audit log with the user name. | `test_readers_suggest_changes_and_comments_are_pinned_to_a_step` |
+| KPI actuals (`POST /api/kpis/value`) | Edit permission on the process; KPI must exist in the document; period and number validated; audit log. | `test_reading_statistics_and_kpi_actuals` |
+| Reading statistics | Reader stored as keyed hash, counts only in the report, 400 days retention. | same test |
+| Landscape | Readers get published maps only; click areas are computed on the server from the drawing, the page inserts no markup from documents. | `test_parallel_steps_swimlanes_and_landscape` |
+
+Known gap: there is no rate limit per minute on suggestions beyond the cap of 25 open ones.

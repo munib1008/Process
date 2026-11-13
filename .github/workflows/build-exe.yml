@@ -98,6 +98,12 @@ jobs:
                       -Body (@{ title = 'Smoke flow'; steps = "Logistics: Create delivery (VL01N)`nStock available?`nNo: End`nWarehouse: Post goods issue" } | ConvertTo-Json)
             Write-Host "Flow built from text: $($flow.steps) steps, $($flow.warnings.Count) remarks"
             if ($flow.steps -ne 3 -or $flow.warnings.Count -ne 0) { throw "Flow builder failed" }
+            $lanes = Invoke-RestMethod "$base/api/flows/build" -Method Post -WebSession $sess -Headers $h -ContentType 'application/json' `
+                      -Body (@{ title = 'Smoke lanes'; layout = 'lanes'; steps = "Logistics: Create delivery (VL01N)`nParallel: Warehouse: Pick goods`nParallel: Logistics: Book transport`nWarehouse: Post goods issue" } | ConvertTo-Json)
+            $land = Invoke-RestMethod "$base/api/landscape" -WebSession $sess
+            $vs = Invoke-RestMethod "$base/api/landscape/SC-M-VS-01" -WebSession $sess
+            Write-Host "Swimlane flow: $($lanes.steps) steps; landscape: $($land.enterprise.Count) enterprise maps, $($land.departments.Count) departments, $($vs.hotspots.Count) clickable shapes on the value stream"
+            if ($lanes.steps -ne 4 -or $lanes.warnings.Count -ne 0 -or $land.enterprise.Count -lt 2 -or $vs.hotspots.Count -lt 5) { throw "Swimlanes or landscape failed" }
             $health = Invoke-RestMethod "$base/api/health"
             $dr = Invoke-RestMethod "$base/api/drafts" -WebSession $sess
             Write-Host "Health: $($health.ok); draft SAP work instructions: $($dr.sap_drafts); processes still without draft RACI: $($dr.raci_missing)"

@@ -42,3 +42,11 @@ This step has not been run (no certificate was available).
 
 ## Hosting, SharePoint and Teams
 One shared installation on an internal server: `docs/SERVER_AND_SHAREPOINT.md`. Teams channel tab: `docs/TEAMS.md`. Roadmap: `docs/ROADMAP.md`.
+
+## Reading statistics and data protection (version 1.4.0)
+Opening a process stores one row per person, process and day in the table `views`. The person is stored as a keyed hash (the key is the
+configuration value `usage_salt`, created on first use), not as user ID or name; rows older than 400 days are deleted on the first day of a month.
+The report under *Reports ▸ Reading statistics* shows counts only. Whoever holds the database **and** the key could still test whether a known
+user opened a process – treat the database file as before (access for administrators only). If the works council or data protection officer
+requires it, the counting can be stopped by deleting the rows (`DELETE FROM views`) and blocking the report for the roles concerned; ask before
+rolling the tool out widely.

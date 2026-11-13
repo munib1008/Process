@@ -81,6 +81,7 @@ def process_detail(user, pid_text, version_id=None):
             dv["latest_ver"] = latest["ver_no"]
             dv["locked_by"] = dv["lock_user"] if dv["lock_user"] and dv["lock_expires"] and dv["lock_expires"] > svc.now() else None
             dv["nodes"] = svc.diagram_nodes(dv["id"]) if staff else []
+            dv["steps"] = svc.flow_steps(dv["id"])            # what a comment or a change request can be pinned to
             dv["checks"] = svc.flow_checks(dv["id"]) if staff else None
             dv["picture"] = svc.picture_info(dv["id"]) if staff else None
             diagram = dv
@@ -211,12 +212,86 @@ def raci_report(user):
 
 
 def kpi_report(user):
+    """KPI register with the recorded actuals: latest value, rating against the target and the last 12 periods."""
     out = []
     for r in _summary_rows(user):
         v = svc.latest_version(r["id"]) if svc.can(user, "view_all") else svc.published_version(r["id"])
-        for k in v["content"].get("kpis", []):
-            out.append(dict(process_id=r["process_id"], process=r["name"], department=r["department"], **k))
+        kpis = v["content"].get("kpis", [])
+        vals = svc.kpi_values(r["id"]) if kpis else {}
+        can_enter = svc.can(user, "edit", r) if kpis else False
+        for k in kpis:
+            hist = vals.get((k.get("name") or "").strip().lower(), [])
+            last = hist[-1] if hist else None
+            t = svc.parse_target(k.get("target"))
+            out.append(dict(process_id=r["process_id"], process=r["name"], department=r["department"], owner=r["owner"], **k,
+                            target_value=t[1] if t else None, target_rule=t[0] if t else None,
+                            latest=last, status=svc.kpi_status(k.get("target"), last["value"] if last else None),
+                            history=[dict(period=h["period"], value=h["value"], status=svc.kpi_status(k.get("target"), h["value"]), note=h["note"]) for h in hist[-12:]],
+                            can_enter=can_enter))
     return out
+
+
+def usage_report(user):
+    """Reading statistics: how many different people opened each process. Counts only – nobody's reading list is shown."""
+    svc.need(user, "view_all")
+    today = dt.date.today()
+    d30, d90 = (today - dt.timedelta(days=30)).isoformat(), (today - dt.timedelta(days=90)).isoformat()
+    stat = {r["process_id"]: r for r in q("""SELECT process_id, COUNT(DISTINCT CASE WHEN day>=? THEN user_id END) AS readers_30,
+                                                  COUNT(DISTINCT CASE WHEN day>=? THEN user_id END) AS readers_90,
+                                                  SUM(CASE WHEN day>=? THEN 1 ELSE 0 END) AS readings_90, MAX(day) AS last_read
+                                           FROM views GROUP BY process_id""", (d30, d90, d90))}
+    rows = []
+    for r in _summary_rows(user):
+        if r["kind"] == "reference":
+            continue
+        s = stat.get(r["id"], {})
+        rows.append(dict(process_id=r["process_id"], name=r["name"], department=r["department"], status=r["status"], published=bool(r["published_version"]),
+                         readers_30=s.get("readers_30") or 0, readers_90=s.get("readers_90") or 0, readings_90=s.get("readings_90") or 0, last_read=s.get("last_read")))
+    rows.sort(key=lambda x: (-x["readers_90"], -x["readings_90"], x["process_id"]))
+    since = one("SELECT MIN(day) AS d FROM views")["d"]
+    return dict(rows=rows, since=since, total=len(rows), never=sum(1 for x in rows if not x["last_read"]),
+                unread_90=sum(1 for x in rows if not x["readers_90"]), published_unread_90=sum(1 for x in rows if x["published"] and not x["readers_90"]),
+                people_30=one("SELECT COUNT(DISTINCT user_id) AS n FROM views WHERE day>=?", (d30,))["n"])
+
+
+OVERVIEW_KINDS = ("e2e", "department")
+
+
+def landscape(user):
+    """Process landscape for drill-down: the enterprise maps, then per department its overview maps and its processes.
+    Levels follow the record type (enterprise map / department overview / process / work instruction) – nothing is re-classified."""
+    rows = _summary_rows(user)
+    def item(r):
+        dv = one("SELECT diagram_version_id AS d FROM process_versions WHERE id=?", (r["version_id"],))["d"]
+        linked = one("SELECT COUNT(*) AS n FROM diagram_nodes WHERE diagram_version_id=? AND meta LIKE '%\"process_ref\"%'", (dv,))["n"] if dv else 0
+        return dict(process_id=r["process_id"], name=r["name"], kind=r["kind"], status=r["status"], has_diagram=r["has_diagram"], linked=linked)
+    ent_dept = next((r["dept_code"] for r in rows if r["kind"] == "e2e" and (r["dept_code"] or "").upper() == "E2E"), None)
+    enterprise = [item(r) for r in rows if r["kind"] == "e2e" and r["dept_code"] == ent_dept and r["has_diagram"]] if ent_dept else []
+    enterprise.sort(key=lambda x: (0 if x["name"].lower().startswith("level") else 1, x["name"]))
+    depts = {}
+    for r in rows:
+        d = depts.setdefault(r["dept_code"] or "", dict(code=r["dept_code"] or "", name=r["department"] or "No department", total=0, published=0, overviews=[], instructions=0))
+        if r["kind"] == "reference":
+            continue
+        d["total"] += 1
+        d["published"] += 1 if r["published_version"] else 0
+        d["instructions"] += 1 if r["kind"] == "work_instruction" else 0
+        if r["kind"] in OVERVIEW_KINDS and r["has_diagram"] and not (r["kind"] == "e2e" and r["dept_code"] == ent_dept):
+            d["overviews"].append(item(r))
+    for d in depts.values():
+        d["overviews"].sort(key=lambda x: (0 if x["kind"] == "department" else 1, x["name"]))
+    return dict(enterprise=enterprise, enterprise_dept=ent_dept, departments=[d for d in depts.values() if d["total"]])
+
+
+def landscape_flow(user, pid_text):
+    """Picture of a map with the shapes that open a process (for the version this user may see)."""
+    p = svc.get_process(pid_text)
+    v = svc.latest_version(p["id"]) if svc.can(user, "view_all") else svc.published_version(p["id"])
+    if not v:
+        raise svc.Forbidden("This process has no published version yet.")
+    if not v.get("diagram_version_id"):
+        return dict(process_id=p["process_id"], name=p["name"], picture=None, hotspots=[], shapes=0, linked=0)
+    return dict(process_id=p["process_id"], name=p["name"], version=v["version"], status=v["status"], **svc.flow_hotspots(v["diagram_version_id"]))
 
 
 def escalation_report(user):
@@ -372,7 +447,11 @@ def register_xlsx(user) -> bytes:
           [[f["id"], f["kind"], f["severity"], f["status"], f["filename"], f["pid_text"], f["title"], f["detail"], f["decision"]] for f in findings()])
     sheet("Escalation & SLA", ["Process ID", "Department", "Stage", "Task / Reminder to", "Time period", "Escalation", "Previous SLA"],
           [[e["process_id"], e["department"], e["stage"], e["to"], e["time"], e["action"], e["sla"]] for e in escalation_report(user)])
-    sheet("KPI Register", ["Process ID", "Department", "KPI", "Definition", "Target"], [[k["process_id"], k["department"], k["name"], k["definition"], k["target"]] for k in kpi_report(user)])
+    kp = kpi_report(user)
+    sheet("KPI Register", ["Process ID", "Department", "KPI", "Definition", "Target"], [[k["process_id"], k["department"], k["name"], k["definition"], k["target"]] for k in kp])
+    sheet("KPI Actuals", ["Process ID", "KPI", "Period", "Value", "Note", "Target", "Rating"],
+          [[k["process_id"], k["name"], h["period"], h["value"], h["note"], k["target"], h["status"] or ""] for k in kp for h in k["history"]]
+          or [[k["process_id"], k["name"], "", "", "", k["target"], ""] for k in kp[:400]])
     sheet("Editable Flowchart Index", ["Diagram code", "Process ID", "Latest revision", "Validation", "Origin"],
           [[d["code"], d["pid"], d["ver_no"], d["validation"], d["origin"]] for d in q("SELECT d.code,p.process_id pid,dv.ver_no,dv.validation,dv.origin FROM diagrams d LEFT JOIN processes p ON p.id=d.process_id JOIN diagram_versions dv ON dv.diagram_id=d.id AND dv.ver_no=(SELECT MAX(ver_no) FROM diagram_versions WHERE diagram_id=d.id)")])
     sheet("Cross-Functional RACI", ["Process ID", "Activity", "R", "A", "C", "I"],
@@ -512,6 +591,14 @@ def import_register(user, data: bytes) -> dict:
                 report["raci_processes" if field == "raci" else "kpi_processes"] += 1
             except (svc.NotFound, svc.Forbidden, svc.Invalid, svc.Conflict) as e:
                 report["errors"].append(f"{field} {pid_text}: {e}")
+    report["kpi_values"] = 0
+    for r in rows("KPI Actuals"):                            # Process ID, KPI, Period (2026-10 / 2026-Q4 / 2026), Value, Note
+        if r.get("process id") and r.get("kpi") and r.get("period") and r.get("value") not in (None, ""):
+            try:
+                svc.record_kpi_value(user, r["process id"], r["kpi"], r["period"], r["value"], r.get("note", ""))
+                report["kpi_values"] += 1
+            except (svc.NotFound, svc.Forbidden, svc.Invalid) as e:
+                report["errors"].append(f"KPI actual {r['process id']} / {r['kpi']} / {r['period']}: {e}")
     svc.audit(user, "register_imported", "system", None, json.dumps({k: v for k, v in report.items() if k != "errors"}) + f" errors={len(report['errors'])}")
     return report
 

@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS exports(
   id INTEGER PRIMARY KEY, ts TEXT NOT NULL, username TEXT, scope TEXT NOT NULL, fmt TEXT NOT NULL, status TEXT NOT NULL,
   filename TEXT, sha256 TEXT, size INTEGER, snapshot_hash TEXT, snapshot TEXT, error TEXT);
 CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS views(process_id INTEGER NOT NULL, day TEXT NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY(process_id, day, user_id));
+CREATE TABLE IF NOT EXISTS kpi_values(id INTEGER PRIMARY KEY, process_id INTEGER NOT NULL REFERENCES processes(id), kpi TEXT NOT NULL, period TEXT NOT NULL, value REAL NOT NULL, note TEXT NOT NULL DEFAULT '', entered_by TEXT NOT NULL, entered_at TEXT NOT NULL, UNIQUE(process_id, kpi, period));
 CREATE TABLE IF NOT EXISTS notified(user_id INTEGER NOT NULL, key TEXT NOT NULL, sent_at TEXT NOT NULL, PRIMARY KEY(user_id, key));
 CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY, user_id INTEGER, channel TEXT NOT NULL, subject TEXT NOT NULL, status TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sso_states(state TEXT PRIMARY KEY, nonce TEXT NOT NULL, verifier TEXT NOT NULL, popup INTEGER NOT NULL DEFAULT 0, created REAL NOT NULL);
@@ -110,7 +112,8 @@ def close_all_for_thread():
 MIGRATIONS = {   # table -> columns added after the first release (applied with ALTER TABLE when missing)
     "comments": [("category", "TEXT NOT NULL DEFAULT 'comment'"), ("severity", "TEXT NOT NULL DEFAULT 'info'"), ("status", "TEXT NOT NULL DEFAULT 'open'"),
                  ("version_label", "TEXT NOT NULL DEFAULT ''"), ("section", "TEXT NOT NULL DEFAULT ''"), ("parent_id", "INTEGER"),
-                 ("resolution", "TEXT NOT NULL DEFAULT ''"), ("resolved_by", "TEXT"), ("resolved_at", "TEXT")],
+                 ("resolution", "TEXT NOT NULL DEFAULT ''"), ("resolved_by", "TEXT"), ("resolved_at", "TEXT"),
+                 ("node_id", "TEXT"), ("node_label", "TEXT NOT NULL DEFAULT ''")],        # a comment can be pinned to one shape of the flow
     "diagram_versions": [("preview_box", "TEXT")],
     "users": [("auth", "TEXT NOT NULL DEFAULT 'local'"), ("external_id", "TEXT"), ("last_login", "TEXT"),
               ("email", "TEXT"), ("notify", "INTEGER NOT NULL DEFAULT 1")],      # single sign-on (Entra ID)

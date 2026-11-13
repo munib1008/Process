@@ -1,6 +1,6 @@
 "use strict";
 let editorInst = null;
-const NAV = [["#/dashboard", "Dashboard", "▦"], ["#/handbook", "Master Handbook", "☰"], ["#/library", "Process Library", "≣"], ["#/flow", "Flow Studio", "⬡"], ["#/departments", "Departments", "▤"],
+const NAV = [["#/dashboard", "Dashboard", "▦"], ["#/landscape", "Process Landscape", "◫"], ["#/handbook", "Master Handbook", "☰"], ["#/library", "Process Library", "≣"], ["#/flow", "Flow Studio", "⬡"], ["#/departments", "Departments", "▤"],
   ["#/governance", "Governance", "⚖"], ["#/audit", "Audit & Review", "✎"], ["#/reports", "Reports", "◔"], ["#/import", "Import & Sources", "⇪"], ["#/export", "Export Center", "⇩"], ["#/admin", "Administration", "⚙"]];
 
 async function boot() {
@@ -66,8 +66,10 @@ function layout() {
 function svgIcon() { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none"); s.setAttribute("stroke-width", "2"); s.setAttribute("stroke-linecap", "round"); const p = document.createElementNS("http://www.w3.org/2000/svg", "path"); p.setAttribute("d", "M5 8h14M5 12h14M5 16h9"); s.append(p); return s; }
 function passwordModal() { const m = modal("Change password", passwordView(false).firstChild); }
 
+let routeSeq = 0;
 async function route() {
   const main = $("#main"); if (!main) return;
+  const seq = ++routeSeq;                                    // a slow page must not replace the page opened after it
   if (main.__cleanup) { main.__cleanup(); main.__cleanup = null; }
   if (editorInst) { editorInst.dispose(); editorInst = null; }
   const parts = (location.hash || "#/dashboard").slice(2).split("/").map(decodeURIComponent);
@@ -75,9 +77,10 @@ async function route() {
   document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("on", a.dataset.nav === "#/" + (top === "process" ? "handbook" : top === "search" ? "" : top)));
   clear(main).append(h("p", {class: "muted"}, "Loading…"));
   try {
-    const V = {dashboard: viewDashboard, handbook: viewHandbook, process: viewHandbook, library: viewLibrary, flow: viewFlow, departments: viewDepartments, governance: viewGovernance,
+    const V = {dashboard: viewDashboard, landscape: viewLandscape, handbook: viewHandbook, process: viewHandbook, library: viewLibrary, flow: viewFlow, departments: viewDepartments, governance: viewGovernance,
       reports: viewReports, audit: viewAudit, import: viewImport, export: viewExport, admin: viewAdmin, search: viewSearch, new: viewNew};
     const node = await (V[top] || viewDashboard)(...parts.slice(1));
+    if (seq !== routeSeq) return;
     if (node) {
       const h1 = node.querySelector && node.querySelector("h1");
       const navItem = NAV.find((n) => n[0] === "#/" + (top === "process" ? "handbook" : top));
@@ -87,7 +90,7 @@ async function route() {
       }
       clear(main).append(node);
     }
-  } catch (e) { clear(main).append(h("div", {class: "banner bad"}, e.message)); }
+  } catch (e) { if (seq !== routeSeq) return; clear(main).append(h("div", {class: "banner bad"}, e.message)); }
   main.scrollTop = 0;
 }
 const reloadTree = async () => { S.tree = (await GET("/api/tree")).departments; };
@@ -100,11 +103,15 @@ async function viewDashboard() {
   const kpi = (n, l, href, cls) => h("div", {class: "card kpi " + (cls || ""), onclick: () => href && (location.hash = href)}, h("div", {class: "n"}, n), h("div", {class: "l"}, l));
   const list = (items, empty, fn) => items.length ? h("ul", {style: "margin:0;padding-left:18px"}, items.slice(0, 8).map(fn), items.length > 8 ? h("li", {class: "muted"}, "… " + (items.length - 8) + " more") : null) : h("p", {class: "muted"}, empty);
   const ip = d.import_progress;
+  const mine = (await GET("/api/my-requests")).rows;
+  const mineCard = mine.length ? h("div", {class: "card"}, h("h3", null, "My change requests (" + mine.length + ")"), table(["Process", "My suggestion", "Status", "Answer"],
+    mine.slice(0, 10).map((x) => [pLink(x.process_id, x.process_id + " – " + x.name), x.body.length > 160 ? x.body.slice(0, 160) + "…" : x.body, h("span", {class: "chip " + (x.status === "open" ? "warn" : "ok")}, x.status), x.resolution || "—"]))) : null;
   return h("div", {class: "page"}, h("h1", null, "Enterprise overview"), h("div", {class: "sub"}, "Live from the process database – nothing here is sample data. " + d.sources + " source document(s) imported."),
     S.cfg.notifications ? h("label", {class: "check", style: "margin:0 0 10px"}, h("input", {type: "checkbox", checked: S.user.notify !== false, onchange: (e) => guard(async () => {
       const r = await PUT("/api/me/notify", {enabled: e.target.checked}); S.user.notify = r.enabled; toast(r.enabled ? "You will get e-mails about new tasks" : "E-mails about tasks are switched off for you"); })}),
       " E-mail me when work is waiting for me" + (S.user.email || /@/.test(S.user.username) ? "" : " (no e-mail address is stored for you yet – ask the administrator)")) : null,
     inbox.length ? h("div", {class: "card"}, h("h3", null, "My tasks (" + inbox.length + ")"), table(["Task", "Process", "Detail"], inbox.slice(0, 12).map((x) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(x.process_id)), cells: [h("span", {class: "chip warn"}, x.kind), x.process_id + " – " + x.name, x.detail]})))) : null,
+    mineCard,
     h("div", {class: "grid g4"}, kpi(d.total, "Registered processes", "#/library"), kpi(d.by_status.published || 0, "Published (approved)", "#/library"),
       kpi(d.pending.length, "In review / approval", "#/governance/approvals", d.pending.length ? "warn" : ""), kpi(d.findings.high, "High-severity open findings", "#/reports/findings", d.findings.high ? "bad" : ""),
       kpi(d.needs_flow_validation, "Flowcharts requiring validation", "#/reports/gaps", d.needs_flow_validation ? "warn" : ""), kpi(d.missing_owner.length, "Processes without owner", "#/reports/gaps", "warn"),
@@ -149,7 +156,7 @@ function procLink(p, current, label) {
     h("span", {class: "dot s-" + p.status}), label || p.name);
 }
 function treePanel(current) {
-  const wrap = h("div", {class: "tree"}, h("div", {class: "hd"}, "MASTER HANDBOOK"));
+  const wrap = h("div", {class: "tree" + (current ? " shut" : "")}, h("div", {class: "hd", onclick: () => wrap.classList.toggle("shut")}, "MASTER HANDBOOK"));   // on phones the list is folded while a process is open
   for (const d of S.tree) {
     const has = d.processes.some((p) => p.process_id === current);
     const det = h("details", {open: has || (!current && d.processes.length && d === S.tree.find((x) => x.processes.length))}, h("summary", null, d.name, h("span", {class: "cnt"}, d.processes.length)));
@@ -220,6 +227,14 @@ async function processPage(pid, versionId, editing) {
     const why = await promptBox("Change process ID", "Reason (recorded in the change log)", {multiline: true, required: true}); if (why === null) return;
     await guard(async () => { const r = await POST("/api/process/" + encodeURIComponent(pid) + "/rename", {new_id: nid, reason: why}); await reloadTree(); toast("Process ID changed to " + r.process_id); location.hash = "#/process/" + encodeURIComponent(r.process_id); });
   }}, "Change ID"));
+  bar.append(h("button", {class: "btn", title: "Tell the process owner that something is wrong or outdated", onclick: () => {
+    const txt = h("textarea", {placeholder: "What should change, and why? e.g. “Step 4 is now done by Logistics, not by the Warehouse.”", style: "min-height:110px"});
+    const steps = (d.diagram && d.diagram.steps) || [], step = h("select", null, h("option", {value: ""}, "whole process"), steps.map((n) => h("option", {value: n.node_id}, n.label.slice(0, 70))));
+    const m = modal("Suggest a change – " + p.process_id, h("div", null, h("p", {class: "muted"}, "Your suggestion goes to the process owner and the Document Controller with your name. The process itself is not changed until they revise it."),
+      steps.length ? h("div", null, h("label", null, "About the step"), step) : null, h("label", null, "Your suggestion"), txt,
+      h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => guard(async () => { await POST("/api/process/" + encodeURIComponent(pid) + "/change-request", {body: txt.value, node_id: step.value || null}); m.close(); toast("Sent to the process owner"); if (d.comments) reload(); })}, "Send"),
+        h("button", {class: "btn", onclick: () => m.close()}, "Cancel"))));
+  }}, "Suggest a change"));
   bar.append(h("button", {class: "btn", onclick: () => doExport({scope: "process", ids: [pid], fmt: "docx", version_id: versionId || undefined})}, "DOCX"), h("button", {class: "btn", onclick: () => doExport({scope: "process", ids: [pid], fmt: "pdf", version_id: versionId || undefined})}, "PDF"));
 
   const head = h("div", {class: "phead"}, h("div", null, h("div", {class: "kicker"}, (p.department || "") + " · Master Handbook"), h("h1", null, p.name), h("div", {class: "pid"}, p.process_id + " · Version " + v.version + " · " + (p.department || "") + (p.countries ? " · " + p.countries : "") + (p.chart_id && p.chart_id !== p.process_id ? " · source chart ID " + p.chart_id : ""))),
@@ -307,20 +322,22 @@ async function flowWizard(p, content, hasDiagram) {
     h("option", {value: ""}, "Start from template…"), Object.entries(S.cfg.templates).map(([k, n]) => h("option", {value: k}, n)));
   const hasActs = p && content && (content.activities || []).length;
   const fromActs = hasActs ? h("button", {class: "btn sm", onclick: () => guard(async () => { ta.value = (await GET("/api/flows/steps?process_id=" + encodeURIComponent(p.process_id))).steps; })}, "Use the activity table (" + content.activities.length + " rows)") : null;
+  const layoutSel = h("select", {style: "width:auto", "aria-label": "Layout", title: "Swimlanes: one lane per role, each step in the lane of its role"}, Object.entries(S.cfg.flow_layouts || {column: "Single column"}).map(([k, n]) => h("option", {value: k}, n)));
   const m = modal(p ? "New flow from steps – " + p.process_id : "New flow from steps", h("div", null,
     h("p", {class: "muted"}, "Write one line per step. The tool draws the standard flow (start, end, role colours, frame and master legend) – you can refine it in Flow Studio afterwards."),
     h("table", {class: "t syntax"}, h("tbody", null, [["Role: activity", "Activity of a role of the master legend, e.g. “Logistics: Create delivery (VL01N)”. SAP codes are picked up."],
       ["Text ending with ?", "Decision. The next line is the “Yes” path."], ["No: …  /  Yes: …", "The other answer of the decision above; repeat for more steps on that branch, “No: End” finishes it."],
+      ["Parallel: …", "Two to four lines in a row that start with “Parallel:” run at the same time (drawn between a split bar and a join bar)."],
       ["Note: …", "Note or checklist attached to the step above."], ["Ref: WL-M-OB-01 …", "Linked process."], ["Start: … / End: …", "Own wording for the start and end shapes (optional)."]]
       .map(([a, b]) => h("tr", null, h("td", {class: "mono nowrap"}, a), h("td", null, b))))),
     title ? h("div", null, h("label", null, "Title"), title) : null,
-    h("div", {class: "row", style: "margin:10px 0 6px"}, roleSel, tplSel, fromActs),
+    h("div", {class: "row", style: "margin:10px 0 6px"}, roleSel, tplSel, fromActs, h("span", {class: "muted"}, "Layout"), layoutSel),
     ta,
     p ? h("label", {class: "check"}, link, " Link the flow to the document: the activity table, the responsible roles and the SAP references follow the flow from now on (they are replaced now).") : null,
     hasDiagram ? h("div", {class: "banner info", style: "margin-top:8px"}, "The current flowchart stays in the revision history; the new flow becomes the next revision of the draft.") : null,
     out,
     h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => guard(async () => {
-      const r = await POST("/api/flows/build", {process_id: p ? p.process_id : null, title: title ? title.value : "", steps: ta.value, link: link.checked});
+      const r = await POST("/api/flows/build", {process_id: p ? p.process_id : null, title: title ? title.value : "", steps: ta.value, link: link.checked, layout: layoutSel.value});
       const go = () => { m.close(); location.hash = "#/flow/" + r.diagram_id; };
       if (!r.warnings.length) { toast("Flow created: " + r.steps + " steps"); return go(); }
       clear(out).append(h("div", {class: "banner warn", style: "margin-top:8px"}, h("b", null, "Flow created (" + r.steps + " steps) with " + r.warnings.length + " remark(s):"), h("ul", null, r.warnings.map((w) => h("li", null, w))),
@@ -367,7 +384,7 @@ function commentThread(d, pid, cm, all) {
   }}, label);
   return h("div", {class: "card cm st-" + cm.status}, h("div", {class: "row spread"},
       h("div", {class: "row"}, h("span", {class: "chip " + (cm.category === "nonconformity" ? "bad" : cm.category === "observation" || cm.category === "improvement" ? "warn" : "")}, cm.category),
-        cm.severity !== "info" ? h("span", {class: "chip " + (cm.severity === "major" ? "bad" : "warn")}, cm.severity) : null, cm.section ? h("span", {class: "chip"}, cm.section) : null,
+        cm.severity !== "info" ? h("span", {class: "chip " + (cm.severity === "major" ? "bad" : "warn")}, cm.severity) : null, cm.section ? h("span", {class: "chip"}, cm.section) : null, cm.node_label ? h("span", {class: "chip info", title: "Pinned to this step of the flowchart"}, "Step: " + cm.node_label.slice(0, 50)) : null,
         h("b", null, cm.author), h("span", {class: "muted"}, fmtDate(cm.created_at) + " · raised on v" + (cm.version_label || "?") + (stale ? " (current v" + d.versions[0].version + ")" : ""))),
       h("span", {class: "chip " + (cm.status === "open" ? "warn" : cm.status === "in_progress" ? "s-under_review" : "ok")}, cm.status.replace("_", " "))),
     h("div", {style: "white-space:pre-wrap;margin:6px 0"}, cm.body),
@@ -381,8 +398,9 @@ function commentThread(d, pid, cm, all) {
 function commentForm(d, pid) {
   const sel = (opts, lab) => h("select", {style: "width:auto", "aria-label": lab}, opts.map((o) => h("option", {value: o}, o || "General")));
   const cat = sel(S.cfg.comment_categories, "Category"), sev = sel(S.cfg.comment_severities, "Severity"), sec = sel(S.cfg.comment_sections, "Section"), body = h("textarea", {placeholder: "Comment, question, audit observation or non-conformity…"});
-  return h("div", {class: "card"}, h("h3", null, "Add comment on version " + d.version.version), h("div", {class: "row", style: "margin-bottom:6px"}, "Type", cat, "Severity", sev, "About", sec), body,
-    h("button", {class: "btn pri", style: "margin-top:8px", onclick: () => guard(async () => { await POST("/api/process/" + encodeURIComponent(pid) + "/comments", {body: body.value, category: cat.value, severity: sev.value, section: sec.value, version_id: d.version.id}); toast("Comment recorded"); d.reload(); })}, "Post comment"));
+  const steps = (d.diagram && d.diagram.steps) || [], step = h("select", {style: "width:auto;max-width:260px", "aria-label": "Flow step"}, h("option", {value: ""}, "whole process"), steps.map((n) => h("option", {value: n.node_id}, n.label.slice(0, 60))));
+  return h("div", {class: "card"}, h("h3", null, "Add comment on version " + d.version.version), h("div", {class: "row", style: "margin-bottom:6px"}, "Type", cat, "Severity", sev, "About", sec, steps.length ? "Flow step" : null, steps.length ? step : null), body,
+    h("button", {class: "btn pri", style: "margin-top:8px", onclick: () => guard(async () => { await POST("/api/process/" + encodeURIComponent(pid) + "/comments", {body: body.value, category: cat.value, severity: sev.value, section: sec.value, version_id: d.version.id, node_id: step.value || null}); toast("Comment recorded"); d.reload(); })}, "Post comment"));
 }
 function tabsView(d, pid, reload) {
   const c = d.version.content, openC = d.comments.filter((x) => !x.parent_id && ["open", "in_progress"].includes(x.status)).length;
@@ -534,7 +552,10 @@ async function viewGovernance(tab) {
     table(["Process", "Department", "Owner", "Responsible (source)", "RACI rows", "Issues"], r.rows.map((x) => ({click: () => (location.hash = "#/process/" + encodeURIComponent(x.process_id)), cells: [x.process_id + " – " + x.name, x.department, x.owner || "—", x.responsible_listed.join(", "), x.raci.length, x.issues.length ? h("span", {class: "chip bad"}, x.issues[0] + (x.issues.length > 1 ? " (+" + (x.issues.length - 1) + ")" : "")) : h("span", {class: "chip ok"}, "OK")]})))); }
   else if (tab === "escalation") { const r = await GET("/api/escalation"); body = h("div", null, can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", style: "margin-bottom:10px", onclick: () => quickAdd("escalation")}, "+ Add / edit escalation rules for a process") : null, r.rows.length ? table(["Process", "Department", "Stage", "Task / reminder to", "Time period", "Escalation", "Previous SLA"], r.rows.map((x) => [pLink(x.process_id), x.department, x.stage, x.to, x.time, x.action, x.sla])) : h("p", null, "No escalation data.")); }
   else if (tab === "kpis") { const r = await GET("/api/kpis"); body = h("div", null, can("admin", "controller", "dept_owner", "editor") ? h("button", {class: "btn pri", style: "margin-bottom:10px", onclick: () => quickAdd("kpis")}, "+ Add / edit KPIs for a process") : null,
-    r.rows.length ? table(["Process", "Department", "KPI", "Definition", "Target"], r.rows.map((x) => [pLink(x.process_id), x.department, x.name, x.definition, x.target])) : h("p", null, "No KPIs defined yet.")); }
+    kpiSummary(r.rows),
+    r.rows.length ? table(["Process", "Department", "KPI", "Definition", "Target", "Latest actual", "Rating", "Trend", ""], r.rows.map((x) => [pLink(x.process_id), x.department, x.name, x.definition, x.target || h("span", {class: "muted"}, "not set"),
+      x.latest ? h("span", {title: x.latest.note || ""}, fmtNum(x.latest.value) + " ", h("span", {class: "muted"}, "(" + x.latest.period + ")")) : h("span", {class: "muted"}, "—"), kpiChip(x), spark(x.history),
+      x.can_enter ? h("button", {class: "btn sm", onclick: () => kpiValueModal(x)}, "Enter value") : null])) : h("p", null, "No KPIs defined yet.")); }
   else if (tab === "changelog") { const r = await GET("/api/changelog"); body = table(["When", "Who", "Action", "Entity", "Detail"], r.rows.map((x) => [fmtDate(x.ts), x.username, x.action, x.entity_id, x.detail])); }
   else if (tab === "reviews") {
     const r = (await GET("/api/reviews")).rows, n = (st) => r.filter((x) => x.state === st).length;
@@ -621,11 +642,103 @@ async function viewAudit() {
 }
 
 // ---------------------------------------------------------------- reports
+const fmtNum = (v) => (Math.round(v * 100) / 100).toLocaleString("en-GB");
+function kpiChip(x) {
+  if (!x.latest) return h("span", {class: "muted"}, "no actual");
+  if (x.status === "met") return h("span", {class: "chip ok"}, "target met");
+  if (x.status === "missed") return h("span", {class: "chip bad"}, "target missed");
+  return h("span", {class: "chip", title: "Write the target with a direction, e.g. “≥ 95 %” or “max. 2 days”, so that values can be rated."}, "not rated");
+}
+function spark(hist) {
+  if (!hist || hist.length < 2) return hist && hist.length ? h("span", {class: "muted"}, "1 value") : "";
+  const ns = "http://www.w3.org/2000/svg", vals = hist.map((x) => x.value), lo = Math.min(...vals), hi = Math.max(...vals), W = 90, H = 24;
+  const pts = vals.map((v, i) => (3 + i * (W - 6) / (vals.length - 1)).toFixed(1) + "," + (hi === lo ? H / 2 : H - 3 - (v - lo) * (H - 6) / (hi - lo)).toFixed(1)).join(" ");
+  const s = document.createElementNS(ns, "svg"); s.setAttribute("viewBox", "0 0 " + W + " " + H); s.setAttribute("width", W); s.setAttribute("height", H); s.setAttribute("role", "img");
+  s.setAttribute("aria-label", hist.map((x) => x.period + ": " + fmtNum(x.value)).join(", "));
+  const t = document.createElementNS(ns, "title"); t.textContent = hist.map((x) => x.period + ": " + fmtNum(x.value)).join("\n"); s.append(t);
+  const l = document.createElementNS(ns, "polyline"); l.setAttribute("points", pts); l.setAttribute("fill", "none"); l.setAttribute("stroke", "currentColor"); l.setAttribute("stroke-width", "1.6"); s.append(l);
+  const last = pts.split(" ").pop().split(","), c = document.createElementNS(ns, "circle"); c.setAttribute("cx", last[0]); c.setAttribute("cy", last[1]); c.setAttribute("r", "2.4"); c.setAttribute("fill", "currentColor"); s.append(c);
+  return h("span", {class: "spark"}, s);
+}
+function kpiSummary(rows) {
+  if (!rows.length) return null;
+  const tile = (n, l, cls) => h("div", {class: "card kpi " + (cls || ""), style: "cursor:default"}, h("div", {class: "n"}, n), h("div", {class: "l"}, l));
+  const rated = rows.filter((x) => x.target_rule).length, withVal = rows.filter((x) => x.latest).length, missed = rows.filter((x) => x.status === "missed").length;
+  return h("div", {class: "grid g4", style: "margin-bottom:12px"}, tile(rows.length, "KPIs defined"), tile(rated, "with a target that can be rated (≥ / ≤)", rated < rows.length ? "warn" : ""),
+    tile(withVal, "with at least one actual value", withVal < rows.length ? "warn" : ""), tile(missed, "currently missing the target", missed ? "bad" : ""));
+}
+function kpiValueModal(x) {
+  const period = h("input", {type: "text", value: new Date().toISOString().slice(0, 7), "aria-label": "Period"}), value = h("input", {type: "text", inputmode: "decimal", placeholder: "e.g. 96.5", "aria-label": "Value"}), note = h("input", {type: "text", placeholder: "optional: source of the figure, remark", "aria-label": "Note"});
+  const m = modal("Actual value – " + x.name, h("div", null, h("p", {class: "muted"}, x.process_id + " · target: " + (x.target || "not set") + ". Actuals are operating data – they do not create a new document version."),
+    h("label", null, "Period – month (2026-10), quarter (2026-Q4) or year (2026)"), period, h("label", null, "Value (leave empty to remove the entry of that period)"), value, h("label", null, "Note"), note,
+    x.history.length ? h("div", {style: "margin-top:10px"}, table(["Period", "Value", "Rating", "Note"], x.history.slice().reverse().map((y) => [y.period, fmtNum(y.value), y.status === "met" ? "met" : y.status === "missed" ? "missed" : "not rated", y.note]))) : null,
+    h("div", {class: "row", style: "margin-top:10px"}, h("button", {class: "btn pri", onclick: () => guard(async () => {
+      await POST("/api/kpis/value", {process_id: x.process_id, kpi: x.name, period: period.value, value: value.value, note: note.value}); m.close(); toast(value.value.trim() ? "Value recorded" : "Entry removed"); route(); })}, "Save"),
+      h("button", {class: "btn", onclick: () => m.close()}, "Cancel"))));
+  value.focus();
+}
+async function usageView() {
+  const u = await GET("/api/usage");
+  const tile = (n, l, cls) => h("div", {class: "card kpi " + (cls || ""), style: "cursor:default"}, h("div", {class: "n"}, n), h("div", {class: "l"}, l));
+  return h("div", null, h("p", {class: "muted"}, "One reading is counted per person, process and day when a process is opened in this tool" + (u.since ? " (counted since " + u.since + ")" : " (nothing counted yet)") +
+      ". Reading in the SharePoint copy or in exported Word / PDF documents is not counted. Readers are counted under a pseudonym: neither this report nor the database shows who opened what."),
+    h("div", {class: "grid g4", style: "margin-bottom:12px"}, tile(u.people_30, "people who opened a process in the last 30 days"), tile(u.total - u.unread_90, "processes opened in the last 90 days"),
+      tile(u.published_unread_90, "published processes not opened for 90 days", u.published_unread_90 ? "warn" : ""), tile(u.never, "processes never opened", u.never ? "warn" : "")),
+    table(["Process", "Department", "Status", "Readers 30 days", "Readers 90 days", "Readings 90 days", "Last opened"], u.rows.map((x) => [pLink(x.process_id, x.process_id + " – " + x.name), x.department, chipS(x.status), x.readers_30, x.readers_90, x.readings_90, x.last_read || h("span", {class: "muted"}, "never")])));
+}
+
+// ---------------------------------------------------------------- process landscape (enterprise → department → process)
+function landscapeMap(f) {
+  if (!f.picture) return h("div", {class: "banner info"}, "There is no picture of this map yet. Open and save it once in Flow Studio.");
+  const box = h("div", {class: "lsmap"}, h("img", {src: f.picture, alt: f.name}), f.hotspots.map((s) => h("a", {class: "hot", href: "#/process/" + encodeURIComponent(s.process_id), title: s.process_id + " – " + s.label, "aria-label": "Open " + s.process_id + " – " + s.label,
+    style: "left:" + (s.x * 100).toFixed(3) + "%;top:" + (s.y * 100).toFixed(3) + "%;width:" + (s.w * 100).toFixed(3) + "%;height:" + (s.h * 100).toFixed(3) + "%"})));
+  const wrap = h("div", {class: "lswrap"}, box);
+  const mark = h("input", {type: "checkbox", checked: true, onchange: () => box.classList.toggle("show", mark.checked)}); box.classList.add("show");
+  return h("div", null, h("div", {class: "row", style: "margin-bottom:6px"},
+      f.hotspots.length ? h("label", {class: "check", style: "margin:0"}, mark, " Mark the " + f.hotspots.length + " shapes that open a process") : null,
+      h("button", {class: "btn sm", onclick: (e) => { const on = box.classList.toggle("full"); e.target.textContent = on ? "Fit to page" : "Full size"; }}, "Full size"),
+      h("a", {class: "btn sm", href: "#/process/" + encodeURIComponent(f.process_id)}, "Open " + f.process_id)),
+    wrap,
+    h("p", {class: "muted", style: "margin-top:6px"}, f.linked ? (f.hotspots.length < f.linked ? f.hotspots.length + " of the " + f.linked + " linked shapes can be clicked (the others name a process that is not in the library, or the picture is older than the drawing). " : "")
+      + f.linked + " of " + f.shapes + " shapes are linked to a process. A shape becomes clickable when it is linked in Flow Studio (select the shape ▸ Linked process)."
+      : "No shape of this map is linked to a process yet. Link shapes in Flow Studio (select the shape ▸ Linked process) to make the map clickable."));
+}
+async function viewLandscape(code, pid) {
+  const L = await GET("/api/landscape");
+  const dept = code && code !== "enterprise" ? L.departments.find((d) => d.code === code) : null;
+  if (code && code !== "enterprise" && !dept) throw new Error("Unknown department");
+  const maps = dept ? dept.overviews : L.enterprise, cur = maps.find((m) => m.process_id === pid) || maps.find((m) => m.linked) || maps[0];   // start with a map that can be clicked
+  const base = "#/landscape/" + (dept ? dept.code : "enterprise");
+  const f = cur ? await GET("/api/landscape/" + encodeURIComponent(cur.process_id)) : null;
+  const crumb = h("div", {class: "crumb"}, h("a", {href: "#/landscape"}, "Enterprise"), dept ? " ▸ " : null, dept ? h("a", {href: base}, dept.name) : null, cur ? " ▸ " + cur.name : null);
+  const pick = maps.length > 1 ? h("div", {class: "tabs"}, maps.map((m) => h("a", {class: "tab" + (m === cur ? " on" : ""), href: base + "/" + encodeURIComponent(m.process_id), title: m.process_id + " · " + m.linked + " linked shapes"}, m.name.length > 46 ? m.name.slice(0, 44) + "…" : m.name))) : null;
+  const page = h("div", {class: "page"}, h("h1", null, dept ? dept.name : "Process landscape"), crumb,
+    h("div", {class: "sub"}, dept ? "Level 2 – the department’s overview maps. Click a shape to open the process behind it, or pick a process from the list below."
+      : "Level 0 / 1 – the enterprise maps. Click a shape to open the process behind it, or go down into a department."),
+    pick, f ? landscapeMap(f) : h("div", {class: "banner info"}, dept ? "This department has no overview map yet. Its processes are listed below." : "No enterprise map is available yet" + (can("admin", "controller", "dept_owner", "editor", "reviewer", "approver") ? "." : " – nothing has been published."))) ;
+  if (!dept) {
+    page.append(h("h2", {style: "margin-top:22px"}, "Departments"), h("div", {class: "grid g4"}, L.departments.filter((d) => d.code !== L.enterprise_dept).map((d) => h("a", {class: "card lstile", href: "#/landscape/" + d.code},
+      h("b", null, d.name), h("div", {class: "muted"}, d.total + " processes · " + d.published + " published"), h("div", {class: "muted"}, d.overviews.length ? d.overviews.length + " overview map(s)" : "no overview map"),
+      h("div", {class: "bar", style: "margin-top:8px", title: d.published + " of " + d.total + " published"}, h("i", {style: "width:" + (d.total ? Math.round(100 * d.published / d.total) : 0) + "%"}))))));
+  } else {
+    const t = S.tree.find((x) => x.code === dept.code), br = t ? branches(t.processes) : [];
+    const leaf = (p, text) => h("a", {class: "bm-leaf", href: "#/process/" + encodeURIComponent(p.process_id), title: p.process_id}, h("span", {class: "dot s-" + p.status}), text || p.name);
+    page.append(h("h2", {style: "margin-top:22px"}, "Processes of this department (" + dept.total + ")"),
+      br.length ? h("div", {class: "branchmap"}, h("div", {class: "bm-row"}, br.map((b2) => h("div", {class: "bm-col"}, h("div", {class: "bm-branch"}, b2.label, h("span", {class: "cnt"}, b2.count)),
+        b2.nodes.map((n) => n.proc ? leaf(n.proc) : h("div", {class: "bm-var"}, h("div", {class: "bm-vt"}, n.label), n.variants.map((p) => leaf(p, (p.name.match(VARIANT) || ["", p.name])[1]))))))))
+        : h("p", {class: "muted"}, "No process of this department is visible to you yet."),
+      h("p", null, h("a", {href: "#/departments/" + dept.code}, "Department page with status, versions and owners →")));
+  }
+  return page;
+}
+
 async function viewReports(tab) {
   tab = tab || "inventory";
   const tabs = [["inventory", "Process inventory"], ["findings", "Findings register"], ["sources", "Source audit"], ["gaps", "Ownership & completeness gaps"]];
+  if (can("admin", "controller", "dept_owner", "editor", "reviewer", "approver")) tabs.push(["usage", "Reading statistics"]);
   const bar = h("div", {class: "tabs"}, tabs.map(([k, l]) => h("a", {class: "tab" + (k === tab ? " on" : ""), href: "#/reports/" + k}, l)));
   let body;
+  if (tab === "usage") body = await usageView(); else
   if (tab === "inventory") { const r = await GET("/api/library"); body = h("div", null, h("a", {class: "btn pri", href: "/api/register.xlsx"}, "Download MEA_Master_Process_Register.xlsx"), h("p", {class: "muted"}, "Workbook contains inventory, source mapping, audit register, findings, escalation, KPI, flowchart index, RACI and revision history sheets."),
     table(["ID", "Name", "Department", "Status", "Version", "Next review"], r.processes.map((p) => [pLink(p.process_id), p.name, p.department, chipS(p.status), p.version, p.next_review || "—"]))); }
   else if (tab === "findings") body = await findingsView();

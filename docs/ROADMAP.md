@@ -78,13 +78,13 @@ handful of people must *edit* in one shared installation. Do the SharePoint publ
 | 1 | **BPMN 2.0 export (and import)** of flows – *export built in version 1.3.0, all 90 supplied flows parse cleanly in the bpmn.io parser; import not built* | Keeps the content portable to any process platform; exit route | 8–10 days |
 | 2 | Version comparison: text and flow differences between two revisions – *built in version 1.3.0* | Reviewers see what changed; faster approvals | 6–8 days |
 | 3 | Periodic review cycle: due dates, "reviewed without change", overdue dashboard – *built in version 1.3.0* | Content stays current after the first wave | 4–5 days |
-| 4 | Change requests from readers ("this step is wrong") routed to the owner | Readers become a source of corrections | 4–5 days |
-| 5 | Swimlane layout and parallel paths in the flow builder | New flows match how departments draw cross-functional processes | 8–10 days |
-| 6 | Process landscape navigation (level 0 → 1 → 2 drill-down from the value stream) | People find processes by where they sit in the business | 5–6 days |
-| 7 | KPI register with targets, owner and actuals entered or imported from Excel | KPIs become reviewable instead of text | 6–8 days |
-| 8 | Reading statistics (which processes are opened, which never) | Shows adoption; prunes dead documents | 2–3 days |
-| 9 | Comments pinned to a flow shape | Precise review feedback | 3–4 days |
-| 10 | Read view for phones and tablets | Warehouse and site use | 4–5 days |
+| 4 | Change requests from readers ("this step is wrong") routed to the owner – *built in version 1.4.0* | Readers become a source of corrections | 4–5 days |
+| 5 | Swimlane layout and parallel paths in the flow builder – *built in version 1.4.0; rendered with draw.io and read back, BPMN parses cleanly* | New flows match how departments draw cross-functional processes | 8–10 days |
+| 6 | Process landscape navigation (level 0 → 1 → 2 drill-down from the value stream) – *built in version 1.4.0; only shapes that are linked to a process can be clicked (measured: 9 of 77 on the Level 1 map, 0 of 23 on Level 0)* | People find processes by where they sit in the business | 5–6 days |
+| 7 | KPI register with targets, owner and actuals entered or imported from Excel – *built in version 1.4.0; the imported KPIs carry no targets yet, so nothing can be rated until owners write them* | KPIs become reviewable instead of text | 6–8 days |
+| 8 | Reading statistics (which processes are opened, which never) – *built in version 1.4.0; counts this tool only, not the SharePoint copy* | Shows adoption; prunes dead documents | 2–3 days |
+| 9 | Comments pinned to a flow shape – *built in version 1.4.0* | Precise review feedback | 3–4 days |
+| 10 | Read view for phones and tablets – *built in version 1.4.0; checked in an emulated iPhone 13, not on real devices* | Warehouse and site use | 4–5 days |
 
 ### Phase 4 – Scale and assurance (after adoption is proven)
 PostgreSQL instead of SQLite and a second node (only above about 50 concurrent editors), electronic signature of approvals if auditors

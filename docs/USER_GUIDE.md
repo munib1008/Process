@@ -63,6 +63,43 @@ Each item shows the version it was raised on, can be replied to, moved to *in pr
 **Audit & Review** (left menu) is the register across all processes with filters and an Excel export; ⚑ marks items raised on an older version.
 The History tab shows the version comment (change summary) of every revision and how many audit comments it has.
 
+**Pin a comment to a step.** When the process has a native flow, the comment form offers **Flow step**: choose the step the comment is about.
+The thread then shows *Step: …* next to the comment, so the editor knows exactly which shape is meant.
+
+## Suggest a change (every signed-in user, including readers)
+On every process page: **Suggest a change**. Say what should change and why, optionally choose the step concerned, and send.
+- The suggestion is recorded against the version you are reading, with your name. The process itself does not change.
+- The process owner, the department owner and the Document Controller get it as a task (*Dashboard ▸ My tasks*, and by e-mail if notifications are on).
+  They answer it under *Audit & comments* (resolve with a note) and, if they agree, revise the process through the normal workflow.
+- **Dashboard ▸ My change requests** shows your suggestions with their status and the owner's answer.
+- A reader can have at most 25 unanswered suggestions at a time.
+
+## Process landscape (find a process by where it sits in the business)
+**Process Landscape** (left menu) goes from the enterprise maps down to the single process:
+1. **Enterprise** – the Level 0 / Level 1 maps. Shapes marked blue open the process behind them.
+2. **Department** – tile under the map, or a click on a shape: the department's overview maps, then all its processes by branch.
+3. **Process** – click a shape or a name.
+
+A shape is clickable when it is **linked to a process** in Flow Studio (select the shape ▸ *Linked process*). The page says how many shapes of a map are linked.
+Readers see published maps only. **Full size** shows large maps unscaled.
+
+## KPIs with actual values
+*Governance ▸ KPIs* lists every KPI with its target, the latest actual, a rating and the trend of the last 12 periods.
+- **Enter value**: period (month `2026-10`, quarter `2026-Q4` or year `2026`), value, optional note. Saving the same period again replaces the value; an empty value removes it.
+- **Rating**: *target met / missed* needs a target with a direction – write `≥ 95 %`, `at least 95 %`, `max. 2 days`, `< 5 %`. A target such as `95 %` or free text is shown as *not rated*; the tool does not guess whether more or less is better.
+- Actual values are operating data: they need no approval and do not create a document version. The KPI itself (name, definition, target) stays part of the controlled document.
+- **Excel**: the register workbook has a sheet *KPI Actuals* (Process ID, KPI, Period, Value, Note). Fill it and load the workbook under *Governance ▸ Ownership & register* to enter many values at once.
+
+## Reading statistics
+*Reports ▸ Reading statistics* (not for readers): per process the number of different people who opened it in the last 30 and 90 days, and when it was last opened.
+Use it to see whether published processes are used, and which documents nobody needs.
+- Counted: one reading per person, process and day, in this tool. **Not counted:** reading in the SharePoint copy or in exported Word / PDF files.
+- Readers are counted under a pseudonym; neither the report nor the database shows who opened what. Entries older than 400 days are deleted.
+
+## On a phone or tablet
+The same address works on a phone. The menu becomes a bar across the top (swipe sideways), the process list folds away while a process is open
+(*Master Handbook ▾ browse all processes*), wide tables scroll sideways, and flow pictures can be opened full screen. Editing flows needs a computer.
+
 ## Create a new flow (Editor / Department Owner / Controller)
 Open the process and choose **New flow from steps…** (for a process that still carries a picture: **Redraw from steps…**). Write one line per step:
 
@@ -71,10 +108,12 @@ Open the process and choose **New flow from steps…** (for a process that still
 | `Logistics: Create delivery (VL01N)` | Activity of a role of the master legend (outline colour = role). SAP codes are picked up. |
 | `Credit limit sufficient?` | Decision. The next line is the **Yes** path. |
 | `No: Credit Controller: Block the order` | The other answer of the decision above. Repeat `No:` for more steps on that branch; `No: End` finishes it; `No: Back to 2` (step number, or the start of the step's text) loops back to an earlier step. `Yes:` works the same way when the main path is the "No" path. |
+| `Parallel: Finance: Issue invoice` | Two to four lines in a row that start with `Parallel:` run at the same time. They are drawn side by side between a split bar and a join bar. |
 | `Note: Check incoterms on the PO` | Note or checklist attached to the step above. |
 | `Ref: WL-M-OB-01 Outbound delivery` | Linked process (becomes a link when that process exists). |
 | `Start: …` / `End: …` | Own wording for the start and end shapes (optional). |
 
+- **Layout**: *Single column* (branches beside the main column) or *Swimlanes* (one lane per role, in the order the roles first appear; every step sits in the lane of its role, a step without a role stays in the lane of the step before it). Use swimlanes for cross-functional processes with up to about six roles.
 - **Insert role…** lists the roles of the master legend; a role that is not in the legend is reported and the line is kept as plain text – nothing is guessed.
 - **Start from template…** fills the box with the steps of a template; **Use the activity table** turns the existing activity table of the process into steps.
 - The result is a standard flow: start/end, role colours, titled frame and the master legend. It opens in Flow Studio for refinement.

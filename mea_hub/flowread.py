@@ -122,10 +122,15 @@ def read(xml: str) -> dict:
         elif k == "ref":
             label = "Linked process: " + label
         nxt = []
-        for c, lb in out_e.get(b["id"], []):
+
+        def target(c, depth=0):                              # split / join bars are passed through: what follows them is the next step
             tk = K.get(c)
-            tgt = "End" if tk in ("end", "terminator") or (tk == "start" and not out_e.get(c)) else (B[c]["label"] or "next step")[:70]
-            nxt.append((f"{lb}: " if lb else "") + tgt)
+            if tk in ("fork", "join") and depth < 4:
+                outs = [t for t in (target(c2, depth + 1) for c2, _ in out_e.get(c, [])) if t]
+                return ("in parallel: " if tk == "fork" and len(outs) > 1 else "") + " + ".join(outs) if outs else "next step"
+            return "End" if tk in ("end", "terminator") or (tk == "start" and not out_e.get(c)) else (B[c]["label"] or "next step")[:70]
+        for c, lb in out_e.get(b["id"], []):
+            nxt.append((f"{lb}: " if lb else "") + target(c))
         codes = [c for c in dict.fromkeys(SAP_RE.findall(label)) if c not in SAP_BLOCK and not ID_RE.search(c)]
         codes = [c for c in codes if not any(c in m for m in ID_RE.findall(label))]
         activities.append(dict(no=str(n), activity=label, role=r, sap=" / ".join(codes), output=("→ " + "; ".join(nxt)) if nxt else ""))
@@ -212,7 +217,7 @@ def _graph(B, K, skip, containers, child_of, top, role, edges):
         return i if child_of.get(i) in lanes or i not in child_of else child_of[i]
     nodes, has_in, has_out = {}, set(), set()
     for i, b in B.items():
-        if i in skip or K[i] == "other" or own(i) != i:
+        if i in skip or K[i] in ("other", "lane") or own(i) != i:
             continue
         label = b["label"]
         if i in lanes:
@@ -222,7 +227,7 @@ def _graph(B, K, skip, containers, child_of, top, role, edges):
         if i in containers:
             kids = sorted((B[c] for c, p in child_of.items() if p == i and B[c]["label"] and K[c] not in ("note", "text")), key=lambda x: (x["y"], x["x"]))
             label = (label + ": " if label and kids else label) + "; ".join(x["label"] for x in kids)
-        if not label:
+        if not label and K[i] not in ("fork", "join"):
             continue
         r = role(b) if K[i] in ("activity", "decision", "container") else ""
         if not r and child_of.get(i) in lanes and K[i] in ("activity", "decision"):

@@ -106,3 +106,12 @@ All 90 flows of the supplied set were exported and parsed without warnings by th
 - The library reaches the embedded editor through draw.io's `configure` message (inline data); URL libraries are not used because draw.io ignores them in offline mode.
 - Flow check on the 72 imported flows today: 15 without any point; dead_end in 37 flows, no_role 33, unreached 20, unlabelled 18, one_branch 7, no_end 2, no_start 1.
   These are review points for the process owners, not errors of the import.
+
+## Parallel steps and swimlanes (version 1.4.0)
+- **Parallel steps** in the flow builder are drawn between two bars tagged `meaKind=fork` and `meaKind=join`. The document reads the steps behind a
+  split bar as "in parallel: A + B"; the bars themselves are not activities. BPMN export writes both bars as parallel gateways.
+- **Swimlane layout** draws one lane per role. Lanes are background shapes (`meaKind=lane`), not draw.io containers, so steps keep their own
+  connectors and the role still comes from the outline colour. Moving a step into another lane does **not** change its role – change the outline colour
+  (or use the role's shape from the library). BPMN export keeps roles as performers; the lanes are not exported as BPMN lanes.
+- Limits: at most four parallel steps per group; a decision inside a parallel group or inside a branch is drawn without its own branches and has to be
+  completed in Flow Studio; more than six roles give a very wide swimlane flow (the builder says so).

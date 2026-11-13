@@ -11,7 +11,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import __version__, config, db, drawio, drafts, exporter, flowpic, importer, notify, queries, service as svc, sso
+from . import __version__, config, db, drawio, drafts, exporter, flowbuild, flowpic, importer, notify, queries, service as svc, sso
 
 COOKIE = "mea_session"
 ROUTES = []
@@ -362,7 +362,7 @@ def r_health(c):
 def r_config(c):
     return dict(embeddable=bool(config.embed_origins()), notifications=notify.mail_ready(), sso=dict(enabled=sso.enabled(), only=sso.passwords_restricted()), drawio_url=("/drawio/index.html" if local_drawio() else config.DRAWIO_REMOTE + "/"), drawio_local=local_drawio(),
                 org=svc.cfg("org_name"), classification=svc.cfg("classification", "Internal"), region=svc.cfg("region_label", "Region MEA"), statuses=svc.STATUS_LABEL, kinds=svc.KINDS, rel_types=svc.REL_TYPES, roles=svc.ROLES,
-                templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
+                templates={k: v[0] for k, v in drawio.TEMPLATES.items()}, flow_layouts=flowbuild.LAYOUTS, comment_categories=svc.COMMENT_CATEGORIES, comment_severities=svc.COMMENT_SEVERITIES,
                 comment_statuses=svc.COMMENT_STATUSES, comment_sections=svc.COMMENT_SECTIONS, node_meta_keys=svc.NODE_META_KEYS, version=__version__,
                 flow_roles=[r["role"] for r in svc.master_legend().get("roles", [])])
 
@@ -388,7 +388,9 @@ def r_library(c):
 
 @route("GET", "/api/process/([^/]+)")
 def r_process(c, pid):
-    return queries.process_detail(c.user, pid, c.arg("version"))
+    d = queries.process_detail(c.user, pid, c.arg("version"))
+    svc.record_view(c.user, d["process"]["id"])
+    return d
 
 
 @route("POST", "/api/process")
@@ -483,7 +485,39 @@ def r_compare(c, pid):
 @route("POST", "/api/process/([^/]+)/comments")
 def r_comment(c, pid):
     d = c.json()
-    return dict(id=svc.add_comment(pid, c.user, d.get("body"), d.get("category", "comment"), d.get("severity", "info"), d.get("section", ""), d.get("parent_id"), d.get("version_id")))
+    return dict(id=svc.add_comment(pid, c.user, d.get("body"), d.get("category", "comment"), d.get("severity", "info"), d.get("section", ""), d.get("parent_id"), d.get("version_id"), d.get("node_id")))
+
+
+@route("POST", "/api/process/([^/]+)/change-request")
+def r_change_request(c, pid):
+    d = c.json()
+    return dict(id=svc.request_change(pid, c.user, d.get("body"), d.get("section", ""), d.get("node_id")))
+
+
+@route("POST", "/api/kpis/value")
+def r_kpi_value(c):
+    d = c.json()
+    return svc.record_kpi_value(c.user, d.get("process_id") or "", d.get("kpi"), d.get("period"), d.get("value"), d.get("note") or "")
+
+
+@route("GET", "/api/usage")
+def r_usage(c):
+    return queries.usage_report(c.user)
+
+
+@route("GET", "/api/landscape")
+def r_landscape(c):
+    return queries.landscape(c.user)
+
+
+@route("GET", "/api/landscape/([^/]+)")
+def r_landscape_flow(c, pid):
+    return queries.landscape_flow(c.user, pid)
+
+
+@route("GET", "/api/my-requests")
+def r_my_requests(c):
+    return dict(rows=svc.my_requests(c.user))
 
 
 @route("PUT", "/api/comments/(\\d+)")
@@ -585,7 +619,7 @@ def r_diagram_new(c):
 @route("POST", "/api/flows/build")
 def r_flow_build(c):
     d = c.json()
-    return svc.build_flow(c.user, d.get("steps") or "", title=d.get("title") or "", pid_text=d.get("process_id") or None, link=d.get("link", True) is not False)
+    return svc.build_flow(c.user, d.get("steps") or "", title=d.get("title") or "", pid_text=d.get("process_id") or None, link=d.get("link", True) is not False, layout=d.get("layout") or "column")
 
 
 @route("GET", "/api/flows/steps")

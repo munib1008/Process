@@ -11,6 +11,10 @@ One line per step:
     Note: Check incoterms on the PO                   note attached to the step above
     Ref: WL-M-OB-01 Outbound delivery                 linked process
     Logistics: Create delivery (VL01N)
+    Parallel: Finance: Issue invoice                  two to four consecutive "Parallel:" lines run at the same time:
+    Parallel: Logistics: Arrange transport            drawn side by side between a split bar and a join bar
+
+Two layouts: "column" (one column, branches beside it) and "lanes" (one swimlane per role, steps in the lane of their role).
 
 The result is tagged (meaKind / meaRole) exactly like the flows cut from the master canvas, carries the titled frame
 and the master legend, and is therefore read back by flowread (activities, roles, SAP codes, notes).
@@ -38,7 +42,13 @@ ST = {
     "note": "shape=note;size=12;whiteSpace=wrap;html=1;fillColor=#FFFFE0;strokeColor=#BFBFBF;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingRight=10;" + FONT + "meaKind=note;",
     "edge": "edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor={color};strokeWidth=1.5;endArrow=classic;fontSize=10;fontStyle=1;fontFamily=Arial;fontColor={color};",
     "note_edge": "endArrow=none;dashed=1;html=1;strokeColor=#BFBFBF;strokeWidth=1;",
+    "fork": "whiteSpace=wrap;html=1;fillColor=#484848;strokeColor=#484848;meaKind=fork;",
+    "join": "whiteSpace=wrap;html=1;fillColor=#484848;strokeColor=#484848;meaKind=join;",
+    "lane_head": "whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor={color};strokeWidth=2;fontSize=11;fontStyle=1;connectable=0;" + FONT + "meaKind=lane;",
+    "lane_body": "whiteSpace=wrap;html=1;fillColor=none;strokeColor=#D9D9D9;dashed=1;connectable=0;pointerEvents=0;meaKind=lane;",
 }
+MAX_PAR = 4
+LAYOUTS = {"column": "Single column", "lanes": "Swimlanes (one lane per role)"}
 YES, NO, GREY = "#009900", "#E4002B", "#484848"
 ID_RE = re.compile(r"\b[A-Z]{2,3}-[A-Z]{1,2}-[A-Z]{2,3}-\d{2}(?:\.\d+)?\b")
 MAX_STEPS, MAX_LINE = 120, 400
@@ -74,6 +84,7 @@ def parse(text, legend):
     roles = role_index(legend)
     steps, warnings, start, end = [], [], "Start", "End"
     last = None                                              # the step a following Note:/branch line belongs to
+    par_open = False                                         # the previous step line was a "Parallel:" line
     for line_no, raw in enumerate((text or "").splitlines(), 1):
         line = _norm(re.sub(r"^\s*(?:[-*•■]|\d+[.)])\s+", "", raw))
         if not line or line.startswith("#"):
@@ -95,6 +106,24 @@ def parse(text, legend):
             else:
                 last["notes"].append(m.group(1))
             continue
+        m = re.match(r"^(?:in\s+)?parallel\s*:\s*(\S.*)$", line, re.I)
+        if m:
+            grp = steps[-1] if par_open and steps and steps[-1]["kind"] == "parallel" else None
+            if grp is not None and len(grp["steps"]) >= MAX_PAR:
+                warnings.append(f"Line {line_no}: at most {MAX_PAR} steps can run in parallel in one group; the line was added as a normal step after the group.")
+                line = m.group(1)
+            else:
+                role, body = _split_role(m.group(1), roles, warnings, line_no)
+                st = _step(body, role)
+                if st["kind"] == "decision":
+                    warnings.append(f"Line {line_no}: a decision inside parallel steps is drawn as a decision without branches – complete it in Flow Studio.")
+                if grp is None:
+                    grp = dict(kind="parallel", text="", role="", notes=[], branch=None, steps=[])
+                    steps.append(grp)
+                grp["steps"].append(st)
+                last, par_open = st, True
+                continue
+        par_open = False
         m = re.match(r"^(yes|no)\s*:\s*(\S.*)$", line, re.I)
         if m:
             dec = next((s for s in reversed(steps) if s["kind"] == "decision"), None)
@@ -143,6 +172,10 @@ def parse(text, legend):
             warnings.append(f"Only the first {MAX_STEPS} steps were used.")
             steps.pop()
             break
+    for i, s in enumerate(steps):                            # one "Parallel:" line alone is not parallel to anything
+        if s["kind"] == "parallel" and len(s["steps"]) == 1:
+            warnings.append(f"“Parallel: {s['steps'][0]['text'][:50]}” has no second parallel line next to it and was added as a normal step.")
+            steps[i] = s["steps"][0]
     return steps, start, end, warnings
 
 
@@ -157,11 +190,13 @@ def _lines(text, per_line):
     return max(1, sum(math.ceil(max(1, len(p)) / per_line) for p in text.split("\n")))
 
 
-def build(title, pid, dept, text, legend, meta=None):
+def build(title, pid, dept, text, legend, meta=None, layout="column"):
     """-> (xml, warnings). Raises ValueError when the text contains no step."""
     steps, start_label, end_label, warnings = parse(text, legend)
     if not steps:
         raise ValueError("Write at least one step (one line per step).")
+    if layout not in LAYOUTS:
+        raise ValueError("Unknown layout.")
     colours = {name: col for name, col in role_index(legend).values()}
     root = etree.Element("mxfile", host="MEA Process Hub")
     diagram = etree.SubElement(root, "diagram", id="flow", name=(pid or title or "Flow")[:40])
@@ -172,9 +207,12 @@ def build(title, pid, dept, text, legend, meta=None):
     etree.SubElement(cells, "mxCell", id="1", parent="0")
     used_roles, n_edge, n_note = [], [0], [0]
     has_branch = any(s["branch"] and (s["branch"]["steps"]) for s in steps)
-    MAIN_X, MAIN_W, BR_X, BR_W = 240, 240, 570, 220
-    NOTE_X = BR_X + (BR_W + 60 if has_branch else 0)
+    MAIN_X, MAIN_W, BR_X, BR_W, PAR_W, PAR_GAP = 240, 240, 570, 220, 200, 40
+    par_n = max((len(s["steps"]) for s in steps if s["kind"] == "parallel"), default=0)
+    RIGHT = max(BR_X + BR_W if has_branch else 0, MAIN_X + par_n * PAR_W + (par_n - 1) * PAR_GAP if par_n else 0)     # right edge of everything beside the main column
+    note_x = [RIGHT + 60 if RIGHT else BR_X]
     notes_bottom = [0]
+    DOWN, INTO = "exitX=0.5;exitY=1;exitDx=0;exitDy=0;", "entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
 
     def vertex(cid, label, style, x, y, w, h):
         c = etree.SubElement(cells, "mxCell", id=cid, value=escape(label, quote=False), style=style, vertex="1", parent="1")
@@ -193,47 +231,75 @@ def build(title, pid, dept, text, legend, meta=None):
             for px, py in points:
                 etree.SubElement(arr, "mxPoint", x=str(round(px, 1)), y=str(round(py, 1)))
 
-    def shape(st, cid, x, w, y):
+    def shape(st, cid, x, w, y, narrow=False):
         """-> height. Draws the step and its notes."""
         role = st["role"]
         if role and role not in used_roles:
             used_roles.append(role)
         tag = f"meaRole={role};" if role else ""
         if st["kind"] == "decision":
-            dw = 200 if len(st["text"]) <= 60 else 250
+            dw = 200 if len(st["text"]) <= 60 or narrow else 250
             hgt = 96 if len(st["text"]) <= 60 else 126
             vertex(cid, st["text"], ST["decision"].format(color=colours.get(role, NO)) + tag, x + (w - dw) / 2, y, dw, hgt)
         elif st["kind"] == "ref":
             hgt = 44 + 14 * max(0, _lines(st["text"], 34) - 2)
             vertex(cid, st["text"], ST["ref"], x, y, w, hgt)
         else:
-            hgt = 46 + 14 * max(0, _lines(st["text"], 36) - 2)
+            hgt = 46 + 14 * max(0, _lines(st["text"], 36 if w >= 220 else 30) - 2)
             vertex(cid, st["text"], ST["activity"].format(color=colours.get(role, GREY), sw="2" if role else "1.5") + tag, x, y, w, hgt)
         for t in st["notes"]:
             n_note[0] += 1
             nh = 34 + 12 * max(0, _lines(t, 42) - 2)
             ny = max(y, notes_bottom[0] + 10)
-            nid = vertex(f"nt{n_note[0]}", t, ST["note"], NOTE_X, ny, 230, nh)
+            nid = vertex(f"nt{n_note[0]}", t, ST["note"], note_x[0], ny, 230, nh)
             edge(cid, nid, style=ST["note_edge"])
             notes_bottom[0] = ny + nh
         return hgt
 
+    if layout == "lanes":
+        pad_left = _lanes(steps, start_label, end_label, colours, vertex, edge, shape, note_x, cells, warnings)
+        canvas.finish(root, cells, title, pid, dept, legend, used_roles, dict(meaBuilt="steps", meaLayout="lanes", **(meta or {})), pad_left=pad_left)
+        return etree.tostring(root, encoding="unicode"), warnings
+
     y = 100
     vertex("mea_start", start_label, ST["start"], MAIN_X + (MAIN_W - 130) / 2, y, 130, 38)
-    prev, prev_label, prev_colour = "mea_start", "", GREY
+    prev, prev_label, prev_colour, prev_exit = "mea_start", "", GREY, DOWN
     y += 38 + 40
     branch_bottom = 0
     box = {}                                                 # main step id -> (top, height)
+    par_tops = []                                            # tops of the parallel groups
     to_back = []                                             # loops back to an earlier main step
     to_end = []                                              # (source id, label, colour) connected to End at the very end
     for i, st in enumerate(steps, 1):
         cid = f"s{i}"
+        if st["kind"] == "parallel":                         # split bar, the steps side by side, join bar
+            y = max(y, branch_bottom + 30)
+            n = len(st["steps"])
+            bw = n * PAR_W + (n - 1) * PAR_GAP
+            mid = round(MAIN_W / 2 / bw, 4)
+            vertex(cid, "", ST["fork"], MAIN_X, y, bw, 8)
+            edge(prev, cid, prev_label, prev_colour, prev_exit + f"entryX={mid};entryY=0;entryDx=0;entryDy=0;")
+            box[cid] = (y, 8)
+            par_tops.append(y)
+            py, tallest, fx = y + 8 + 30, 0, []
+            for k, ps in enumerate(st["steps"], 1):
+                px = MAIN_X + (k - 1) * (PAR_W + PAR_GAP)
+                fx.append(round((px - MAIN_X + PAR_W / 2) / bw, 4))
+                tallest = max(tallest, shape(ps, f"{cid}p{k}", px, PAR_W, py, narrow=True))
+                edge(cid, f"{cid}p{k}", extra=f"exitX={fx[-1]};exitY=1;exitDx=0;exitDy=0;" + INTO)
+            jy = py + tallest + 30
+            vertex(f"{cid}j", "", ST["join"], MAIN_X, jy, bw, 8)
+            for k in range(1, n + 1):
+                edge(f"{cid}p{k}", f"{cid}j", extra=DOWN + f"entryX={fx[k - 1]};entryY=0;entryDx=0;entryDy=0;")
+            prev, prev_label, prev_colour, prev_exit = f"{cid}j", "", GREY, f"exitX={mid};exitY=1;exitDx=0;exitDy=0;"
+            y = jy + 8 + 40
+            continue
         if st["kind"] == "decision" and st["branch"]:
             y = max(y, branch_bottom + 30)
         hgt = shape(st, cid, MAIN_X, MAIN_W, y)
         box[cid] = (y, hgt)
-        edge(prev, cid, prev_label, prev_colour, "exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;")
-        prev, prev_label, prev_colour = cid, "", GREY
+        edge(prev, cid, prev_label, prev_colour, prev_exit + INTO)
+        prev, prev_label, prev_colour, prev_exit = cid, "", GREY, DOWN
         if st["kind"] == "decision":
             br = st["branch"]
             if br:
@@ -245,7 +311,7 @@ def build(title, pid, dept, text, legend, meta=None):
                     bid = f"{cid}b{k}"
                     bh = shape(bs, bid, BR_X, BR_W, by)
                     edge(bprev, bid, blabel, side_col if blabel else GREY,
-                         "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" if bprev == cid else "exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;")
+                         "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" if bprev == cid else DOWN + INTO)
                     bprev, blabel = bid, ""
                     by += bh + 34
                     branch_bottom = by - 34
@@ -258,23 +324,176 @@ def build(title, pid, dept, text, legend, meta=None):
         y += hgt + 40
     y = max(y, branch_bottom + 30)
     vertex("mea_end", end_label, ST["end"], MAIN_X + (MAIN_W - 130) / 2, y, 130, 38)
-    edge(prev, "mea_end", prev_label, prev_colour, "exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;")
+    edge(prev, "mea_end", prev_label, prev_colour, prev_exit + INTO)
     for k, (src, label, colour, from_decision, mid_y) in enumerate(to_end):
-        # run down a free corridor: between the columns when it leaves the decision, right of the branch column otherwise
-        cx = (MAIN_X + MAIN_W + 30 + 6 * (k % 4)) if from_decision else (BR_X + BR_W + 20 + 6 * (k % 5))
+        # run down a free corridor: between the columns when it leaves the decision, right of everything otherwise
+        # (and also when parallel steps lie below, because they fill the space between the columns)
+        between = from_decision and not any(t > mid_y for t in par_tops)
+        cx = (MAIN_X + MAIN_W + 30 + 6 * (k % 4)) if between else (RIGHT + 20 + 6 * (k % 5))
         edge(src, "mea_end", label, colour, "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;", points=[(cx, mid_y), (cx, y + 19)])
     for k, (src, label, colour, from_decision, mid_y, target) in enumerate(to_back):
         ty, th = box[target]
         if from_decision:                                    # straight from the decision: up the free corridor left of the main column
             cx = MAIN_X - 34 - 8 * (k % 4)
             edge(src, target, label, colour, "exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;", points=[(cx, mid_y), (cx, ty + th / 2)])
-        else:                                                # from a branch step: up the corridor right of the branch column, in above the target
-            cx = BR_X + BR_W + 20 + 6 * (k % 5)
+        else:                                                # from a branch step: up the corridor right of everything, in above the target
+            cx = RIGHT + 20 + 6 * (k % 5)
             edge(src, target, label, colour, "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.62;entryY=0;entryDx=0;entryDy=0;",
                  points=[(cx, mid_y), (cx, ty - 16), (MAIN_X + MAIN_W * 0.62, ty - 16)])
     canvas.finish(root, cells, title, pid, dept, legend, used_roles, dict(meaBuilt="steps", **(meta or {})),
                   pad_left=60 if any(t[3] for t in to_back) else 0)
     return etree.tostring(root, encoding="unicode"), warnings
+
+
+def _lanes(steps, start_label, end_label, colours, vertex, edge, shape, note_x, cells, warnings):
+    """Swimlane layout: one vertical lane per role (in the order the roles first appear), every step on its own row in the
+    lane of its role. A step without a role stays in the lane of the step before it. -> room needed left of the lanes."""
+    X0, LANE_W, SW, HEAD_Y, HEAD_H = 240, 280, 200, 100, 30
+    lanes, cur = [], ""
+    def flat():
+        for s in steps:
+            if s["kind"] == "parallel":
+                yield from s["steps"]
+            else:
+                yield s
+                yield from (s["branch"] or {}).get("steps", [])
+    for s in flat():                                         # lane order = first appearance
+        cur = s["role"] or cur
+        if cur not in lanes:
+            lanes.append(cur)
+    if len(lanes) > 6:
+        warnings.append(f"{len(lanes)} roles give {len(lanes)} lanes – a very wide flow. The single-column layout may read better.")
+    left = lambda li: X0 + li * LANE_W
+    cx = lambda li: left(li) + LANE_W / 2
+    far_right = X0 + len(lanes) * LANE_W
+    note_x[0] = far_right + 70
+    P = {}                                                   # shape id -> placement
+    DOWN, INTO = "exitX=0.5;exitY=1;exitDx=0;exitDy=0;", "entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+    SIDE = {"left": "exitX=0;exitY=0.5;exitDx=0;exitDy=0;", "right": "exitX=1;exitY=0.5;exitDx=0;exitDy=0;"}
+
+    def put(cid, li, y, h, x=None, w=None):
+        P[cid] = dict(lane=li, x=cx(li) - SW / 2 if x is None else x, w=SW if w is None else w, y=y, h=h, bar=x is not None)
+        return P[cid]
+
+    def at(n, other):                                        # x where a connector leaves / enters: the centre, or along a bar the nearest point to the other end
+        if not n["bar"]:
+            return n["x"] + n["w"] / 2
+        o = other["x"] + other["w"] / 2 if not other["bar"] else n["x"] + n["w"] / 2
+        return min(max(o, n["x"] + 10), n["x"] + n["w"] - 10)
+
+    def link(a, b, label="", colour=GREY, mode="adj"):
+        A, B_ = P[a], P[b]
+        bx = at(B_, A)
+        entry = f"entryX={round((bx - B_['x']) / B_['w'], 4)};entryY=0;entryDx=0;entryDy=0;"
+        if mode == "adj":                                    # next row: straight down, or one step sideways in the gap above the target
+            ax = at(A, B_)
+            edge(a, b, label, colour, f"exitX={round((ax - A['x']) / A['w'], 4)};exitY=1;exitDx=0;exitDy=0;" + entry,
+                 points=None if abs(ax - bx) < 1 else [(ax, B_["y"] - 20), (bx, B_["y"] - 20)])
+        else:                                                # past the rows of a branch: down the free strip at the edge of the lane
+            gx = left(A["lane"]) + 8 if mode == "left" else left(A["lane"]) + LANE_W - 8
+            if B_["bar"]:
+                bx = min(max(gx, B_["x"] + 10), B_["x"] + B_["w"] - 10)
+                entry = f"entryX={round((bx - B_['x']) / B_['w'], 4)};entryY=0;entryDx=0;entryDy=0;"
+            mid = A["y"] + A["h"] / 2
+            edge(a, b, label, colour, SIDE[mode] + entry, points=[(gx, mid)] + ([] if abs(gx - bx) < 1 else [(gx, B_["y"] - 20), (bx, B_["y"] - 20)]))
+
+    cur = lanes.index(next(flat())["role"] or "") if (next(flat())["role"] or "") in lanes else 0
+    y = HEAD_Y + HEAD_H + 20
+    vertex("mea_start", start_label, ST["start"], cx(cur) - 65, y, 130, 38)
+    put("mea_start", cur, y, 38, cx(cur) - 65, 130)["bar"] = False
+    prev = ("mea_start", "", GREY, "adj")
+    y += 38 + 40
+    to_end, to_back = [], []
+    for i, st in enumerate(steps, 1):
+        cid = f"s{i}"
+        if st["kind"] == "parallel":
+            by_lane = {}
+            for k, ps in enumerate(st["steps"], 1):
+                cur = lanes.index(ps["role"]) if ps["role"] else cur
+                by_lane.setdefault(cur, []).append((ps, f"{cid}p{k}"))
+            lo, hi = min(by_lane), max(by_lane)
+            bx, bw = left(lo) + 6, (hi - lo + 1) * LANE_W - 12
+            vertex(cid, "", ST["fork"], bx, y, bw, 8)
+            put(cid, lo, y, 8, bx, bw)
+            link(prev[0], cid, *prev[1:])
+            top, bottoms, geo = y + 8 + 30, [], []
+            for li, items in by_lane.items():
+                yy = top
+                for n, (ps, pid_) in enumerate(items):
+                    h = shape(ps, pid_, cx(li) - SW / 2, SW, yy, narrow=True)
+                    geo.append((pid_, li, yy, h, n, len(items)))
+                    yy += h + 30
+                bottoms.append(yy - 30)
+            jy = max(bottoms) + 30
+            vertex(f"{cid}j", "", ST["join"], bx, jy, bw, 8)
+            put(f"{cid}j", lo, jy, 8, bx, bw)
+            frac = lambda x: round((x - bx) / bw, 4)
+            for pid_, li, yy, h, n, cnt in geo:
+                if n == 0:
+                    edge(cid, pid_, extra=f"exitX={frac(cx(li))};exitY=1;exitDx=0;exitDy=0;" + INTO)
+                else:                                        # a second step of the same role: reached down the right edge of the lane
+                    gx = left(li) + LANE_W - 8 - 5 * (n - 1)
+                    edge(cid, pid_, extra=f"exitX={frac(gx)};exitY=1;exitDx=0;exitDy=0;" + INTO, points=[(gx, yy - 12), (cx(li), yy - 12)])
+                if n == cnt - 1:
+                    edge(pid_, f"{cid}j", extra=DOWN + f"entryX={frac(cx(li))};entryY=0;entryDx=0;entryDy=0;")
+                else:                                        # ... and it joins down the left edge of the lane
+                    gx = left(li) + 8 + 5 * n
+                    edge(pid_, f"{cid}j", extra=SIDE["left"] + f"entryX={frac(gx)};entryY=0;entryDx=0;entryDy=0;", points=[(gx, yy + h / 2)])
+            prev = (f"{cid}j", "", GREY, "adj")
+            y = jy + 8 + 40
+            continue
+        cur = lanes.index(st["role"]) if st["role"] else cur
+        hgt = shape(st, cid, cx(cur) - SW / 2, SW, y)
+        put(cid, cur, y, hgt)
+        link(prev[0], cid, *prev[1:])
+        prev = (cid, "", GREY, "adj")
+        y += hgt + 40
+        if st["kind"] != "decision":
+            continue
+        br = st["branch"]
+        if not br:
+            prev = (cid, "Yes", YES, "adj")                  # the other answer is left open on purpose (flow check reports it)
+            continue
+        side, main = br["label"], ("Yes" if br["label"] == "No" else "No")
+        side_col, main_col = (NO if side == "No" else YES), (YES if main == "Yes" else NO)
+        dec_lane, bprev, blane = cur, cid, cur
+        for k, bs in enumerate(br["steps"], 1):
+            bid = f"{cid}b{k}"
+            blane = lanes.index(bs["role"]) if bs["role"] else blane
+            bh = shape(bs, bid, cx(blane) - SW / 2, SW, y)
+            put(bid, blane, y, bh)
+            if bprev == cid and blane != dec_lane:           # the branch leaves the decision on the side that faces its lane
+                edge(cid, bid, side, side_col, SIDE["right" if blane > dec_lane else "left"] + INTO, points=[(cx(blane), P[cid]["y"] + P[cid]["h"] / 2)])
+            else:
+                link(bprev, bid, side if bprev == cid else "", side_col if bprev == cid else GREY)
+            bprev = bid
+            y += bh + 40
+        first_lane = P[f"{cid}b1"]["lane"] if br["steps"] else dec_lane
+        prev = (cid, main, main_col, "adj" if not br["steps"] else ("right" if first_lane < dec_lane else "left"))
+        lab, col = (side, side_col) if bprev == cid else ("", GREY)
+        if br.get("back"):
+            to_back.append((bprev, lab, col, f"s{br['back']}"))
+        elif br["to_end"]:
+            to_end.append((bprev, lab, col))
+        cur = dec_lane
+    vertex("mea_end", end_label, ST["end"], cx(cur) - 65, y, 130, 38)
+    put("mea_end", cur, y, 38, cx(cur) - 65, 130)["bar"] = False
+    link(prev[0], "mea_end", *prev[1:])
+    for k, (src, label, colour) in enumerate(to_end):        # down the free strip right of the lanes
+        gx, A = far_right + 14 + 6 * (k % 4), P[src]
+        edge(src, "mea_end", label, colour, SIDE["right"] + "entryX=1;entryY=0.5;entryDx=0;entryDy=0;", points=[(gx, A["y"] + A["h"] / 2), (gx, y + 19)])
+    for k, (src, label, colour, target) in enumerate(to_back):   # up the free strip left of the lanes
+        gx, A, T = X0 - 20 - 8 * (k % 4), P[src], P[target]
+        edge(src, target, label, colour, SIDE["left"] + "entryX=0;entryY=0.5;entryDx=0;entryDy=0;", points=[(gx, A["y"] + A["h"] / 2), (gx, T["y"] + T["h"] / 2)])
+    bottom = y + 38 + 20
+    for li, name in reversed(list(enumerate(lanes))):        # lanes behind the steps
+        for cid, label, style, yy, hh in ((f"mea_lane{li}", "", ST["lane_body"], HEAD_Y + HEAD_H, bottom - HEAD_Y - HEAD_H),
+                                          (f"mea_laneh{li}", name or "Role not stated", ST["lane_head"].format(color=colours.get(name, GREY)), HEAD_Y, HEAD_H)):
+            c = etree.Element("mxCell", id=cid, value=escape(label, quote=False), style=style, vertex="1", parent="1")
+            g = etree.SubElement(c, "mxGeometry", x=str(left(li)), y=str(yy), width=str(LANE_W), height=str(hh))
+            g.set("as", "geometry")
+            cells.insert(2, c)
+    return 60 if to_back else 0
 
 
 def steps_from_activities(activities):

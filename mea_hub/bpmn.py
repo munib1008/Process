@@ -18,7 +18,8 @@ from . import __version__, flowread
 
 NS = dict(bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL", bpmndi="http://www.omg.org/spec/BPMN/20100524/DI",
           dc="http://www.omg.org/spec/DD/20100524/DC", di="http://www.omg.org/spec/DD/20100524/DI")
-TAG = {"start": "startEvent", "end": "endEvent", "activity": "task", "decision": "exclusiveGateway", "ref": "callActivity"}
+TAG = {"start": "startEvent", "end": "endEvent", "activity": "task", "decision": "exclusiveGateway", "ref": "callActivity",
+       "fork": "parallelGateway", "join": "parallelGateway"}
 FLOW = set(TAG)
 SCALE = 1.5          # draw.io shapes are compact; BPMN tools write larger text, so the layout is enlarged evenly
 
@@ -37,7 +38,7 @@ def _box(n):
     cx, cy = x + w / 2, y + h / 2
     if n["kind"] in ("start", "end"):
         return (cx - 18, cy - 18, 36, 36)
-    if n["kind"] == "decision":
+    if n["kind"] in ("decision", "fork", "join"):
         return (cx - 25, cy - 25, 50, 50)
     return (x, y, w, h)
 

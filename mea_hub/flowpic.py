@@ -48,7 +48,7 @@ def is_area(style: dict) -> bool:
 def layout(xml: str, page: int = 0) -> dict:
     """Rectangles (x0, y0, x1, y1 in diagram units) of the sheet, the frame, its title bar, the legend, the flow and the export areas."""
     sc = drawio.scene(xml, page)
-    frame, title_h, legend, areas, rest = None, 0.0, [], [], []
+    frame, title_h, legend, areas, rest, solid = None, 0.0, [], [], [], []
     for b in sc["boxes"].values():
         st = b["style"]
         k = st.get("meaKind")
@@ -60,6 +60,8 @@ def layout(xml: str, page: int = 0) -> dict:
             legend.append(_rect(b))
         else:
             rest.append(_rect(b))
+            if k != "lane":                                  # lanes run the whole height: a tall flow may still be cut between its steps
+                solid.append(_rect(b))
     pts = [(p[0], p[1], p[0], p[1]) for e in sc["edges"] if e["style"].get("meaKind") != "legend" for p in e["points"]]
     flow = _union(rest + pts)
     everything = _union(rest + pts + legend + [a["box"] for a in areas] + ([frame] if frame else []))
@@ -67,7 +69,7 @@ def layout(xml: str, page: int = 0) -> dict:
     if sheet and everything:
         sheet = _union([sheet, everything])
     areas.sort(key=lambda a: (round(a["box"][1] / 40.0), a["box"][0]))
-    return dict(sheet=sheet, frame=frame, title_h=title_h, legend=_union(legend), flow=flow, areas=areas, shapes=rest)
+    return dict(sheet=sheet, frame=frame, title_h=title_h, legend=_union(legend), flow=flow, areas=areas, shapes=solid)
 
 
 def plan(xml: str, mode: str = "flow") -> dict:

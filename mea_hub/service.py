@@ -3,6 +3,7 @@ import base64
 import datetime as dt
 import difflib
 import hashlib
+import io
 import json
 import os
 import re
@@ -1181,6 +1182,9 @@ def inbox(user):
             out.append(dict(kind="Changes requested", process_id=r["process_id"], name=r["name"], detail=f"v{r['version']}"))
         if r["next_review"] and r["next_review"] < today and ((r["owner"] or "").lower() in me or user["role"] in ("admin", "controller")):
             out.append(dict(kind="Review overdue", process_id=r["process_id"], name=r["name"], detail=f"due {r['next_review']}"))
+    for c in q("SELECT c.id,c.author,p.process_id,p.name,p.owner,p.department_id FROM comments c JOIN processes p ON p.id=c.process_id WHERE c.category='change_request' AND c.status='open' ORDER BY c.id"):
+        if c["author"] != user["username"] and ((c["owner"] or "").lower() in me or can(user, "manage_findings", dict(department_id=c["department_id"]))):
+            out.append(dict(kind="Change request", process_id=c["process_id"], name=c["name"], detail=f"#{c['id']} from {c['author']}"))
     return out
 
 
@@ -1265,15 +1269,16 @@ def link_ref_nodes(dvid=None):
 
 
 # ------------------------------------------------------------------ audit & review comments
-COMMENT_CATEGORIES = ["comment", "question", "observation", "improvement", "nonconformity"]
+COMMENT_CATEGORIES = ["comment", "question", "observation", "improvement", "nonconformity", "change_request"]
 COMMENT_SEVERITIES = ["info", "minor", "major"]
 COMMENT_STATUSES = ["open", "in_progress", "resolved", "closed"]
 COMMENT_SECTIONS = ["", "Objective & definition", "Flowchart", "Activities", "RACI", "SAP", "KPI", "Escalation", "Content", "Other"]
 
 
-def add_comment(pid_text, user, body, category="comment", severity="info", section="", parent_id=None, version_id=None):
+def add_comment(pid_text, user, body, category="comment", severity="info", section="", parent_id=None, version_id=None, node_id=None, _reader=False):
     proc = get_process(pid_text)
-    need(user, "comment", proc)
+    if not _reader:
+        need(user, "comment", proc)
     body = (body or "").strip()
     if not body:
         raise Invalid("Comment is empty.")
@@ -1287,11 +1292,187 @@ def add_comment(pid_text, user, body, category="comment", severity="info", secti
         if not par:
             raise Invalid("Parent comment not found.")
         category, severity, section = "reply", "info", par["section"]
+    node_label = ""
+    if node_id and not parent_id:                            # pinned to one shape of this version's flowchart
+        hit = [n for n in (flow_steps(v["diagram_version_id"]) if v.get("diagram_version_id") else []) if n["node_id"] == str(node_id)]
+        if not hit:
+            raise Invalid("This step is not part of the flowchart of that version.")
+        node_label, section = (hit[0]["label"] or str(node_id))[:200], "Flowchart"
+    else:
+        node_id = None
     with tx():
-        cur = db.db().execute("INSERT INTO comments(process_id,version_id,author,body,kind,category,severity,status,version_label,section,parent_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                              (proc["id"], v["id"], user["username"], body[:4000], "comment", category, severity, "open", v["version"], str(section)[:60], parent_id, now()))
+        cur = db.db().execute("INSERT INTO comments(process_id,version_id,author,body,kind,category,severity,status,version_label,section,parent_id,created_at,node_id,node_label) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                              (proc["id"], v["id"], user["username"], body[:4000], "comment", category, severity, "open", v["version"], str(section)[:60], parent_id, now(), node_id, node_label))
         audit(user, "comment_added", "process", pid_text, f"#{cur.lastrowid} {category}/{severity} on v{v['version']}: {body[:120]}")
     return cur.lastrowid
+
+
+def request_change(pid_text, user, body, section="", node_id=None):
+    """Any reader can tell the owner that something in a process is wrong or outdated. It is recorded against the version the
+    reader sees (the published one for readers) and appears as a task for the owner, the department owner and the Document Controller."""
+    proc = get_process(pid_text)
+    v = published_version(proc["id"]) if not can(user, "view_all") else latest_version(proc["id"])
+    if not v:
+        raise Forbidden("This process has no published version yet.")
+    if len((body or "").strip()) < 10:
+        raise Invalid("Describe in a sentence what should change.")
+    if one("SELECT COUNT(*) AS n FROM comments WHERE category='change_request' AND status='open' AND author=?", (user["username"],))["n"] >= 25:
+        raise Invalid("You already have 25 open suggestions. Wait for the owners to answer them before sending more.")
+    return add_comment(pid_text, user, body, "change_request", "minor", section, None, v["id"], node_id, _reader=True)
+
+
+# ------------------------------------------------------------------ reading statistics (counts only, never who read what)
+def _reader_key(user):
+    """Pseudonym of a reader for counting: a keyed hash, so the table does not say who opened what."""
+    salt = cfg("usage_salt")
+    if not salt:
+        salt = secrets.token_hex(16)
+        set_cfg("usage_salt", salt)
+    return int(hashlib.sha256(f"{salt}:{user['id']}".encode()).hexdigest()[:14], 16)
+
+
+def record_view(user, pid: int):
+    """One reading per person, process and day. Kept for 400 days."""
+    try:
+        today = dt.date.today()
+        with tx():
+            cur = db.db().execute("INSERT OR IGNORE INTO views(process_id,day,user_id) VALUES(?,?,?)", (pid, today.isoformat(), _reader_key(user)))
+            if cur.rowcount and today.day == 1:
+                db.db().execute("DELETE FROM views WHERE day<?", ((today - dt.timedelta(days=400)).isoformat(),))
+    except Exception:
+        pass                                                 # statistics must never stop somebody from reading
+
+
+# ------------------------------------------------------------------ KPI actuals
+PERIOD_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2])|-Q[1-4])?$")
+_TARGET_RE = re.compile(r"(≥|>=|=>|≤|<=|=<|>|<|at least|min(?:imum)?\.?|not less than|above|over|more than|at most|max(?:imum)?\.?|not more than|below|under|less than|within)?\s*(-?\d+(?:[.,]\d+)?)\s*(%)?", re.I)
+_UP = {"≥", ">=", "=>", ">", "at least", "min", "min.", "minimum", "not less than", "above", "over", "more than"}
+
+
+def parse_target(text):
+    """'≥ 95 %' -> ('min', 95.0, '%'); '< 2 days' -> ('max', 2.0, ''); '95 %' -> (None, 95.0, '%'); no number -> None.
+    A target without a direction is not rated: the tool does not guess whether more or less is better."""
+    m = _TARGET_RE.search((text or "").replace("\xa0", " "))
+    if not m:
+        return None
+    op = (m.group(1) or "").lower().strip()
+    return ("min" if op in _UP else "max" if op else None, float(m.group(2).replace(",", ".")), m.group(3) or "")
+
+
+def kpi_status(target_text, value):
+    t = parse_target(target_text)
+    if value is None or not t or not t[0]:
+        return "unrated" if value is not None else None
+    return "met" if (value >= t[1] if t[0] == "min" else value <= t[1]) else "missed"
+
+
+def record_kpi_value(user, pid_text, kpi, period, value, note=""):
+    """Actual value of a KPI for a month (2026-10), a quarter (2026-Q4) or a year (2026). An empty value removes the entry.
+    Actuals are operating data: they are not part of a document version and need no approval."""
+    proc = get_process(pid_text)
+    need(user, "edit", proc)
+    v = latest_version(proc["id"])
+    names = {(k.get("name") or "").strip().lower(): (k.get("name") or "").strip() for k in (v["content"].get("kpis") or [])}
+    name = names.get((kpi or "").strip().lower())
+    if not name:
+        raise Invalid("This KPI is not defined in the process. Add it to the KPI table first.")
+    period = (period or "").strip().upper()
+    if not PERIOD_RE.match(period):
+        raise Invalid("Period must be a month (2026-10), a quarter (2026-Q4) or a year (2026).")
+    with tx():
+        if value in (None, ""):
+            db.db().execute("DELETE FROM kpi_values WHERE process_id=? AND kpi=? AND period=?", (proc["id"], name, period))
+            audit(user, "kpi_value_removed", "process", proc["process_id"], f"{name} {period}")
+            return dict(removed=True)
+        try:
+            num = float(str(value).replace("%", "").replace(",", ".").strip())
+        except ValueError:
+            raise Invalid("The value must be a number.")
+        db.db().execute("INSERT INTO kpi_values(process_id,kpi,period,value,note,entered_by,entered_at) VALUES(?,?,?,?,?,?,?) "
+                        "ON CONFLICT(process_id,kpi,period) DO UPDATE SET value=excluded.value,note=excluded.note,entered_by=excluded.entered_by,entered_at=excluded.entered_at",
+                        (proc["id"], name, period, num, (note or "").strip()[:300], user["username"], now()))
+        audit(user, "kpi_value_recorded", "process", proc["process_id"], f"{name} {period} = {num:g}")
+    return dict(value=num, period=period, kpi=name)
+
+
+def kpi_values(pid: int):
+    out = {}
+    for r in q("SELECT kpi,period,value,note,entered_by,entered_at FROM kpi_values WHERE process_id=? ORDER BY period", (pid,)):
+        out.setdefault(r["kpi"].lower(), []).append(r)
+    return out
+
+
+_STEPS = {}
+
+
+def flow_steps(dvid):
+    """The steps of a flow a comment can be pinned to: activities, decisions and linked processes in reading order
+    (for a tagged flow); every labelled shape otherwise."""
+    if dvid in _STEPS:
+        return _STEPS[dvid]
+    row = one("SELECT xml FROM diagram_versions WHERE id=?", (dvid,))
+    out = None
+    if row:
+        from . import flowread
+        if flowread.is_tagged(row["xml"]):
+            try:
+                g = flowread.read(row["xml"])["graph"]["nodes"]
+                out = [dict(node_id=n["id"], label=n["label"]) for n in sorted(g, key=lambda n: (n["y"], n["x"])) if n["kind"] in ("activity", "decision", "ref") and n["label"]]
+            except Exception:
+                out = None
+    if out is None:
+        out = [dict(node_id=n["node_id"], label=n["label"]) for n in diagram_nodes(dvid) if n["label"]]
+    if len(_STEPS) > 400:
+        _STEPS.clear()
+    _STEPS[dvid] = out
+    return out
+
+
+# ------------------------------------------------------------------ process landscape
+_HOTSPOTS = {}
+
+
+def flow_hotspots(dvid):
+    """Shapes of a flow picture that open a process: dict(picture, hotspots=[process_id, label, x, y, w, h as fractions of
+    the picture], shapes, linked). Empty hotspots when the picture cannot be matched to the drawing."""
+    if dvid in _HOTSPOTS:
+        return _HOTSPOTS[dvid]
+    from . import flowpic
+    dv = one("SELECT xml,preview_asset_id,preview_box FROM diagram_versions WHERE id=?", (dvid,))
+    if not dv:
+        raise NotFound("Diagram version not found")
+    nodes = diagram_nodes(dvid)
+    refs = {n["node_id"]: (n["meta"]["process_ref"], n["label"]) for n in nodes if n["meta"].get("process_ref")}
+    res = dict(picture=f"/api/assets/{dv['preview_asset_id']}" if dv["preview_asset_id"] else None, hotspots=[], shapes=sum(1 for n in nodes if n["label"]), linked=len(refs))
+    if refs and dv["preview_asset_id"]:
+        try:
+            from PIL import Image
+            mime, png = asset_bytes(dv["preview_asset_id"])
+            w, h = Image.open(io.BytesIO(png)).size
+            cover = flowpic.cover_of(jloads(dv["preview_box"]))
+            if not cover:
+                s = flowpic.layout(dv["xml"])["sheet"]
+                cover = (s[0] - 0.5 - flowpic.BORDER, s[1] - 0.5 - flowpic.BORDER, s[2] - s[0] + 1 + 2 * flowpic.BORDER, s[3] - s[1] + 1 + 2 * flowpic.BORDER)
+            kx, ky = w / cover[2], h / cover[3]
+            if 0.1 < kx < 8 and abs(kx - ky) / kx <= 0.03:   # the picture shows exactly this drawing
+                boxes = drawio.scene(dv["xml"])["boxes"]
+                known = {r["process_id"] for r in q("SELECT process_id FROM processes")}
+                for nid, (ref, label) in refs.items():
+                    b = boxes.get(nid)
+                    if b and ref in known:
+                        res["hotspots"].append(dict(process_id=ref, label=label[:120], x=round((b["x"] - cover[0]) / cover[2], 5), y=round((b["y"] - cover[1]) / cover[3], 5),
+                                                    w=round(b["w"] / cover[2], 5), h=round(b["h"] / cover[3], 5)))
+        except Exception:
+            res["hotspots"] = []
+    if len(_HOTSPOTS) > 300:
+        _HOTSPOTS.clear()
+    _HOTSPOTS[dvid] = res
+    return res
+
+
+def my_requests(user):
+    return q("SELECT c.id,c.body,c.status,c.resolution,c.created_at,c.resolved_at,c.version_label,p.process_id,p.name FROM comments c JOIN processes p ON p.id=c.process_id "
+             "WHERE c.category='change_request' AND c.author=? ORDER BY c.id DESC LIMIT 50", (user["username"],))
 
 
 def update_comment(user, cid, status=None, resolution=None):
@@ -1374,7 +1555,7 @@ def flow_checks(dvid):
     return res
 
 
-def build_flow(user, text, title="", pid_text=None, link=True):
+def build_flow(user, text, title="", pid_text=None, link=True, layout="column"):
     """Create a standard flow from one line per step. For a process: becomes its flowchart (a new revision when one
     exists) and, when linked, the activity table / roles / SAP references follow the flow from now on."""
     from . import flowbuild, flowread
@@ -1383,7 +1564,7 @@ def build_flow(user, text, title="", pid_text=None, link=True):
     dept = one("SELECT code FROM departments WHERE id=?", (proc["department_id"],)) if proc and proc.get("department_id") else None
     name = (proc["name"] if proc else (title or "Untitled flow")).strip()[:120]
     try:
-        xml, warnings = flowbuild.build(name, proc["process_id"] if proc else "", dept["code"] if dept else "", text, master_legend())
+        xml, warnings = flowbuild.build(name, proc["process_id"] if proc else "", dept["code"] if dept else "", text, master_legend(), layout=layout if layout in flowbuild.LAYOUTS else "column")
     except ValueError as e:
         raise Invalid(str(e))
     xml = drawio.normalize(xml)

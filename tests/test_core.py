@@ -814,6 +814,144 @@ def test_draft_raci_and_sap_work_instructions_use_only_the_flow(users):
     assert ed.call("PUT", f"/api/process/{mine[0]}/draft", {"content": w, "base_updated_at": None})[0] == 200          # the draft is the user's to complete
 
 
+def _publish(users, pid, summary="first issue"):
+    assert users["editor"].call("POST", f"/api/process/{pid}/submit", {"change_summary": summary})[0] == 200
+    assert users["reviewer"].call("POST", f"/api/process/{pid}/review", {"decision": "approve_review"})[0] == 200
+    assert users["approver"].call("POST", f"/api/process/{pid}/approve", {"decision": "approve"})[0] == 200
+    assert users["controller"].call("POST", f"/api/process/{pid}/publish")[0] == 200
+
+
+def test_readers_suggest_changes_and_comments_are_pinned_to_a_step(users):
+    """A reader tells the owner what is wrong (on the published version, optionally on one step); the owner gets a task and answers."""
+    ed, viewer, ctl, rev = users["editor"], users["viewer"], users["controller"], users["reviewer"]
+    svc.set_cfg("master_legend", json.dumps(FLOW_LEGEND))
+    pid = "ZZ-M-CQ-01"
+    assert ed.call("POST", "/api/process", {"name": "Change request demo", "department": "LOG", "process_id": pid})[0] == 200
+    assert ed.call("POST", "/api/flows/build", {"process_id": pid, "steps": "Sales: Take order\nLogistics: Ship order"})[0] == 200
+    assert viewer.call("POST", f"/api/process/{pid}/change-request", {"body": "Step 2 is done by the warehouse now"})[0] == 403   # nothing published yet
+    _publish(users, pid)
+    d = viewer.call("GET", f"/api/process/{pid}")[1]
+    steps = {n["label"]: n["node_id"] for n in d["diagram"]["steps"]}
+    assert list(steps) == ["Take order", "Ship order"] and d["diagram"]["nodes"] == [] and d["comments"] == []       # the steps only – no legend, no frame
+    assert viewer.call("POST", f"/api/process/{pid}/change-request", {"body": "wrong"})[0] == 400                               # say what should change
+    assert viewer.call("POST", f"/api/process/{pid}/change-request", {"body": "Step 2 is done by the warehouse now", "node_id": "nope"})[0] == 400
+    s, r = viewer.call("POST", f"/api/process/{pid}/change-request", {"body": "Step 2 is done by the warehouse now", "node_id": steps["Ship order"]})
+    assert s == 200
+    assert viewer.call("POST", f"/api/process/{pid}/comments", {"body": "an audit comment"})[0] == 403                          # readers still cannot write audit comments
+    mine = viewer.call("GET", "/api/my-requests")[1]["rows"]
+    assert mine[0]["id"] == r["id"] and mine[0]["status"] == "open" and mine[0]["process_id"] == pid
+    task = lambda c: [t for t in c.call("GET", "/api/inbox")[1]["rows"] if t["kind"] == "Change request" and t["process_id"] == pid]
+    assert len(task(ctl)) == 1 and "demo_viewer" in task(ctl)[0]["detail"] and not task(viewer)
+    cm = [c for c in ed.call("GET", f"/api/process/{pid}")[1]["comments"] if c["id"] == r["id"]][0]
+    assert (cm["category"], cm["node_label"], cm["section"], cm["version_label"], cm["author"]) == ("change_request", "Ship order", "Flowchart", "1.0", "demo_viewer")
+    # a reviewer pins an audit comment to a step as well
+    s, c2 = rev.call("POST", f"/api/process/{pid}/comments", {"body": "Who confirms the order?", "category": "question", "node_id": steps["Take order"]})
+    assert s == 200 and [c for c in rev.call("GET", f"/api/process/{pid}")[1]["comments"] if c["id"] == c2["id"]][0]["node_label"] == "Take order"
+    assert rev.call("POST", f"/api/process/{pid}/comments", {"body": "x y z", "node_id": "nope"})[0] == 400
+    # the answer reaches the reader and the task is gone
+    assert ed.call("PUT", f"/api/comments/{r['id']}", {"status": "resolved", "resolution": "Correct – changed in the next version"})[0] == 200
+    mine = viewer.call("GET", "/api/my-requests")[1]["rows"]
+    assert mine[0]["status"] == "resolved" and "next version" in mine[0]["resolution"] and not task(ctl)
+
+
+def test_reading_statistics_and_kpi_actuals(users):
+    from openpyxl import Workbook, load_workbook
+    ed, viewer, ctl = users["editor"], users["viewer"], users["controller"]
+    pid = "ZZ-M-KP-01"
+    assert ed.call("POST", "/api/process", {"name": "KPI demo", "department": "LOG", "process_id": pid})[0] == 200
+    kpis = [dict(name="On-time delivery", definition="Deliveries on the confirmed date", target="≥ 95 %"), dict(name="Lead time", definition="Order to dispatch", target="2 days")]
+    assert ed.call("PUT", f"/api/process/{pid}/draft", {"content": {"kpis": kpis}})[0] == 200
+    val = lambda c, **kw: c.call("POST", "/api/kpis/value", dict(process_id=pid, **kw))
+    assert val(viewer, kpi="On-time delivery", period="2026-10", value=96)[0] == 403
+    assert val(ed, kpi="On-time delivery", period="October", value=96)[0] == 400
+    assert val(ed, kpi="Unknown KPI", period="2026-10", value=96)[0] == 400
+    assert val(ed, kpi="On-time delivery", period="2026-10", value="good")[0] == 400
+    assert val(ed, kpi="On-time delivery", period="2026-09", value=93.5)[0] == 200
+    assert val(ed, kpi="on-time delivery", period="2026-10", value="96,2 %", note="SAP report")[1]["value"] == 96.2
+    assert val(ed, kpi="Lead time", period="2026-q3", value=3)[1]["period"] == "2026-Q3"
+    rows = {x["name"]: x for x in ed.call("GET", "/api/kpis")[1]["rows"] if x["process_id"] == pid}
+    otd, lt = rows["On-time delivery"], rows["Lead time"]
+    assert otd["status"] == "met" and otd["target_rule"] == "min" and otd["latest"]["period"] == "2026-10" and [h["status"] for h in otd["history"]] == ["missed", "met"] and otd["can_enter"]
+    assert lt["status"] == "unrated" and lt["target_rule"] is None and lt["target_value"] == 2          # no direction in the target: not rated, never guessed
+    assert svc.parse_target("max. 2 days") == ("max", 2.0, "") and svc.parse_target("< 5 %") == ("max", 5.0, "%") and svc.parse_target("at least 98%")[0] == "min" and svc.parse_target("n/a") is None
+    assert val(ed, kpi="Lead time", period="2026-Q3", value="")[1] == {"removed": True}
+    assert not [x for x in ed.call("GET", "/api/kpis")[1]["rows"] if x["process_id"] == pid and x["name"] == "Lead time"][0]["history"]
+    assert ed.call("GET", f"/api/process/{pid}")[1]["version"]["version"] == "0.1"                     # actuals never create a document version
+    # Excel: the register carries the actuals and takes them back
+    ws = load_workbook(io.BytesIO(ctl.call("GET", "/api/register.xlsx", raw=True)[1]))["KPI Actuals"]
+    assert [pid, "On-time delivery", "2026-10", 96.2, "SAP report", "≥ 95 %", "met"] in [list(r) for r in ws.iter_rows(values_only=True)]
+    wb = Workbook(); a = wb.active; a.title = "KPI Actuals"; a.append(["Process ID", "KPI", "Period", "Value", "Note"])
+    a.append([pid, "On-time delivery", "2026-11", 97, ""]); a.append([pid, "Lead time", "2026", 2.5, "year"]); a.append([pid, "No such KPI", "2026-11", 1, ""])
+    bio = io.BytesIO(); wb.save(bio)
+    s, rep = ctl.call("POST", "/api/register-import", bio.getvalue(), headers={"Content-Type": "application/octet-stream"})
+    assert s == 200 and rep["kpi_values"] == 2 and any("No such KPI" in e for e in rep["errors"])
+    assert [x for x in ed.call("GET", "/api/kpis")[1]["rows"] if x["process_id"] == pid and x["name"] == "On-time delivery"][0]["latest"]["period"] == "2026-11"
+    # reading statistics: one reading per person and day, counted under a pseudonym
+    assert viewer.call("GET", "/api/usage")[0] == 403
+    row = lambda: [x for x in ctl.call("GET", "/api/usage")[1]["rows"] if x["process_id"] == pid][0]
+    first = row()
+    assert first["readers_30"] == 1 and first["readings_90"] == 1 and first["last_read"]                # the editor opened it above, several times
+    ctl.call("GET", f"/api/process/{pid}"); ctl.call("GET", f"/api/process/{pid}")
+    assert row()["readers_30"] == 2 and row()["readings_90"] == 2
+    u = ctl.call("GET", "/api/usage")[1]
+    assert u["people_30"] >= 2 and u["never"] == sum(1 for x in u["rows"] if not x["last_read"]) and u["since"]
+    assert not ({r["user_id"] for r in db.q("SELECT user_id FROM views")} & {r["id"] for r in db.q("SELECT id FROM users")})
+
+
+def test_parallel_steps_swimlanes_and_landscape(users):
+    import base64
+    from mea_hub import bpmn, flowbuild, flowread
+    ed, viewer = users["editor"], users["viewer"]
+    svc.set_cfg("master_legend", json.dumps(FLOW_LEGEND))
+    text = ("Sales: Take order\nParallel: Logistics: Plan transport\nParallel: Warehouse: Pick goods\nNote: Use the pick list\nParallel: Warehouse: Pack goods\n"
+            "Sales: Goods complete?\nNo: Warehouse: Recount\nNo: Back to 1\nLogistics: Ship order")
+    for layout in ("column", "lanes"):
+        xml, warn = flowbuild.build("Parallel demo", "ZZ-M-PL-01", "LOG", text, FLOW_LEGEND, layout=layout)
+        fr = flowread.read(drawio.normalize(xml))
+        acts = fr["activities"]
+        assert warn == [] and fr["checks"] == [] and [a["activity"] for a in acts] == ["Take order", "Plan transport", "Pick goods", "Pack goods", "Decision: Goods complete?", "Recount", "Ship order"]
+        assert acts[0]["output"] == "→ in parallel: Plan transport + Pick goods + Pack goods" and all(a["output"] == "→ Goods complete?" for a in acts[1:4])
+        assert acts[5]["output"] == "→ Take order" and "Use the pick list" in fr["notes_html"]
+        kinds = [n["kind"] for n in fr["graph"]["nodes"]]
+        assert kinds.count("fork") == 1 and kinds.count("join") == 1 and "lane" not in kinds
+        assert bpmn.summary(xml)["nodes"]["fork"] == 1 and bpmn.export(xml, "ZZ-M-PL-01", "Parallel demo").count(b"parallelGateway id=") == 2
+        assert (xml.count("meaKind=lane") == 6 and 'meaLayout="lanes"' in xml) if layout == "lanes" else "meaKind=lane" not in xml      # 3 roles: header + lane each
+    xml, warn = flowbuild.build("x", "", "", "Sales: A\nParallel: Logistics: B\nSales: C", FLOW_LEGEND)
+    assert len(warn) == 1 and "meaKind=fork" not in xml                                                  # one parallel line alone is a normal step
+    xml, warn = flowbuild.build("x", "", "", "Sales: A\n" + "\n".join(f"Parallel: Sales: P{i}" for i in range(5)), FLOW_LEGEND, layout="lanes")
+    assert len(warn) == 1 and xml.count("meaKind=activity") == 6 and len(flowread.read(xml)["activities"]) == 6
+    with pytest.raises(ValueError):
+        flowbuild.build("x", "", "", "Sales: A", FLOW_LEGEND, layout="circle")
+    assert set(ed.call("GET", "/api/config")[1]["flow_layouts"]) == {"column", "lanes"}
+    s, r = ed.call("POST", "/api/flows/build", {"title": "Lanes", "steps": text, "layout": "lanes"})
+    assert s == 200 and 'meaLayout="lanes"' in ed.call("GET", f"/api/diagrams/{r['diagram_id']}")[1]["latest"]["xml"]
+    # landscape: an overview map whose linked shapes open the process
+    assert ed.call("POST", "/api/process", {"name": "Landscape target", "department": "LOG", "process_id": "ZZ-M-LT-01"})[0] == 200
+    assert ed.call("POST", "/api/process", {"name": "Landscape overview", "department": "LOG", "process_id": "ZZ-M-LO-01", "kind": "department"})[0] == 200
+    s, b = ed.call("POST", "/api/flows/build", {"process_id": "ZZ-M-LO-01", "steps": "Sales: Start the work\nRef: ZZ-M-LT-01 Landscape target"})
+    assert s == 200
+    f = ed.call("GET", "/api/landscape/ZZ-M-LO-01")[1]
+    assert f["linked"] == 1 and f["shapes"] >= 2 and f["picture"] is None and f["hotspots"] == []       # no picture yet: nothing to click, nothing guessed
+    info = ed.call("GET", f"/api/diagrams/{b['diagram_id']}")[1]
+    pic = {}
+    png = drawio.to_png(info["latest"]["xml"], info=pic)
+    assert ed.call("POST", f"/api/diagrams/{b['diagram_id']}/lock")[0] == 200
+    s, sv = ed.call("POST", f"/api/diagrams/{b['diagram_id']}/save", {"xml": info["latest"]["xml"], "png": "data:image/png;base64," + base64.b64encode(png).decode(),
+                                                                       "box": [pic["cover"][0] + 10, pic["cover"][1] + 10, pic["cover"][2] - 20, pic["cover"][3] - 20], "base_ver": info["latest"]["ver_no"]})
+    assert s == 200
+    f = ed.call("GET", "/api/landscape/ZZ-M-LO-01")[1]
+    hs = f["hotspots"]
+    assert f["picture"] and len(hs) == 1 and hs[0]["process_id"] == "ZZ-M-LT-01" and 0 < hs[0]["x"] < 1 and 0 < hs[0]["y"] < 1 and 0 < hs[0]["w"] < 1 and 0 < hs[0]["h"] < 1
+    box = drawio.scene(info["latest"]["xml"])["boxes"]
+    ref = [bx for bx in box.values() if bx["label"].startswith("ZZ-M-LT-01")][0]
+    assert abs(hs[0]["x"] - (ref["x"] - pic["cover"][0]) / pic["cover"][2]) < 0.002 and abs(hs[0]["w"] - ref["w"] / pic["cover"][2]) < 0.002   # exactly on the shape
+    L = ed.call("GET", "/api/landscape")[1]
+    log = [d for d in L["departments"] if d["code"] == "LOG"][0]
+    assert [o for o in log["overviews"] if o["process_id"] == "ZZ-M-LO-01"][0]["linked"] == 1 and log["total"] >= 2
+    assert not any(o["process_id"] == "ZZ-M-LO-01" for d in viewer.call("GET", "/api/landscape")[1]["departments"] for o in d["overviews"])     # readers: published maps only
+    assert viewer.call("GET", "/api/landscape/ZZ-M-LO-01")[0] == 403
+
+
 def test_hosted_mode_secure_cookie_and_login_throttle(server, users):
     import urllib.request
     def login(user, pw, proto=None):
@@ -1517,5 +1655,3 @@ def test_checklist_import_creates_forms_and_flags_differing_duplicates(tmp_path)
     assert len(forms) == 1 and forms[0]["process_id"].startswith("SAL-FRM-")                      # same form in two files = ONE record
     assert db.one("SELECT 1 FROM mappings WHERE process_id=(SELECT id FROM processes WHERE process_id=?) AND role='duplicate' AND similarity IS NOT NULL", (forms[0]["process_id"],))
     assert db.one("SELECT 1 FROM findings WHERE kind='duplicate' AND severity='medium' AND title LIKE ?", (f"%{forms[0]['process_id']}%",))
-
-
