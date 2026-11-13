@@ -94,7 +94,7 @@ handful of people must *edit* in one shared installation. Do the SharePoint publ
 | Automated browser tests in the build | *Built:* `tests/e2e/run.js` – five roles through sign-in, landscape, flow from text, review / approval / release, change request, KPI, restore drill, phone layout |
 | Accessibility check | *Built:* axe-core (WCAG 2.1 A/AA) on nine pages in the build; all findings fixed. An automated check finds roughly a third of the possible problems – a manual check with keyboard and screen reader is still open |
 | Electronic signature of approvals | *Built as a signed decision record* (person, time, content fingerprint, chained register, optional password at the decision). It is **not** a qualified electronic signature in the legal sense (eIDAS) and the tool is not validated for regulated records – ask the auditor what is required |
-| Dependency scanning | *Built:* pinned versions, pip-audit in the build (no known vulnerability on 2026-11-13), Dependabot weekly |
+| Dependency scanning | *Built:* pinned versions, pip-audit in the build, Dependabot weekly. The first run in the build found 42 known vulnerabilities in Pillow 12.3.0 and stopped the release; fixed by Pillow 13.0.0. Dependabot opens update proposals as pull requests – somebody has to review and merge them |
 | Published release notes | *Built:* `CHANGELOG.md`; the build refuses to publish a version without its section |
 | Restore drill twice a year | *Built:* button and command, logged, reminder after six months. The first drill on the real server is still to be done by IT |
 

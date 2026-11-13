@@ -20,7 +20,8 @@ Phase 4: scale and assurance.
   sufficient contrast, links in text are underlined, scrolling tables can be reached by keyboard, keyboard focus is visible.
 - **Build.** The build now runs a browser journey through the real pages with five roles, the accessibility check, a load test and a scan of
   the dependencies for known vulnerabilities before the Windows package is made. Dependencies are pinned (`requirements-lock.txt`) and watched
-  by Dependabot.
+  by Dependabot. The first scan found 42 known vulnerabilities in the image library Pillow 12.3.0; this release is built with Pillow 13.0.0,
+  which fixes them.
 - Not built: PostgreSQL / a second server node (not needed at the measured capacity), BPMN import.
 
 ## 1.4.0 – 2026-11-13
