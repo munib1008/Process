@@ -1,16 +1,27 @@
-# Weekly proposals for newer versions of what the tool is built from. Each proposal runs the full build (tests, browser journey,
-# accessibility check, load test, vulnerability scan) before anybody merges it.
+# Monthly proposals for newer versions of what the tool is built from, grouped: all updates of one kind arrive together
+# in one pull request (Python packages, test tooling, build actions). Each proposal runs the full build (tests, browser
+# journey, accessibility check, load test, vulnerability scan) before anybody merges it.
+# Security fixes do not wait for the month: the vulnerability scan in the build fails as soon as one is known.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: "/"
-    schedule: {interval: weekly}
-    open-pull-requests-limit: 5
+    schedule: {interval: monthly}
+    open-pull-requests-limit: 1
+    groups:
+      python-packages:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: "/tests/e2e"
-    schedule: {interval: weekly}
-    open-pull-requests-limit: 3
+    schedule: {interval: monthly}
+    open-pull-requests-limit: 1
+    groups:
+      test-tooling:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: "/"
-    schedule: {interval: weekly}
-    open-pull-requests-limit: 3
+    schedule: {interval: monthly}
+    open-pull-requests-limit: 1
+    groups:
+      build-actions:
+        patterns: ["*"]
