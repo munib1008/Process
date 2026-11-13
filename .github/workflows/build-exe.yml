@@ -15,8 +15,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: {python-version: "3.12"}
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest tests -q
@@ -26,10 +26,10 @@ jobs:
     name: Browser journey and accessibility check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: {python-version: "3.12"}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: {node-version: "22"}
       - run: pip install -r requirements-lock.txt
       - run: npm ci
@@ -43,13 +43,13 @@ jobs:
     name: Known vulnerabilities in dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: {python-version: "3.12"}
       - run: pip install pip-audit
       - name: Python packages the tool is built from
         run: pip-audit -r requirements-lock.txt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: {node-version: "22"}
       - name: Test tooling (never shipped)
         run: npm audit --audit-level=high
@@ -64,8 +64,8 @@ jobs:
       CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
       CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: {python-version: "3.12"}
       - run: pip install -r requirements-dev.txt
       - run: pyinstaller build/mea_hub.spec --noconfirm --distpath dist/bin --workpath build/work
@@ -152,7 +152,7 @@ jobs:
           } finally {
             Stop-Process $p -ErrorAction SilentlyContinue
           }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MEA_Process_Hub_win64
           path: dist/MEA_Process_Hub

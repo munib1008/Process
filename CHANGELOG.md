@@ -3,6 +3,15 @@
 Every release has a section here; the build publishes the section of a version as the text of its GitHub Release and
 refuses to publish a version that has none. Newest first.
 
+## 1.5.1 – 2026-11-13
+Maintenance release: newer versions of the components the tool is built from. No change in functions or data.
+- Shipped in the Windows package: reportlab 5.1.0 (PDF export, was 5.0.1) and charset-normalizer 3.5.2 (was 3.5.1).
+- Build only, never shipped: pytest 9.2.0, PyInstaller 6.22.3, axe-core 4.14.0 and Playwright 1.65.0 for the browser journey and the
+  accessibility check, and version 7 of the GitHub build actions (checkout, setup-python, setup-node, upload-artifact).
+- These are the three update proposals Dependabot made after 1.5.0; each had passed the full build (tests, load test, browser journey,
+  accessibility check, vulnerability scan, Windows package with smoke test) before it was taken over.
+- Dependabot now proposes updates once a month, grouped: Python packages, test tooling, build actions.
+
 ## 1.5.0 – 2026-11-13
 Phase 4: scale and assurance.
 - **Many people at once.** A load test (`tools/load_test.py`) showed that answers slowed from 20 ms to more than 10 s between 50 and 100
