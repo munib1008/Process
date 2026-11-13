@@ -1,4 +1,4 @@
-# Security review pack – MEA Process Hub 1.2.0
+# Security review pack – MEA Process Hub 1.5.1 (sections 1–6 written for 1.2.0, additions below)
 
 For IT Security. It states what the tool is, where data goes, which controls exist and how they were tested, and what is
 **not** covered. Nothing here replaces an independent review; no penetration test has been done.
@@ -12,7 +12,7 @@ For IT Security. It states what the tool is, where data goes, which controls exi
 | Storage | One data folder on the host: `mea_hub.sqlite3`, uploaded sources, pictures, exports, backups. Not encrypted by the tool |
 | Users | Local accounts (PBKDF2-HMAC-SHA256, 200,000 iterations, per-user salt) and/or Microsoft Entra ID sign-in |
 | Roles | admin, controller, dept_owner, editor, reviewer, approver, viewer; editors and department owners can be limited to one department |
-| Code | `mea_hub/` (about 9,000 lines), 39 automated tests in `tests/test_core.py`; third-party libraries: python-docx, lxml, reportlab, openpyxl, Pillow; draw.io web app (Apache-2.0) served locally; Microsoft Teams JavaScript SDK (MIT) served locally |
+| Code | `mea_hub/` (about 9,000 lines), 46 automated tests in `tests/test_core.py` (39 when this section was written), browser, accessibility, dependency and load checks in the build; third-party libraries: python-docx, lxml, reportlab, openpyxl, Pillow; draw.io web app (Apache-2.0) served locally; Microsoft Teams JavaScript SDK (MIT) served locally |
 
 ## 2. Deployment variants and network
 | Variant | Listens on | Inbound | Outbound |
