@@ -152,7 +152,7 @@ jobs:
           } finally {
             Stop-Process $p -ErrorAction SilentlyContinue
           }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MEA_Process_Hub_win64
           path: dist/MEA_Process_Hub
