@@ -1,4 +1,4 @@
-# Security review pack – MEA Process Hub 1.5.1 (sections 1–6 written for 1.2.0, additions below)
+# Security review pack – MEA Process Hub 1.5.2 (sections 1–6 written for 1.2.0, additions below)
 
 For IT Security. It states what the tool is, where data goes, which controls exist and how they were tested, and what is
 **not** covered. Nothing here replaces an independent review; no penetration test has been done.

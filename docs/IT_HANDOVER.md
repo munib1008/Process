@@ -1,4 +1,4 @@
-# IT hand-over – MEA Process Hub 1.5.1
+# IT hand-over – MEA Process Hub 1.5.2
 
 For IT Infrastructure, IT Security and the SharePoint / Microsoft 365 administrators. Purpose: get a **decision**, a **pilot environment** and a **security review**
 without a long explanation round. Details are in the documents named in section 9; this page only says what is needed and why.
@@ -86,6 +86,6 @@ general request rate limit (limit at the proxy), uploads not scanned for malware
 Go / no-go after step 4: no open high finding, restore proven, Entra proven, a named second maintainer.
 
 ## 9. Where to find things
-Release package: GitHub release v1.5.1 (the ZIP with the EXE, `deploy/`, `docs/`). Documents: `docs/SERVER_AND_SHAREPOINT.md`, `docs/SHAREPOINT_PUBLISHING.md`, `docs/SSO_ENTRA.md`,
+Release package: GitHub release v1.5.2 (the ZIP with the EXE, `deploy/`, `docs/`). Documents: `docs/SERVER_AND_SHAREPOINT.md`, `docs/SHAREPOINT_PUBLISHING.md`, `docs/SSO_ENTRA.md`,
 `docs/ADMIN_GUIDE.md`, `docs/SECURITY_REVIEW_PACK.md`, `docs/LOAD_TEST.md`, `docs/NOTIFICATIONS.md`, `docs/TEAMS.md`, `CHANGELOG.md`.
 Questions about the content: the business owner (to be named). Questions about the tool: the maintainer (to be named).
